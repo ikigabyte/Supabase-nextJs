@@ -5,6 +5,11 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 
 export async function addTodo(formData: FormData){
+
+    // await new Promise((resolve) => {
+    //     setTimeout(resolve, 3000);
+    // })
+
     const supabase = await createClient();
     const text = formData.get("todo") as string;
     if (!text) {
