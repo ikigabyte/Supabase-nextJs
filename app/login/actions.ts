@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
+import { Provider } from '@supabase/supabase-js'
+import { getURL } from '@/utils/helpers'
 
 // Email and password for formData
 export async function emailLogin(formData: FormData) { 
@@ -48,4 +50,28 @@ export async function signOut(){
   await supabase.auth.signOut();
   console.log("succesfully signed out")
   redirect('/login');
+}
+
+export async function oAuthSignIn(provider: Provider) {
+  if (!provider) {
+    // console.log('No provider selected')
+      return redirect('/login?message=No provider selected')
+  }
+
+  // console.log("working here so far")
+  const supabase = await createClient();
+  console.log("working here so far")
+  const redirectUrl = getURL("/auth/callback")
+  const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+          redirectTo: redirectUrl,
+      }
+  })
+
+  if (error) {
+      redirect('/login?message=Could not authenticate user')
+  }
+
+  return redirect(data.url)
 }
