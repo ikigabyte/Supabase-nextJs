@@ -23,7 +23,7 @@ export async function emailLogin(formData: FormData) {
   revalidatePath('/', 'layout') // * Clearing the cache for new cache entries with the user logging in
   console.log("VALID USER LOGGING IN NOW")
   // console.logdata.
-  redirect('/todos') // * Redirecting to the todos page
+  redirect('/toprint') // * Redirecting to the todos page
   // console.log("going in now")
 }
 
@@ -37,8 +37,15 @@ export async function signup(formData: FormData) {
   }
   const { error } = await supabase.auth.signUp(data)
   if (error) {
-    redirect('/login?message=Error signing up')
+    redirect('/login?message=Check your email for the confirmation link')
   }
   revalidatePath('/', 'layout')
-  redirect('/login')
+  redirect('/login?message=Check your email for the confirmation link')
+}
+
+export async function signOut(){
+  const supabase = await createClient() // *Very important from the supabase server file
+  await supabase.auth.signOut();
+  console.log("succesfully signed out")
+  redirect('/login');
 }

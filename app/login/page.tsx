@@ -1,22 +1,20 @@
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { emailLogin, signup } from "./actions";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 
-export default async function Login({
-  searchParams,
-}: {
-  searchParams: { message: string };
-}) {
+export default async function Login({ searchParams }: { searchParams: { message: string } }) {
+  // await searchParams;
+    const supabase = await createClient();
+     const {
+       data: { user },
+     } = await supabase.auth.getUser();
+    if (user) {
+      redirect("/toprint");
+    };
   return (
     <section className="h-[calc(100vh-57px)] flex justify-center items-center">
       <Card className="mx-auto max-w-sm">
@@ -36,12 +34,7 @@ export default async function Login({
               </div>
               <Input minLength={6} name="password" id="password" type="password" required />
             </div>
-            {/* 
-            {searchParams.message && (
-              <div className="text-sm font-medium text-destructive">
-                {searchParams.message}
-              </div>
-            )} */}
+            {searchParams.message && <div className="text-sm font-medium text-destructive">{searchParams.message}</div>}
             <Button formAction={emailLogin} className="w-full">
               Sign In
             </Button>
