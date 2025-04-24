@@ -22,6 +22,7 @@ export async function emailLogin(formData: FormData) {
   }
   revalidatePath('/', 'layout') // * Clearing the cache for new cache entries with the user logging in
   console.log("VALID USER LOGGING IN NOW")
+  // console.logdata.
   redirect('/todos') // * Redirecting to the todos page
   // console.log("going in now")
 }
