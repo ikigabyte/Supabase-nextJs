@@ -4,6 +4,7 @@ import { TodoItem } from "./todo-item";
 import { TodoForm } from "./todo-form";
 import { Todo } from "@/types/custom";
 import { useOptimistic } from "react";
+import OrderHeaders from "./order-headers";
 
 export type Action = "delete" | "update" | "create";
 
@@ -30,15 +31,47 @@ export function TodoList({ todos }: { todos: Array<Todo> }) {
   return (
     <>
       <TodoForm optimisticUpdate={optimisticTodosUpdate} />
-      <div className="w-full flex flex-col gap-4">
+      <div className="w-full flex flex-col gap-0">
         {optimisticTodos?.map((todo) => {
           return (
             <TodoItem
               optimisticUpdate={optimisticTodosUpdate}
               todo={todo}
-              key={todo.id}
+              key={todo.name_id}
             />
           );
+        })}
+      </div>
+    </>
+  );
+}
+
+export function OrderList({ todos }: { todos: Array<Todo> }) {
+  const [optimisticTodos, optimisticTodosUpdate] = useOptimistic(
+    todos,
+    todoReducer
+  );
+  return (
+    <>
+     
+      {/* <TodoForm optimisticUpdate={optimisticTodosUpdate} /> */}
+
+      <div className="w-full flex flex-col gap-0">
+      <OrderHeaders
+        headers={[
+          "Name ID",
+          "Shape",
+          "Order ID",
+          "Quantity",
+          "Lamination",
+          "Print Method",
+          "Due Date",
+          "Ship Date",
+          "Notes"
+        ]}
+      />
+        {optimisticTodos?.map((todo) => {
+          return <TodoItem optimisticUpdate={optimisticTodosUpdate} todo={todo} key={todo.name_id} />;
         })}
       </div>
     </>

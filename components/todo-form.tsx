@@ -1,6 +1,6 @@
 'use client'
 
-import { addTodo } from "@/app/toprint/actions";
+import { addTodo, createOrder } from "@/app/toprint/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +12,7 @@ import { Todo } from "@/types/custom";
 
 function FormContent() {
   const { pending } = useFormStatus();
-  console.log("pending", pending);
+  // console.log("pending", pending);
   return (
     <>
       <Textarea minLength={4} name="todo" required placeholder="Add a new todo" />
@@ -31,7 +31,7 @@ export function TodoForm({ optimisticUpdate }: { optimisticUpdate: TodoOptimisti
       <CardContent className="p-3">
         <form
           ref={formRef}
-          className="flex gap-4"
+          className="flex gap-1"
           action={async (data) => { // Fake todo for the ui instantly
             const newTodo : Todo = {
               id: -1, // useful for optimistic update
@@ -41,7 +41,8 @@ export function TodoForm({ optimisticUpdate }: { optimisticUpdate: TodoOptimisti
               is_complete: false,
             }
             optimisticUpdate({action : "create", todo: newTodo})
-            await addTodo(data);
+            await createOrder(data);
+            // await addTodo(data);
             formRef.current?.reset(); // Reset the form after submission
           }}
         >

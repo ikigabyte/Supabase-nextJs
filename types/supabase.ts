@@ -34,8 +34,52 @@ export type Database = {
   }
   public: {
     Tables: {
+      orders: {
+        Row: {
+          due_date: string | null
+          history: Json | null
+          ihd_date: string | null
+          lamination: string | null
+          name_id: string
+          notes: string | null
+          order_key: number | null
+          print_method: string | null
+          production_status: string | null
+          quantity: number | null
+          shape: string | null
+        }
+        Insert: {
+          due_date?: string | null
+          history?: Json | null
+          ihd_date?: string | null
+          lamination?: string | null
+          name_id: string
+          notes?: string | null
+          order_key?: number | null
+          print_method?: string | null
+          production_status?: string | null
+          quantity?: number | null
+          shape?: string | null
+        }
+        Update: {
+          due_date?: string | null
+          history?: Json | null
+          ihd_date?: string | null
+          lamination?: string | null
+          name_id?: string
+          notes?: string | null
+          order_key?: number | null
+          print_method?: string | null
+          production_status?: string | null
+          quantity?: number | null
+          shape?: string | null
+        }
+        Relationships: []
+      }
       todos: {
         Row: {
+          date: string | null
+          due_date: string | null
           id: number
           inserted_at: string
           is_complete: boolean | null
@@ -43,6 +87,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          date?: string | null
+          due_date?: string | null
           id?: number
           inserted_at?: string
           is_complete?: boolean | null
@@ -50,6 +96,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          date?: string | null
+          due_date?: string | null
           id?: number
           inserted_at?: string
           is_complete?: boolean | null
