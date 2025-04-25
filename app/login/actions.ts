@@ -54,7 +54,7 @@ export async function signOut() {
 
 export async function oAuthSignIn(provider: Provider) {
   if (!provider) {
-    // console.log('No provider selected')
+    console.log('No provider selected')
     return redirect("/login?message=No provider selected");
   }
 
@@ -64,14 +64,14 @@ export async function oAuthSignIn(provider: Provider) {
   const redirectUrl = getURL("/auth/callback");
   console.log("redirectUrl", redirectUrl);
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
+    provider: provider,
     options: {
       redirectTo: redirectUrl,
     },
   });
 
   if (error) {
-    redirect("/login?message=Could not authenticate user");
+    return redirect("/login?message=Could not authenticate user");
   }
 
   return redirect(data.url);
