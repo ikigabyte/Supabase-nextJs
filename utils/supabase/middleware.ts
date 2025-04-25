@@ -53,8 +53,8 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
              },
          }
      )
-     console.log("now doing something here")
+    //  console.log("now doing something here")
      await supabase.auth.getUser()
-     console.log(supabase.auth.getUser())
+    //  console.log(supabase.auth.getUser())
      return response
  }

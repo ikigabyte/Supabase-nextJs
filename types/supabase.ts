@@ -42,7 +42,7 @@ export type Database = {
           lamination: string | null
           name_id: string
           notes: string | null
-          order_key: number | null
+          order_id: number | null
           print_method: string | null
           production_status: string | null
           quantity: number | null
@@ -55,7 +55,7 @@ export type Database = {
           lamination?: string | null
           name_id: string
           notes?: string | null
-          order_key?: number | null
+          order_id?: number | null
           print_method?: string | null
           production_status?: string | null
           quantity?: number | null
@@ -68,7 +68,7 @@ export type Database = {
           lamination?: string | null
           name_id?: string
           notes?: string | null
-          order_key?: number | null
+          order_id?: number | null
           print_method?: string | null
           production_status?: string | null
           quantity?: number | null

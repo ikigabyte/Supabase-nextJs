@@ -21,7 +21,7 @@ export function TodoItem({ todo, optimisticUpdate }: { todo: Order; optimisticUp
 
 export function TodoCard({ todo, optimisticUpdate }: { todo: Order; optimisticUpdate: TodoOptimisticUpdate }) {
   const { pending } = useFormStatus();
-  const [checked, setChecked] = useState(todo.is_complete);
+  const [checked, setChecked] = useState(todo.production_status == "cut" ? true : false);
 
   return (
     <Card className={cn("w-full", pending && "opacity-50")}>
@@ -34,7 +34,7 @@ export function TodoCard({ todo, optimisticUpdate }: { todo: Order; optimisticUp
           <p className="pt-1 min-w-0 break-words flex-1 border-r">{todo.lamination || ""}</p>
           <p className="pt-1 min-w-0 break-words flex-1 border-r">{todo.print_method || ""}</p>
           <p className="pt-1 min-w-0 break-words flex-1 border-r">{todo.due_date || ""}</p>
-          <p className="pt-1 min-w-0 break-words flex-1 border-r">{todo.ship_date || ""}</p>
+          <p className="pt-1 min-w-0 break-words flex-1 border-r">{todo.ihd_date || ""}</p>
           <textarea
             className="pt-1 min-w-0 break-words flex-1 col-span-2 border resize-none h-10"
             defaultValue={todo.notes || ""}
@@ -54,7 +54,7 @@ export function TodoCard({ todo, optimisticUpdate }: { todo: Order; optimisticUp
               onCheckedChange={async (val) => {
                 if (val === "indeterminate") return;
                 setChecked(val);
-                await updateTodo({ ...todo, is_complete: val });
+                // await updateTodo({ ...todo, is_complete: val }); // * Temporarily disabled for now
               }}
             />
           </span>

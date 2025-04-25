@@ -7,8 +7,20 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { OAuthButtons } from "./oath-signin";
 
-export default async function Login({ searchParams }: { searchParams: { message: string } }) {
-  // await searchParams;
+export default async function Login({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string | string[] | undefined }>;
+}) {
+  // Await and normalize searchParams.message
+  const { message: rawMessage } = await searchParams;
+  const message: string | undefined =
+    rawMessage === undefined
+      ? undefined
+      : Array.isArray(rawMessage)
+      ? rawMessage[0]
+      : rawMessage;
+
     const supabase = await createClient();
      const {
        data: { user },
@@ -35,7 +47,7 @@ export default async function Login({ searchParams }: { searchParams: { message:
               </div>
               <Input minLength={6} name="password" id="password" type="password" required />
             </div>
-            {searchParams.message && <div className="text-sm font-medium text-destructive">{searchParams.message}</div>}
+            {message && <div className="text-sm font-medium text-destructive">{message}</div>}
             <Button formAction={emailLogin} className="w-full">
               Sign In
             </Button>

@@ -2,18 +2,18 @@
 
 import { TodoItem } from "./todo-item";
 import { TodoForm } from "./todo-form";
-import { Todo } from "@/types/custom";
+import { Todo, Order } from "@/types/custom";
 import { useOptimistic } from "react";
 import OrderHeaders from "./order-headers";
 
 export type Action = "delete" | "update" | "create";
 
-export function todoReducer(state: Array<Todo>, { action, todo }: { action: Action; todo: Todo }) {
+export function todoReducer(state: Array<Order>, { action, todo }: { action: Action; todo: Order }) {
   switch (action) {
     case "delete":
-      return state.filter(({ id }) => id !== todo.id); // deletes the state id
+      return state.filter(({ name_id }) => name_id !== todo.name_id); // deletes the state id
     case "update":
-      return state.map((t) => (t.id == todo.id ? todo : t)); // change the current todo
+      return state.map((t) => (t.name_id === todo.name_id ? todo : t)); // change the current todo
     case "create":
       return [todo, ...state]; // this is at the start of the array
     default:
@@ -21,9 +21,9 @@ export function todoReducer(state: Array<Todo>, { action, todo }: { action: Acti
   }
 }
 
-export type TodoOptimisticUpdate = (action: { action: Action; todo: Todo }) => void;
+export type TodoOptimisticUpdate = (action: { action: Action; todo: Order }) => void;
 
-export function TodoList({ todos }: { todos: Array<Todo> }) {
+export function TodoList({ todos }: { todos: Array<Order> }) {
   const [optimisticTodos, optimisticTodosUpdate] = useOptimistic(
     todos,
     todoReducer
@@ -46,7 +46,7 @@ export function TodoList({ todos }: { todos: Array<Todo> }) {
   );
 }
 
-export function OrderList({ todos }: { todos: Array<Todo> }) {
+export function OrderList({ todos }: { todos: Array<Order> }) {
   const [optimisticTodos, optimisticTodosUpdate] = useOptimistic(
     todos,
     todoReducer
