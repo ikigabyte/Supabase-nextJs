@@ -1,0 +1,1 @@
+export type MaterialTypes = "white" | "holographic" | "clear" | "mag20pt" | "mag30pt" | "cling" | "reflective" | "arlon" | "floor" | "roll" | "tile";

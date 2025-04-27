@@ -1,30 +1,34 @@
-import { OrderList, TodoList } from "@/components/todo-list";
+// import { ButtonOrganizer } from "@/components/button-organizer";
+import { OrderOrganizer } from "@/components/order-organizer";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation"
- 
- export default async function ToPrintPage() {
-   const supabase = await createClient();
+import { redirect } from "next/navigation";
 
-   const {
-     data: { user },
-   } = await supabase.auth.getUser();
+export default async function ToPrintPage() {
+  const supabase = await createClient();
 
-   if (!user) {
-     return redirect("/login");
-   }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-   // Table name
-   const { data: orders } = await supabase.from("orders").select().order("due_date", { ascending: false });
-  //  console.log(todos);
-   return (
-    <section className="p-2 pt-3 max-w-8xl w-[90%] flex flex-col gap-2">
-       <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">To Print</h1>
-       <Separator className="w-full " />
-       {/* <TodoList todos={orders ?? []} /> */}
-       <OrderList todos={orders ?? []} />
-     </section>
-   );
- }
+  if (!user) {
+    console.log("User not found, redirecting to login");
+    return redirect("/login");
+  }
 
-   {/* <h1> This is the printing section</h1>; */}
+  // Fetch orders
+  // const { data: orders } = await supabase.from("orders").select().order("due_date", { ascending: false });
+
+  // Extract unique categories from orders
+
+  // Handle category click
+  // const handleCategoryClick = (category: string) => {
+  //   console.log(`Category clicked: ${category}`);
+  // };
+  return (
+    <section className="p-2 pt-10 max-w-8xl w-[90%] flex flex-col gap-2">
+  
+      <OrderOrganizer orderType="print" defaultPage="white"/>
+    </section>
+  );
+}

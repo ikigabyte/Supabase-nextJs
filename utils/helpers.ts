@@ -1,4 +1,4 @@
-import { createClient } from "./supabase/server";
+// import { createClient } from "./supabase/server";
 
 export const getURL = (path: string = "") => {
   // Check if NEXT_PUBLIC_SITE_URL is set and non-empty. Set this to your site URL in production env.
@@ -22,16 +22,16 @@ export const getURL = (path: string = "") => {
   return path ? `${url}/${path}` : url;
 };
 
-// todo Created from Github copilot make sure to adjust accordingly
-export const subscribeToOrderChanges = async () => {
-  const supabase = await createClient();
+// // todo Created from Github copilot make sure to adjust accordingly
+// export const subscribeToOrderChanges = async () => {
+//   const supabase = await createClient();
 
-  const channel = supabase
-    .channel("orders-changes")
-    .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
-      console.log("Order change received!", payload);
-    })
-    .subscribe();
+//   const channel = supabase
+//     .channel("orders-changes")
+//     .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
+//       console.log("Order change received!", payload);
+//     })
+//     .subscribe();
 
-  return channel;
-};
+//   return channel;
+// };

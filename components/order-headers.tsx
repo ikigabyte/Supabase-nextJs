@@ -1,25 +1,17 @@
-import { Checkbox } from "./ui/checkbox";
-
-export default function OrderHeaders({ headers }: { headers: string[] }) {
+export default function ElevenColumnTableHeaders() {
   return (
-    <div className="grid grid-cols-12 gap-1 w-full flex-nowrap text-center font-bold h-10">
-      {headers.map((header, index) => (
-        <p
-          key={index}
-          className={
-            index === 0 || index === headers.length - 1
-              ? "pt-1 min-w-0 break-words flex-1 border-r col-span-2"
-              : index === headers.length - 1
-              ? "pt-1 min-w-0 break-words flex-1 border-r col-span-2"
-              : "pt-1 min-w-0 break-words flex-1 border-r"
-          }
-        >
-          {header}
-        </p>
-      ))}
-      {/* <span className="pt-1 min-w-0 break-words flex-1 flex items-center justify-center">
-        <Checkbox />
-      </span> */}
+    <div className="grid grid-cols-[repeat(11,minmax(0,1fr))] gap-2 w-full text-center font-bold items-center h-10">
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 1</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 2</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 3</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 4</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 5</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 6</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 7</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 8</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Column 9</p>
+      <p className="pt-1 min-w-0 break-words flex-1 border-r">Textbox</p>
+      <p className="pt-1 min-w-0 break-words flex-1">Checkbox</p>
     </div>
   );
 }

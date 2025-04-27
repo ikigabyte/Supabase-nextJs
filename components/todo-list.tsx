@@ -5,6 +5,7 @@ import { TodoForm } from "./todo-form";
 import { Todo, Order } from "@/types/custom";
 import { useOptimistic } from "react";
 import OrderHeaders from "./order-headers";
+import { OrderColumnTable } from "./order-table";
 
 export type Action = "delete" | "update" | "create";
 
@@ -53,11 +54,19 @@ export function OrderList({ todos }: { todos: Array<Order> }) {
   );
   return (
     <>
-     
       {/* <TodoForm optimisticUpdate={optimisticTodosUpdate} /> */}
-
       <div className="w-full flex flex-col gap-0">
-      <OrderHeaders
+        {optimisticTodos?.map((todo) => {
+          return <OrderColumnTable data={todo} key={todo.name_id} />;
+        })}
+      </div>
+    </>
+  );
+}
+
+// return <OrderList optimisticUpdate={optimisticTodosUpdate} todo={todo} key={todo.name_id} />;
+
+   {/* <OrderHeaders
         headers={[
           "Name ID",
           "Shape",
@@ -69,11 +78,4 @@ export function OrderList({ todos }: { todos: Array<Order> }) {
           "Ship Date",
           "Notes"
         ]}
-      />
-        {optimisticTodos?.map((todo) => {
-          return <TodoItem optimisticUpdate={optimisticTodosUpdate} todo={todo} key={todo.name_id} />;
-        })}
-      </div>
-    </>
-  );
-}
+      /> */}
