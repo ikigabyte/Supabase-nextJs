@@ -4,8 +4,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 
 export function ScrollAreaDemo({ historySteps }: { historySteps?: string[] }) {
-  const steps = historySteps || ["No history available"];
-
+  const steps = historySteps ??  ["No history steps available"];
+  // console.log("this is the history", steps);
   return (
     <ScrollArea className="h-72 w-48 rounded-md border opacity-100 bg-white z-50">
       <div className="p-4">

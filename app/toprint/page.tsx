@@ -27,7 +27,6 @@ export default async function ToPrintPage() {
   // };
   return (
     <section className="p-2 pt-10 max-w-8xl w-[90%] flex flex-col gap-2">
-  
       <OrderOrganizer orderType="print" defaultPage="white"/>
     </section>
   );

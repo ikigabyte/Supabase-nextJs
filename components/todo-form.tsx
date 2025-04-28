@@ -13,7 +13,6 @@ import { todo } from "node:test";
 
 function FormContent() {
   const { pending } = useFormStatus();
-  // console.log("pending", pending);
   return (
     <>
       <Textarea minLength={4} name="todo" required placeholder="Add a new todo" />
@@ -34,29 +33,20 @@ export function TodoForm({ optimisticUpdate }: { optimisticUpdate: TodoOptimisti
           ref={formRef}
           className="flex gap-1"
           action={async (data) => { // Fake todo for the ui instantly
-            // const newTodo : Order = {
-            //   id: -1, // useful for optimistic update
-            //   inserted_at: "",
-            //   user_id: "",
-            //   task: data.get("todo") as string,
-            //   is_complete: false,
-            //   date: null,
-            //   due_date: null,
-            // }
-     const newTodo: Order = {
-        name_id: "hello",
-        // order_key: -1,
-        order_id: -1,
-        print_method: "",
-        shape: "",
-        quantity: null,
-        lamination: null,
-        production_status: null,
-        notes: data.get("todo") as string,
-        due_date: null,
-        ihd_date: null,
-        history: [], // initialize with empty history
-      };
+            const newTodo: Order = {
+              name_id: "hello",
+              // order_key: -1,
+              order_id: -1,
+              print_method: "",
+              shape: "",
+              quantity: null,
+              lamination: null,
+              production_status: null,
+              notes: data.get("todo") as string,
+              due_date: null,
+              ihd_date: null,
+              history: [], // initialize with empty history
+            };
             optimisticUpdate({action : "create", todo: newTodo})
             await createOrder(data);
             // await addTodo(data);
@@ -69,4 +59,3 @@ export function TodoForm({ optimisticUpdate }: { optimisticUpdate: TodoOptimisti
     </Card>
   );
 }
- 

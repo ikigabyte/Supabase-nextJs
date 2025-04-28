@@ -1,13 +1,52 @@
 import { MaterialTypes } from "@/utils/materialTypes";
-import { OrderTypes } from "@/utils/orderTypes"
+import { OrderTypes } from "@/utils/orderTypes";
+import { BARREL_OPTIMIZATION_PREFIX } from "next/dist/shared/lib/constants";
 
-export const getMaterialHeaders = (orderType : OrderTypes, material : string) => {
+export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
   switch (material) {
     case "white":
-      return ["file-name", "shape", "lamination", "material", "quantity", "due date", "ihd date", "ihd date", "notes", "", orderType];
+      return [
+        "file-name",
+        "shape",
+        "lamination",
+        "material",
+        "quantity",
+        "ink",
+        "print method",
+        "SHIP date",
+        "IHD date",
+        "notes",
+        orderType,
+      ];
     case "floor":
-      return ["Regular", "Roll"];
+      return [
+        "file-name",
+        "shape",
+        "lamination",
+        "material",
+        "quantity",
+        "-",
+        "-",
+        "SHIP date",
+        "IHD date",
+        "notes",
+        orderType,
+      ];
     default:
-      return [];
+      return [
+        "file-name",
+        "shape",
+        "lamination",
+        "material",
+        "quantity",
+        "due date",
+        "ihd date",
+        "ihd date",
+        "notes",
+        "",
+        orderType,
+      ];
   }
 };
+
+BARREL_OPTIMIZATION_PREFIX;

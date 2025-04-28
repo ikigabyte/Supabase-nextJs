@@ -27,7 +27,7 @@ export function groupOrdersByOrderType(orderType: OrderTypes, orders: Order[]) {
   orders.forEach((order) => {
     // console.log(`Lamination: ${order.lamination}, Material: ${order.material}, Quantity: ${order.quantity}`);
     const key = assignKeyType(order, orderType);
-    console.log(`Key: ${key}`);
+    // console.log(`Key: ${key}`);
     if (key) {
       if (!grouped[key]) {
         grouped[key] = [];

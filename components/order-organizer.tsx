@@ -5,19 +5,19 @@ import { useRouter, usePathname } from "next/navigation";
 import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
 import { OrderTableHeader } from "./order-table-header";
-import { OrderTableBody } from "./order-table-body";
+import { OrderTableBody } from "./archive-order-table-body";
 import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 // lib/supabase.ts
+
 import { createClient } from "@/utils/supabase/client";
 import { OrderTypes } from "@/utils/orderTypes";
-
 import { getButtonCategories } from "@/types/buttons";
-
-import { updateOrder } from "@/app/toprint/actions";
+import { updateOrderStatus, updateOrderNotes } from "@/app/toprint/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
 import { ScrollAreaDemo } from "./scroll-area";
+import { orderKeys } from "@/utils/orderKeyAssigner";
 
 // import { useArticles } from "@/hooks/useArticles";
 
@@ -26,6 +26,19 @@ import { ScrollAreaDemo } from "./scroll-area";
 //   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 // )
 // import { createClient } from "@/utils/supabase/server";
+
+function getCategoryCounts(orders: Order[], categories: string[]): Record<string, number> {
+  return categories.reduce((acc, category) => {
+    if (category.toLowerCase() == "regular") {
+      const count = orders.filter((order) => order.material?.toLowerCase() !== "roll").length;
+      acc["regular"] = count;
+      return acc;
+    }
+    const count = orders.filter((order) => order.material?.toLowerCase() === category.toLowerCase()).length;
+    acc[category] = count;
+    return acc;
+  }, {} as Record<string, number>);
+}
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   // export function OrderOrganizer({ todos, categories }: { todos: Array<Order>; categories: string[] }) {
@@ -37,34 +50,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // console.log("this is the pathname", pathname);
 
   const [orders, setOrders] = useState<Order[]>([]);
-  console.log(orderType);
-  // Event * listens for all changes
-  const subscribeToOrders = () => {
-    supabase
-      .channel("orders")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "orders",
-          filter: `production_status=eq.${orderType}`,
-        },
-        (payload: any) => {
-          const { eventType, new: newOrder, old: oldOrder } = payload;
-          if (eventType === "INSERT") {
-            console.log("New order inserted:", newOrder);
-            setOrders((prev) => [newOrder, ...prev]);
-          } else if (eventType === "UPDATE") {
-            console.log("New order updated:", newOrder);
-            setOrders((prev) => prev.map((o) => (o.name_id === newOrder.id ? newOrder : o)));
-          } else if (eventType === "DELETE") {
-            setOrders((prev) => prev.filter((o) => o.name_id !== oldOrder.id));
-          }
-        }
-      )
-      .subscribe();
-  };
+  // console.log(orderType);
 
   useEffect(() => {
     // Initial load
@@ -73,13 +59,42 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .select()
       .eq("production_status", orderType)
       .order("due_date", { ascending: false })
+      .order("order_id", { ascending: true })
       .then(({ data }) => setOrders(data ?? []));
-    console.log("this is the orders", orders);
-    // Start real-time listener
-    subscribeToOrders();
-  }, []);
 
+      const channel = supabase
+        .channel(`orders_${orderType}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'orders', filter: `production_status=eq.${orderType}` },
+          ({ new: newOrder }) => {
+            setOrders(prev => [newOrder, ...prev]);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'orders', filter: `production_status=eq.${orderType}` },
+          ({ new: newOrder }) => {
+            setOrders(prev => prev.map(o => o.name_id === newOrder.name_id ? newOrder : o));
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'orders', filter: `production_status=eq.${orderType}` },
+          ({ old: oldOrder }) => {
+            setOrders(prev => prev.filter(o => o.name_id !== oldOrder.name_id));
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+  }, [orderType]);
+
+  // const orderKeys =
   // console.log("this is supabase", supabase);
+
   const grouped = groupOrdersByOrderType(orderType, orders);
   const designatedCategories = getButtonCategories(orderType);
   // const designatedHeaders = GetD
@@ -88,12 +103,16 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return null; // or handle the error as needed
   }
 
+  const categoryCounts = getCategoryCounts(orders, designatedCategories);
+  // console.log("the category counts are" + categoryCounts);
+
   // todo add it here so the first visible groups is the default category
   const [visibleGroups, setVisibleGroups] = useState<Record<string, boolean>>({});
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultPage);
   const [headers, setHeaders] = useState<string[]>(() => getMaterialHeaders(orderType, defaultPage));
 
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
+  const [rowHistory, setRowHistory] = useState<string[] | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // console.log("this is the headers", headers);
@@ -102,7 +121,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // const getAssignedHeaders = get(orderType, defaultPage);
   // console.log("this is the headers", getAssignedHeaders);
 
-  // Update visibleGroups only when grouped gains keys and visibleGroups is still empty
   useEffect(() => {
     const groupKeys = Object.keys(grouped);
     if (groupKeys.length > 0 && Object.keys(visibleGroups).length === 0) {
@@ -124,7 +142,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   };
 
   const handleCategoryClick = (category: string) => {
-    // console.log(`Category clicked: ${category}`);
+    console.log(`Category clicked: ${category}`);
     setSelectedCategory(category);
     setHeaders(getMaterialHeaders(orderType, category.toLowerCase()));
     router.push(`${pathname}?${category.toLowerCase()}`);
@@ -146,22 +164,31 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }, [defaultPage]);
 
-  const handleOrderClick = async (order: Order) => {
+  const handleCheckboxClick = async (order: Order) => {
     console.log(`Order clicked: ${order.name_id}`);
-    await updateOrder(order);
+    await updateOrderStatus(order, "production_status");
   };
 
-  const handleNoteChange = async (orderId: string, newNotes: string) => {
-    console.log(`Notes changed for order ID: ${orderId}`);
-    console.log(`New notes: ${newNotes}`);
+  const handleNoteChange = async (order: Order, newNotes: string) => {
+    // console.log(`Notes changed for order ID: ${orderId}`);
+    // console.log(`New notes: ${newNotes}`);
+    console.log("this is the order here", order);
+    await updateOrderNotes(order, newNotes);
     // Add logic to update the notes for the given order ID in the database or state
   };
 
   if (headers.length === 0) {
-    console.error("Headers are not defined");
+    console.error("Headers are not defined, please add some headers for these buttons here");
     return null;
   }
 
+  // Ensure we render a table for every possible key, even if group is empty
+  const allKeys = orderKeys[orderType] || [];
+
+  // console.log("this is the all keys", allKeys);
+  // console.log(visibleGroups);
+  // console.log(visibleGroups[key]);
+  // console.log(designatedCategories);
   return (
     <>
       <div className="relative">
@@ -170,32 +197,41 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             {"To " + orderType.charAt(0).toUpperCase() + orderType.slice(1)} -{" "}
             {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
           </h1>
-          <Separator className="w-full " />
+          <Separator className="w-full mb-10" />
         </div>
         <Fragment>
-          {Object.entries(grouped).map(([key, group]) => (
-            <Fragment key={key}>
-              <div className="flex items-center justify-between mb-2"></div>
-              {visibleGroups[key] && (
-                <>
-                  <h2 className="font-bold text-lg">{convertKeyToTitle(key)}</h2>
-                  <Table>
-                    <OrderTableHeader tableHeaders={headers} />
-                    <OrderTableBody
-                      data={group}
-                      onOrderClick={handleOrderClick}
-                      onNotesChange={handleNoteChange}
-                      setIsRowHovered={setIsRowHovered}
-                      setMousePos={setMousePos}
-                    />
-                  </Table>
-                </>
-              )}
-            </Fragment>
-          ))}
+          {allKeys.map((key) => {
+            // console.log("this is the key", key);
+            const group = grouped[key] || [];
+            return (
+              <Fragment key={key}>
+                <div className="flex items-center justify-between"></div>
+                {selectedCategory.toLowerCase() === key.split("-")[0] && (
+                  <>
+                    <h2 className="font-bold text-lg">{convertKeyToTitle(key)}</h2>
+                    <Table className="mb-4 w-full table-fixed">
+                      <OrderTableHeader tableHeaders={headers} />
+                      <OrderTableBody
+                        data={group}
+                        onOrderClick={handleCheckboxClick}
+                        onNotesChange={handleNoteChange}
+                        setIsRowHovered={setIsRowHovered}
+                        setMousePos={setMousePos}
+                        setRowHistory={setRowHistory}
+                      />
+                    </Table>
+                  </>
+                )}
+              </Fragment>
+            );
+          })}
         </Fragment>
         {/* Pass both categories and onCategoryClick to ButtonOrganizer */}
-        <ButtonOrganizer categories={designatedCategories} onCategoryClick={handleCategoryClick} />
+        <ButtonOrganizer
+          categories={designatedCategories}
+          counts={categoryCounts}
+          onCategoryClick={handleCategoryClick}
+        />
         {isRowHovered && (
           <div
             style={{
@@ -205,7 +241,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               pointerEvents: "none",
             }}
           >
-            <ScrollAreaDemo />
+            <ScrollAreaDemo historySteps={rowHistory ?? undefined} />
           </div>
         )}
       </div>
