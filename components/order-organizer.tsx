@@ -77,6 +77,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         { event: "UPDATE", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
         (payload) => {
           const newOrder = payload.new as Order;
+          console.log("There has been an update here", newOrder);
           setOrders((prev) => prev.map((o) => (o.name_id === newOrder.name_id ? newOrder : o)));
         }
       )
@@ -173,11 +174,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   };
 
   const handleNoteChange = async (order: Order, newNotes: string) => {
-    // console.log(`Notes changed for order ID: ${orderId}`);
-    // console.log(`New notes: ${newNotes}`);
-    console.log("this is the order here", order);
+    console.log("Updating notes for order", order.name_id, "to", newNotes);
+    // Optimistically update local state
+    setOrders(prev =>
+      prev.map(o =>
+        o.name_id === order.name_id ? { ...o, notes: newNotes } : o
+      )
+    );
+    // Persist change
     await updateOrderNotes(order, newNotes);
-    // Add logic to update the notes for the given order ID in the database or state
   };
 
   if (headers.length === 0) {
