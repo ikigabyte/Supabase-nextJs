@@ -79,18 +79,21 @@ export function OrderTableBody({
     }
   };
 
+  // Track previous row's order_id to detect changes
+  let prevOrderId: string | number | null = null;
   return (
     <TableBody>
       {data.map((row, i) => {
         const currentDay = convertToDayOfTheWeek(row.due_date)
-        const previousOrderId = i > 0 ? data[i - 1].name_id : null;
-        const isDifferentOrderId = previousOrderId !== row.name_id;
-
+        const isDifferentOrderId = prevOrderId !== row.order_id;
+        // Update prevOrderId for next iteration
+        prevOrderId = row.order_id;
+        console.log("different order is", isDifferentOrderId);
         return (
           <TableRow
             key={i}
             className={`${
-              isDifferentOrderId ? `border-t-${spacingBetweenOrderIds}` : ""
+              isDifferentOrderId ? `bt-${spacingBetweenOrderIds}` : ""
             } ${currentDay ? dayOfTheWeekColor[currentDay] : ""}`}
             onMouseEnter={(event) => handleMouseEnter(event, row)}
             onMouseLeave={handleMouseLeave}

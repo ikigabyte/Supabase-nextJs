@@ -170,6 +170,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleCheckboxClick = async (order: Order) => {
     console.log(`Order clicked: ${order.name_id}`);
+    // Optimistically remove from local state
+    setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+    // Persist the status change
     await updateOrderStatus(order, "production_status");
   };
 
