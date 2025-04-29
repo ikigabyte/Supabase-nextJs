@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
 import { OrderTableHeader } from "./order-table-header";
-import { OrderTableBody } from "./archive-order-table-body";
+import { OrderTableBody } from "./order-table-body";
 import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 // lib/supabase.ts
@@ -62,30 +62,30 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .order("order_id", { ascending: true })
       .then(({ data }) => setOrders(data ?? []));
 
-      const channel = supabase
-        .channel(`orders_${orderType}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'orders', filter: `production_status=eq.${orderType}` },
-          ({ new: newOrder }) => {
-            setOrders(prev => [newOrder, ...prev]);
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'orders', filter: `production_status=eq.${orderType}` },
-          ({ new: newOrder }) => {
-            setOrders(prev => prev.map(o => o.name_id === newOrder.name_id ? newOrder : o));
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'orders', filter: `production_status=eq.${orderType}` },
-          ({ old: oldOrder }) => {
-            setOrders(prev => prev.filter(o => o.name_id !== oldOrder.name_id));
-          }
-        )
-        .subscribe();
+    const channel = supabase
+      .channel(`orders_${orderType}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
+        ({ new: newOrder }) => {
+          setOrders((prev) => [newOrder, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
+        ({ new: newOrder }) => {
+          setOrders((prev) => prev.map((o) => (o.name_id === newOrder.name_id ? newOrder : o)));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
+        ({ old: oldOrder }) => {
+          setOrders((prev) => prev.filter((o) => o.name_id !== oldOrder.name_id));
+        }
+      )
+      .subscribe();
 
       return () => {
         supabase.removeChannel(channel);
