@@ -67,21 +67,24 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
-        ({ new: newOrder }) => {
+        (payload) => {
+          const newOrder = payload.new as Order;
           setOrders((prev) => [newOrder, ...prev]);
         }
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
-        ({ new: newOrder }) => {
+        (payload) => {
+          const newOrder = payload.new as Order;
           setOrders((prev) => prev.map((o) => (o.name_id === newOrder.name_id ? newOrder : o)));
         }
       )
       .on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
-        ({ old: oldOrder }) => {
+        (payload) => {
+          const oldOrder = payload.old as Order;
           setOrders((prev) => prev.filter((o) => o.name_id !== oldOrder.name_id));
         }
       )
