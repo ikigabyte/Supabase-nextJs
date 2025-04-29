@@ -1,6 +1,6 @@
 "use server"
 
-import { Order, Todo } from "@/types/custom";
+import { Order } from "@/types/custom";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 

@@ -9,7 +9,7 @@ import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
 
 const dayOfTheWeekColor: { [key: number]: string } = {
   1: "bg-gray-100", // Monday
-  2: "bg-gray-150", // Tuesday
+  2: "bg-gray-200", // Tuesday
   3: "bg-gray-200", // Wednesday
   4: "bg-gray-250", // Thursday
   5: "bg-gray-300", // Friday
@@ -32,7 +32,7 @@ const convertToDayOfTheWeek = (dateString: string | null) => {
 
 }
 
-const spacingBetweenOrderIds = 10
+// const spacingBetweenOrderIds = 20
 
 export function OrderTableBody({
   data,
@@ -87,14 +87,20 @@ export function OrderTableBody({
         const currentDay = convertToDayOfTheWeek(row.due_date)
         const isDifferentOrderId = prevOrderId !== row.order_id;
         // Update prevOrderId for next iteration
+        console.log(prevOrderId)
         prevOrderId = row.order_id;
         console.log("different order is", isDifferentOrderId);
+        // console.log(currentDay);
+        // className="h-1 [&>td]:py-0 hover:bg-gray-100 text-xs"
+
         return (
           <TableRow
             key={i}
             className={`${
-              isDifferentOrderId ? `bt-${spacingBetweenOrderIds}` : ""
-            } ${currentDay ? dayOfTheWeekColor[currentDay] : ""}`}
+              isDifferentOrderId
+                ? `h-1 [&>td]:py-0 border-t border-gray-400 text-xs`
+                : "h-1 [&>td]:py-0 border-t border-white hover:bg-gray-100 text-xs"
+            }`}
             onMouseEnter={(event) => handleMouseEnter(event, row)}
             onMouseLeave={handleMouseLeave}
             onMouseMove={handleMouseMove}
@@ -106,11 +112,15 @@ export function OrderTableBody({
             <TableCell className="">{capitalizeFirstLetter(row.quantity) || "-"}</TableCell>
             <TableCell className="">{capitalizeFirstLetter(row.ink)} </TableCell>
             <TableCell className="">{capitalizeFirstLetter(row.print_method) || ""}</TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.due_date) || ""}</TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.ihd_date) || ""}</TableCell>
+            <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
+              {capitalizeFirstLetter(row.due_date) || ""}
+            </TableCell>
+            <TableCell className="">
+              {capitalizeFirstLetter(row.ihd_date) || ""}
+            </TableCell>
             <TableCell className="">
               <Input
-                className="h-1/5 w-full border rounded-none"
+                className="h-1/5 w-full border rounded-none bg-transparent"
                 defaultValue={row.notes || ""}
                 onKeyDown={(event) => handleNotesKeyPress(event, row)}
               />
