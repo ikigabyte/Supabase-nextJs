@@ -6,12 +6,24 @@ import { Order } from "@/types/custom";
 import { Fragment } from "react";
 import { Table, TableHead, TableRow, TableHeader } from "@/components/ui/table";
 
-
 // ! temporarily disabled for now
 export default async function SearchPage(){
   return (
     <>
-    </>)
+    <section className="p-3 pt-6 max-w-2xl w-full flex flex-col gap-4">
+      <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+        Search for Orders
+      </h1>
+      <SearchBar />
+      <Separator className="w-full" />
+      <h3>Enter a search term</h3>
+      <p>Search by Order ID</p>
+      <p>Search by Name ID</p>
+
+      </section>
+      <Separator className="w-full" />
+    </>
+  )
     
 }
 
