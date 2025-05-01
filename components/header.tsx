@@ -86,15 +86,14 @@ export default async function Header() {
           </a>
           <div className="flex flex-1 items-center justify-end space-x-12">
             {user !== null ? (
-              <div className="flex items-center gap-5 text-xs font-medium">
-                <Link href="/toprint?white">To Print {printCount !== null ? `(${printCount})` : ""}</Link>
-                <Link href="/tocut?regular">To Cut {cutCount !== null && `(${cutCount})`}</Link>
-                <Link href="/topack?regular">To Pack {packCount !== null && `(${packCount})`}</Link>
-                <Link href="/topack?regular">To Ship {shipCount !== null && `(${shipCount})`}</Link>
-                <Link href="/timeline">Timeline</Link>
-                <Link href="/completed">Completed</Link>
+                <div className="flex items-center gap-5 text-xs font-medium">
+                <Link id="to-print" href="/toprint?white">To Print</Link>
+                <Link id="to-cut" href="/tocut?regular">To Cut</Link>
+                <Link id="to-pack" href="/topack?regular">To Pack</Link>
+                <Link id="to-ship" href="/toship?regular">To Ship</Link>
+                <Link id="completed" href="/completed">Completed</Link>
+                <Link id="timeline" href="/timeline">Timeline</Link>
                 <SearchBar />
-                {/* <Link href="/timeline">Timeline</Link> */}
               </div>
             ) : (
               <Link href="/"></Link>

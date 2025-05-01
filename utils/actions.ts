@@ -4,19 +4,35 @@ import { Order } from "@/types/custom";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 
-const getNewStatus = (currentStatus: string) => {
-  switch (currentStatus) {
-    case "print":
-      return "cut";
-    case "cut":
-      return "pack";
-    case "pack":
-      return "ship";
-    case "ship":
-      return "completed";
-    default:
+const getNewStatus = (currentStatus: string, revert: boolean) => {
+  if (revert) {
+    switch (currentStatus) {
+      case "cut":
+        return "print";
+      case "pack":
+        return "cut";
+      case "ship":
+        return "pack";
+      case "completed":
+        return "ship";
+      default:
+        return null;
+    }
+  } else {
+    switch (currentStatus) {
+      case "print":
+        return "cut";
+      case "cut":
+        return "pack";
+      case "pack":
+        return "ship";
+      case "ship":
+        return "completed";
+      default:
+        return null;
+    }
   }
-}
+};
 
 const getTimeStamp = () => {
   const timestamp = new Date().toLocaleString('en-US', {
@@ -102,27 +118,61 @@ async function addHistoryForUser(userId: string, orderId: string, newStatus: str
 //   return todos;
 // }
 
-// export async function removeTodo(id: number){
-//   const supabase = await createClient();
+export async function removeOrderLine(order: Order){
+  const supabase = await createClient();
 
-//   const {
-//     data: { user },
-//   } = await supabase.auth.getUser();
-//   if (!user) {
-//     throw new Error("User is not logged in");
-//   }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
 
-//   const { error } = await supabase.from("todos").delete().match({
-//     user_id: user.id, // the user id 
-//     id: id, // the todo id
-//   })
-//   if (error){
-//     console.error("Error deleting todo", error);
-//     throw new Error("Error deleting todo");
-//   }
+  // const { data: existingRecord, error: historyError } = await supabase
+  //   .from("orders")
+  //   .select("history")
+  //   .eq("name_id", order.name_id)
+  //   .single();
+  // if (historyError) {
+  //   console.error("Error fetching history", historyError);
+  //   throw new Error("Error fetching history");
+  // }
+  addHistoryForUser(user.id, order.name_id, "deleted");
+  const { error: deleteError } = await supabase
+    .from("orders")
+    .delete()
+    .eq("name_id", order.name_id);
+  if (deleteError) {
+    console.error("Error deleting order", deleteError);
+    throw new Error("Error deleting order");
+  }
 
-//   revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
-// }
+  console.log("Order deleted successfully");
+  revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+}
+
+export async function removeOrderAll(orderId: number) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
+
+  const { error } = await supabase
+    .from("orders")
+    .delete()
+    .eq("order_id", orderId);
+  if (error) {
+    console.error("Error deleting orders", error);
+    throw new Error("Error deleting orders");
+  }
+
+  console.log(`Orders with order_id ${orderId} deleted successfully`);
+  revalidatePath("/toprint");
+}
 
 // export async function updateTodo(todo: Todo) {
 //   const supabase = await createClient();
@@ -141,7 +191,7 @@ async function addHistoryForUser(userId: string, orderId: string, newStatus: str
 //   revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 // }
 
-export async function updateOrderStatus(order: Order, property: string) {
+export async function updateOrderStatus(order: Order, property: string, revert : boolean = false) {
   if (order == null) {
     console.error("No order provided");
     throw new Error("No order provided");
@@ -156,7 +206,7 @@ export async function updateOrderStatus(order: Order, property: string) {
   }
   
   // console.log("Updating order", order);
-  const newStatus = getNewStatus(order.production_status || "");
+  const newStatus = getNewStatus(order.production_status || "", revert);
   if (!newStatus) {
     console.error("No new status found");
     throw new Error("No new status found");

@@ -28,7 +28,6 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "glitter-matte-regular",
     "glitter-matte-tiles",
     "glitter-matte-promo",
-
     "mag20pt-gloss-regular",
     "mag20pt-gloss-tiles",
     "mag20pt-gloss-promo",
@@ -68,24 +67,26 @@ export const orderKeys: Record<OrderTypes, string[]> = {
   completed: [], // add this to satisfy the OrderTypes enum
 };
 
-export function assignKeyType(order: Order, orderType: OrderTypes): string | undefined {
+export function assignKeyType(order: Order, orderType: OrderTypes): string | null {
   const keys = orderKeys[orderType];
-  if (!keys) return undefined;
+  if (!keys) return null;
 
   // 1) Promo takes priority
   if (order.promo) {
+    console.log("Promo detected");
     const promoKey = keys.find((k) => k.endsWith("-promo") && k.startsWith(`${order.material}-${order.lamination}`));
     if (promoKey) return promoKey;
   }
 
   // 2) For print orders, choose by number vs tiles
   if (orderType === "print") {
-    const suffix = typeof order.quantity === "number" ? "regular" : "tiles";
+
+    const suffix = order.quantity && order.quantity.includes("-") ? "tiles" : "regular";
     const key = `${order.material}-${order.lamination}-${suffix}`;
-    return keys.find((k) => k === key);
+    return keys.find((k) => k === key) || null;
   }
 
   // 3) For other order types (cut, ship, pack)
   const simpleKey = order.material === "roll" ? "roll" : "regular";
-  return keys.find((k) => k === simpleKey);
+  return keys.find((k) => k === simpleKey) || null;
 }

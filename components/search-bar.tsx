@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 
 import {Search} from "lucide-react";
 import { redirect } from "next/navigation";
+
 export function SearchBar() {
   const [query, setQuery] = useState("");
 

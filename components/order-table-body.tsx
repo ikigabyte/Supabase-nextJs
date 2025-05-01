@@ -1,12 +1,11 @@
-// import React, { useState } from "react";
-import { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Order } from "@/types/custom";
 // import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
 import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
-
+import { Separator } from "./ui/separator";
 const dayOfTheWeekColor: { [key: number]: string } = {
   1: "bg-gray-100", // Monday
   2: "bg-gray-200", // Tuesday
@@ -26,12 +25,32 @@ const convertToDayOfTheWeek = (dateString: string | null) => {
     return 1;
   }
   const date = new Date(dateString);
-  const dayNumber = date.getDay()
+  const dayNumber = date.getDay();
   // console.log(dayNumber);
   return dayNumber;
+};
 
-}
+const displayCorrectQuantity = (quantity: string | null) => {
+  if (quantity == null || quantity === "") {
+    return "-";
+  }
+  if (quantity.includes("-")) {
+    const splitPart = quantity.split("-");
+    const quantityPart = splitPart[0];
+    const sizePart = splitPart[1];
+    const testPart = splitPart[2] || "";
 
+    return `${quantityPart} Tiles`;
+
+    // if (splitPart.length > 1){
+
+    //   return `${quantityPart} tiles`
+    // }
+  } else {
+    return quantity;
+  }
+  // quantity.split
+};
 // const spacingBetweenOrderIds = 20
 
 export function OrderTableBody({
@@ -41,6 +60,8 @@ export function OrderTableBody({
   setIsRowHovered,
   setMousePos,
   setRowHistory,
+  setScrollAreaName,
+  onRowClick,
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -48,18 +69,51 @@ export function OrderTableBody({
   setIsRowHovered: (hovered: boolean) => void;
   setMousePos: (pos: { x: number; y: number }) => void;
   setRowHistory: (history: string[]) => void;
+  setScrollAreaName: (name: string) => void;
+  onRowClick: (event: React.MouseEvent<HTMLTableRowElement> | MouseEvent, row: Order) => void;
 }) {
   const lastHoveredIdRef = useRef<string | number | null>(null);
+  const tableRef = useRef<HTMLTableSectionElement>(null);
 
-  const handleMouseEnter = (event: React.MouseEvent<HTMLTableRowElement>, row: Order) => {
+  // useEffect(() => {
+  //   const handleClickOutside = (e: MouseEvent) => {
+  //     const target = e.target as HTMLElement;
+  //     console.log("Target" , target);
+  //     // If click is outside the table and not on the context menu, clear selection
+  //     if (
+  //       tableRef.current &&
+  //       !tableRef.current.contains(target) &&
+  //       !target.closest('.context-menu')
+  //     ) {
+  //       onRowClick(e, null);
+  //     }
+  //   };
+  //   document.addEventListener('click', handleClickOutside);
+  //   return () => document.removeEventListener('click', handleClickOutside);
+  // }, []);
+
+  const handleMouseEnter = (event: React.MouseEvent<HTMLTableCellElement>, row: Order, type: string) => {
     if (lastHoveredIdRef.current !== row.name_id) {
-      // console.log(row.history);
-      // Safely cast history JSON to string[] or default to empty array
-      const historyArray = Array.isArray(row.history) ? (row.history as string[]) : [];
-      setRowHistory(historyArray);
-      lastHoveredIdRef.current = row.name_id;
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      setMousePos({ x: rect.right, y: rect.bottom });
+
+      if (type === "history") {
+        const historyArray = Array.isArray(row.history) ? (row.history as string[]) : [];
+        setRowHistory(historyArray);
+        setScrollAreaName("History");
+        lastHoveredIdRef.current = row.name_id;
+      } else if (type === "quantity") {
+        // console.log("Quantity hovered");
+        setRowHistory(["Quantity: " + row.quantity]);
+        setScrollAreaName("Quantity");
+        lastHoveredIdRef.current = row.name_id;
+      }
+      setIsRowHovered(true);
+    } else {
+      // If the same row is hovered again, reset the state
+      setIsRowHovered(false);
+      lastHoveredIdRef.current = null;
     }
-    setIsRowHovered(true);
   };
 
   const handleMouseLeave = () => {
@@ -67,66 +121,82 @@ export function OrderTableBody({
     lastHoveredIdRef.current = null;
   };
 
-  const handleMouseMove = (event: React.MouseEvent<HTMLTableRowElement>) => {
-    setMousePos({ x: event.clientX, y: event.clientY });
+  const onTableClick = (event: React.MouseEvent<HTMLTableRowElement>, row: Order) => {
+    onRowClick(event, row);
   };
+  
+  console.log("the notes have changed here")
+  // const handleMouseMove = (event: React.MouseEvent<HTMLTableRowElement>) => {
 
-  const handleNotesKeyPress = (event: React.KeyboardEvent<HTMLInputElement>, order: Order) => {
-    if (event.key === "Enter") {
-      const newNotes = (event.target as HTMLInputElement).value;
-      console.log("Order is being changed here" + order);
-      onNotesChange(order, newNotes);
-    }
-  };
+  // };
 
   // Track previous row's order_id to detect changes
   let prevOrderId: string | number | null = null;
+  let differentOrderId: boolean | null = null;
+  let isRowClicked = false;
   return (
-    <TableBody>
+    // <div className={isTableClicked ? 'border border-black' : ''} onClick={() => setIsTableClicked(true)}>
+    <TableBody ref={tableRef} className="">
       {data.map((row, i) => {
-        const currentDay = convertToDayOfTheWeek(row.due_date)
-        const isDifferentOrderId = prevOrderId !== row.order_id;
-        // Update prevOrderId for next iteration
-        console.log(prevOrderId)
-        prevOrderId = row.order_id;
-        console.log("different order is", isDifferentOrderId);
-        // console.log(currentDay);
-        // className="h-1 [&>td]:py-0 hover:bg-gray-100 text-xs"
+        // console.log(i);
+        const currentDay = convertToDayOfTheWeek(row.due_date);
+        differentOrderId = prevOrderId !== row.order_id;
+        // const nextOrderId = data[i + 1]?.order_id;
+        if (i === 0 && data.length > 1) {
+          const nextOrder = data[i + 1];
+          if (row.order_id !== nextOrder.order_id) {
+            differentOrderId = true;
+            // console.log("The first order has a different order_id than the next order.");
+          }
+        }
 
+        // console.log("Row ID: ", row.order_id);
+
+        prevOrderId = row.order_id;
         return (
           <TableRow
-            key={i}
-            className={`${
-              isDifferentOrderId
-                ? `h-1 [&>td]:py-0 border-t border-gray-400 text-xs`
-                : "h-1 [&>td]:py-0 border-t border-white hover:bg-gray-100 text-xs"
+            key={row.name_id} // Use a unique key, such as `row.order_id`
+            className={`${"h-1 [&>td]:py-0 border-t border-white hover:bg-gray-100 text-xs"} ${
+              differentOrderId ? "border-black" : ""
             }`}
-            onMouseEnter={(event) => handleMouseEnter(event, row)}
-            onMouseLeave={handleMouseLeave}
-            onMouseMove={handleMouseMove}
+            onClick={(e: React.MouseEvent<HTMLTableRowElement>) => onTableClick(e, row)}
           >
-            <TableCell className="">{truncate(row.name_id, 30) || "test"}</TableCell>
+            <TableCell
+              onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
+              onMouseLeave={handleMouseLeave}
+              className=""
+            >
+              {truncate(row.name_id, 30) || "test"}
+            </TableCell>
             <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
             <TableCell className="">{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
             <TableCell className="">{capitalizeFirstLetter(row.material) || "-"}</TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.quantity) || "-"}</TableCell>
+            <TableCell
+              onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
+              onMouseLeave={handleMouseLeave}
+              className=""
+            >
+              {displayCorrectQuantity(row.quantity) || "-"}
+            </TableCell>
             <TableCell className="">{capitalizeFirstLetter(row.ink)} </TableCell>
             <TableCell className="">{capitalizeFirstLetter(row.print_method) || ""}</TableCell>
             <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
               {capitalizeFirstLetter(row.due_date) || ""}
             </TableCell>
-            <TableCell className="">
-              {capitalizeFirstLetter(row.ihd_date) || ""}
-            </TableCell>
+            <TableCell className="">{capitalizeFirstLetter(row.ihd_date) || ""}</TableCell>
             <TableCell className="">
               <Input
-                className="h-1/5 w-full border rounded-none bg-transparent"
-                defaultValue={row.notes || ""}
-                onKeyDown={(event) => handleNotesKeyPress(event, row)}
+                className="h-1/5 w-full border-0 text-gray-500 bg-transparent"
+                defaultValue={row.notes ?? ''}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === 'Enter') {
+                    onNotesChange(row, (e.target as HTMLInputElement).value);
+                  }
+                }}
               />
             </TableCell>
             <TableCell className="">
-              <Checkbox onCheckedChange={() => onOrderClick(row)} />
+              <Checkbox checked={false} onCheckedChange={() => onOrderClick(row)} />
             </TableCell>
           </TableRow>
         );

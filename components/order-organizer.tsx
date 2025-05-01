@@ -1,6 +1,5 @@
-"use client";
-
-import React, { Fragment, useEffect, useState } from "react";
+"use client"
+import React, { Fragment, useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
@@ -11,13 +10,17 @@ import { ButtonOrganizer } from "./button-organizer";
 // lib/supabase.ts
 
 import { createClient } from "@/utils/supabase/client";
-import { OrderTypes } from "@/utils/orderTypes";
 import { getButtonCategories } from "@/types/buttons";
-import { updateOrderStatus, updateOrderNotes } from "@/app/toprint/actions";
+import { updateOrderStatus, updateOrderNotes, removeOrderLine, removeOrderAll } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
 import { ScrollAreaDemo } from "./scroll-area";
 import { orderKeys } from "@/utils/orderKeyAssigner";
+import { OrderTypes } from "@/utils/orderTypes";
+import { ContextMenu } from "./context-menu";
+
+// import { filterOutOrderCounts } from "./order-organizer";
+// import { updateOrderCounts } from "./order-organizer";
 
 // import { useArticles } from "@/hooks/useArticles";
 
@@ -27,97 +30,208 @@ import { orderKeys } from "@/utils/orderKeyAssigner";
 // )
 // import { createClient } from "@/utils/supabase/server";
 
-function getCategoryCounts(orders: Order[], categories: string[]): Record<string, number> {
+function getCategoryCounts(orders: Order[], categories: string[], orderType : OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
-    if (category.toLowerCase() == "regular") {
-      const count = orders.filter((order) => order.material?.toLowerCase() !== "roll").length;
-      acc["regular"] = count;
-      return acc;
-    }
-    const count = orders.filter((order) => order.material?.toLowerCase() === category.toLowerCase()).length;
+    
+    const lowerCat = category.toLowerCase();
+    const count =
+      lowerCat === "regular"
+        ? orders.filter((order) => {
+            if (order.production_status !== orderType) {
+              return null; // Skip this order if the production_status doesn't match the orderType
+            }
+            return order.material?.toLowerCase() !== "roll";
+          }).length
+        : orders.filter((order) => {
+            if (order.production_status !== orderType) {
+              return null; // Skip this order if the production_status doesn't match the orderType
+            }
+            return order.material?.toLowerCase() === lowerCat;
+          }).length;
     acc[category] = count;
     return acc;
   }, {} as Record<string, number>);
 }
 
+function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
+  // Initialize counts for each status
+  const initial: Record<OrderTypes, number> = {
+    print: 0,
+    ship: 0,
+    cut: 0,
+    pack: 0,
+  };
+  
+  return orders.reduce((acc, order) => {
+    if (order.production_status !== order.production_status) {
+      return acc; // Skip this order if the production_status doesn't match the orderType
+    }
+    const status = order.production_status as OrderTypes;
+    console.log("this is the status", status);
+    if (status in acc) {
+      acc[status]++;
+    }
+    return acc;
+  }, initial);
+}
+
+function updateOrderCounts(orderCounts: Record<string, number>) {
+  console.log("this is the order counts", orderCounts);
+  Object.entries(orderCounts).forEach(([orderType, count]) => {
+    const id = `to-${orderType}`;
+    const update = () => {
+      const navElement = document.getElementById(id);
+      if (navElement) {
+        const title = `To ${orderType.charAt(0).toUpperCase()}${orderType.slice(1)}`;
+        navElement.textContent = `${title} (${count})`;
+      } else {
+        requestAnimationFrame(update);
+      }
+    };
+    requestAnimationFrame(update);
+  });
+}
+
+const supabase = createClient();
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
-  // export function OrderOrganizer({ todos, categories }: { todos: Array<Order>; categories: string[] }) {
-  const supabase = createClient();
   // const categories = getCategoryTypes(orderType);
 
   const router = useRouter();
   const pathname = usePathname();
-  // console.log("this is the pathname", pathname);
-
   const [orders, setOrders] = useState<Order[]>([]);
-  // console.log(orderType);
-
+  
   useEffect(() => {
     // Initial load
     supabase
       .from("orders")
       .select()
-      .eq("production_status", orderType)
+      // .eq("production_status", orderType)
       .order("due_date", { ascending: false })
-      .order("order_id", { ascending: true })
+      .order("order_id", { ascending: false })
       .then(({ data }) => setOrders(data ?? []));
 
+    // console.log("this is the orders", data);
+    // console.log(data);
+    // console.log("this is the orders", orders);
+    // console.log("this is the count", );
     const channel = supabase
-      .channel(`orders_${orderType}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
-        (payload) => {
-          const newOrder = payload.new as Order;
-          setOrders((prev) => [newOrder, ...prev]);
+      .channel("orders_all")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
+        const newOrder = payload.new as Order;
+        if (newOrder.production_status === orderType) {
+          setOrders((prev) => {
+            const next = [newOrder, ...prev];
+            updateOrderCounts(filterOutOrderCounts(next));
+            return next;
+          });
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
-        (payload) => {
-          const newOrder = payload.new as Order;
-          console.log("There has been an update here", newOrder);
-          setOrders((prev) => prev.map((o) => (o.name_id === newOrder.name_id ? newOrder : o)));
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+        console.log('UPDATE event payload.old:', payload.old);
+        console.log('UPDATE event payload.new:', payload.new);
+        const updated = payload.new as Order;
+        const oldRow = payload.old as Order;
+        // If only notes changed, update that field
+        if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes) {
+          console.log("Notes changed for order", updated.name_id);
+          console.log(updated.notes)
+          setOrders(prev =>
+            prev.map(o =>
+              o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o
+            )
+          );
+          return;
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "orders", filter: `production_status=eq.${orderType}` },
-        (payload) => {
-          const oldOrder = payload.old as Order;
-          setOrders((prev) => prev.filter((o) => o.name_id !== oldOrder.name_id));
+        if (updated.production_status === orderType) {
+          setOrders((prev) => {
+            const next = prev.some((o) => o.name_id === updated.name_id)
+              ? prev.map((o) => (o.name_id === updated.name_id ? updated : o))
+              : [updated, ...prev];
+            updateOrderCounts(filterOutOrderCounts(next));
+            return next;
+          });
+        } else {
+          setOrders((prev) => {
+            const next = prev.filter((o) => o.name_id !== updated.name_id);
+            updateOrderCounts(filterOutOrderCounts(next));
+            return next;
+          });
         }
-      )
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
+        const removed = payload.old as Order;
+        setOrders((prev) => {
+          const next = prev.filter((o) => o.name_id !== removed.name_id);
+          updateOrderCounts(filterOutOrderCounts(next));
+          return next;
+        });
+      })
       .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [orderType]);
 
-  // const orderKeys =
-  // console.log("this is supabase", supabase);
+  useEffect(() => {
+    const counts = filterOutOrderCounts(orders);
+    updateOrderCounts(counts);
+  }, [orders]);
 
-  const grouped = groupOrdersByOrderType(orderType, orders);
-  const designatedCategories = getButtonCategories(orderType);
-  // const designatedHeaders = GetD
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('table')) {
+        setIsRowClicked(false);
+        setCurrentRowClicked(null);
+
+        console.log('not a table');
+        return;
+      }
+      console.log("Target", target);
+      // If click is outside the table and not on the context menu, clear selection
+      // if (
+      //   tableRef.current &&
+      //   !tableRef.current.contains(target) &&
+      //   !target.closest('.context-menu')
+      // ) {
+      //   onRowClick(e, null);
+      // }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Memoized derived values
+  const grouped = useMemo(
+    () => groupOrdersByOrderType(orderType, orders),
+    [orderType, orders]
+  );
+  const designatedCategories = useMemo(
+    () => getButtonCategories(orderType)!,
+    [orderType]
+  );
+  const categoryCounts = useMemo(
+    () => getCategoryCounts(orders, designatedCategories, orderType),
+    [orders, designatedCategories]
+  );
   if (!designatedCategories) {
     console.error("designatedCategories is undefined");
     return null; // or handle the error as needed
   }
 
-  const categoryCounts = getCategoryCounts(orders, designatedCategories);
-  // console.log("the category counts are" + categoryCounts);
-
   // todo add it here so the first visible groups is the default category
   const [visibleGroups, setVisibleGroups] = useState<Record<string, boolean>>({});
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultPage);
   const [headers, setHeaders] = useState<string[]>(() => getMaterialHeaders(orderType, defaultPage));
-
+  // const [scrollAreaName, setScrollAreaName] = useState<string>(orderType);
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
   const [rowHistory, setRowHistory] = useState<string[] | null>(null);
+  const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
+  const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
+  const [scrollAreaName, setScrollAreaName] = useState<string>("History");
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // console.log("this is the headers", headers);
   // setHeaders(getMaterialHeaders(orderType, defaultPage));
@@ -145,22 +259,24 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .join(" "); // Join the words with a space
   };
 
-  const handleCategoryClick = (category: string) => {
-    console.log(`Category clicked: ${category}`);
-    setSelectedCategory(category);
-    setHeaders(getMaterialHeaders(orderType, category.toLowerCase()));
-    router.push(`${pathname}?${category.toLowerCase()}`);
-    const lowerCategory = category.toLowerCase();
-    setVisibleGroups((prev) => {
-      const newVisibility = {} as Record<string, boolean>;
-      Object.keys(prev).forEach((key) => {
-        // Compare first segment of each group key
-        const prefix = key.split("-")[0];
-        newVisibility[key] = prefix === lowerCategory;
+  const handleCategoryClick = useCallback(
+    (category: string) => {
+      setSelectedCategory(category);
+      setHeaders(getMaterialHeaders(orderType, category.toLowerCase()));
+      router.push(`${pathname}?${category.toLowerCase()}`);
+      const lowerCategory = category.toLowerCase();
+      setVisibleGroups((prev) => {
+        const newVisibility = {} as Record<string, boolean>;
+        Object.keys(prev).forEach((key) => {
+          // Compare first segment of each group key
+          const prefix = key.split("-")[0];
+          newVisibility[key] = prefix === lowerCategory;
+        });
+        return newVisibility;
       });
-      return newVisibility;
-    });
-  };
+    },
+    [pathname, orderType, designatedCategories]
+  );
 
   useEffect(() => {
     if (defaultPage) {
@@ -168,31 +284,79 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }, [defaultPage]);
 
-  const handleCheckboxClick = async (order: Order) => {
-    console.log(`Order clicked: ${order.name_id}`);
-    // Optimistically remove from local state
-    setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
-    // Persist the status change
-    await updateOrderStatus(order, "production_status");
-  };
+  const handleCheckboxClick = useCallback(
+    async (order: Order) => {
+      console.log(`Order clicked: ${order.name_id}`);
+      // Optimistically remove from local state
+      setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+      // Persist the status change
+      await updateOrderStatus(order, "production_status");
+    },
+    []
+  );
 
-  const handleNoteChange = async (order: Order, newNotes: string) => {
-    console.log("Updating notes for order", order.name_id, "to", newNotes);
-    // Optimistically update local state
-    setOrders(prev =>
-      prev.map(o =>
-        o.name_id === order.name_id ? { ...o, notes: newNotes } : o
-      )
-    );
-    // Persist change
-    await updateOrderNotes(order, newNotes);
-  };
+  const handleNoteChange = useCallback(
+    async (order: Order, newNotes: string) => {
+      console.log("Updating notes for order", order.name_id, "to", newNotes);
+      // Optimistically update local state
+      setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, notes: newNotes } : o)));
+      // Persist change
+      await updateOrderNotes(order, newNotes);
+    },
+    []
+  );
+
+  const handleMenuOptionClick = useCallback(
+    async (option: string) => {
+      // console.log("Menu option clicked:", option);
+      // console.log("Current row clicked:", currentRowClicked);
+      if (currentRowClicked == null) {
+        return;
+      }
+      if (option == "revert"){
+        await updateOrderStatus(currentRowClicked!, "production_status", true);
+        setIsRowClicked(false);
+        setCurrentRowClicked(null);
+        return;
+      }
+      if (option == "delete") {
+        console.log("Deleting line:", currentRowClicked);
+        await removeOrderLine(currentRowClicked!);
+        // await updateOrderStatus(currentRowClicked!, "production_status", true);
+        // setIsRowClicked(false);
+        // setCurrentRowClicked(null);
+        return;
+      }
+      if (option == "deleteAll") {
+        console.log("Deleting line:", currentRowClicked);
+        await removeOrderAll(currentRowClicked?.order_id!);
+        return;
+      }
+      // Example async operation
+     
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, '_blank');
+    },
+    [currentRowClicked]
+  );
 
   if (headers.length === 0) {
     console.error("Headers are not defined, please add some headers for these buttons here");
     return null;
   }
 
+  const handleRowClick = useCallback(
+    (event: MouseEvent | React.MouseEvent<HTMLTableRowElement, MouseEvent>, row: Order) => {
+     console.log("Row clicked:", row);
+      console.log("Event:", event);
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      setMenuPos({ x: rect.right, y: rect.bottom });
+      isRowClicked ? setIsRowClicked(false) : setIsRowClicked(true);
+      setCurrentRowClicked(row);
+      // await updateOrderStatus(row, "production_status");
+    },
+    [isRowClicked]
+  );
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
 
@@ -220,7 +384,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 {selectedCategory.toLowerCase() === key.split("-")[0] && (
                   <>
                     <h2 className="font-bold text-lg">{convertKeyToTitle(key)}</h2>
-                    <Table className="mb-4 w-full table-fixed">
+                    <Table className="mb-4 w-full table-fixed bg-gray-50" >
                       <OrderTableHeader tableHeaders={headers} />
                       <OrderTableBody
                         data={group}
@@ -229,6 +393,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         setIsRowHovered={setIsRowHovered}
                         setMousePos={setMousePos}
                         setRowHistory={setRowHistory}
+                        setScrollAreaName={setScrollAreaName}
+                        onRowClick={handleRowClick}
                       />
                     </Table>
                   </>
@@ -252,7 +418,20 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               pointerEvents: "none",
             }}
           >
-            <ScrollAreaDemo historySteps={rowHistory ?? undefined} />
+            <ScrollAreaDemo historySteps={rowHistory ?? undefined} scrollName={scrollAreaName} />
+          </div>
+        )}
+        {isRowClicked && (
+          <div
+          className="context-menu"
+            style={{
+              position: "fixed",
+              top: menuPos.y ,
+              left: menuPos.x - 150,
+              zIndex: 1000,
+            }}
+          >
+            <ContextMenu handleMenuOptionClick={handleMenuOptionClick} orderType={orderType}/>
           </div>
         )}
       </div>

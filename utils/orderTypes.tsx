@@ -1,1 +1,1 @@
-export type OrderTypes = "print" | "cut" | "pack" | "ship" | "completed"
+export type OrderTypes = "print" | "cut" | "pack" | "ship"
