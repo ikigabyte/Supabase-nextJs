@@ -5,7 +5,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Order } from "@/types/custom";
 // import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
 import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
-import { Separator } from "./ui/separator";
+// import { Separator } from "./ui/separator";
+// import { Toaster } from "./ui/toaster";
 const dayOfTheWeekColor: { [key: number]: string } = {
   1: "bg-gray-100", // Monday
   2: "bg-gray-200", // Tuesday
@@ -124,10 +125,8 @@ export function OrderTableBody({
   const onTableClick = (event: React.MouseEvent<HTMLTableRowElement>, row: Order) => {
     onRowClick(event, row);
   };
-  
-  console.log("the notes have changed here")
+  // console.log("the notes have changed here")
   // const handleMouseMove = (event: React.MouseEvent<HTMLTableRowElement>) => {
-
   // };
 
   // Track previous row's order_id to detect changes

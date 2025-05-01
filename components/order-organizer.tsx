@@ -1,5 +1,6 @@
-"use client"
+"use client";
 import React, { Fragment, useEffect, useState, useMemo, useCallback } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
@@ -9,7 +10,6 @@ import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 // lib/supabase.ts
 
-import { createClient } from "@/utils/supabase/client";
 import { getButtonCategories } from "@/types/buttons";
 import { updateOrderStatus, updateOrderNotes, removeOrderLine, removeOrderAll } from "@/utils/actions";
 import { Separator } from "./ui/separator";
@@ -18,6 +18,10 @@ import { ScrollAreaDemo } from "./scroll-area";
 import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
+import { Toaster } from "./ui/toaster";
+import { ToastAction } from "./ui/toast";
+import { useToast } from "@/hooks/use-toast";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 // import { filterOutOrderCounts } from "./order-organizer";
 // import { updateOrderCounts } from "./order-organizer";
@@ -30,9 +34,8 @@ import { ContextMenu } from "./context-menu";
 // )
 // import { createClient } from "@/utils/supabase/server";
 
-function getCategoryCounts(orders: Order[], categories: string[], orderType : OrderTypes): Record<string, number> {
+function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
-    
     const lowerCat = category.toLowerCase();
     const count =
       lowerCat === "regular"
@@ -61,7 +64,7 @@ function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
     cut: 0,
     pack: 0,
   };
-  
+
   return orders.reduce((acc, order) => {
     if (order.production_status !== order.production_status) {
       return acc; // Skip this order if the production_status doesn't match the orderType
@@ -75,31 +78,50 @@ function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
   }, initial);
 }
 
-function updateOrderCounts(orderCounts: Record<string, number>) {
-  console.log("this is the order counts", orderCounts);
-  Object.entries(orderCounts).forEach(([orderType, count]) => {
-    const id = `to-${orderType}`;
-    const update = () => {
-      const navElement = document.getElementById(id);
-      if (navElement) {
-        const title = `To ${orderType.charAt(0).toUpperCase()}${orderType.slice(1)}`;
-        navElement.textContent = `${title} (${count})`;
-      } else {
-        requestAnimationFrame(update);
-      }
-    };
-    requestAnimationFrame(update);
-  });
-}
+// function updateOrderCounts(orderCounts: Record<string, number>) {
+//   console.log("this is the order counts", orderCounts);
+//   Object.entries(orderCounts).forEach(([orderType, count]) => {
+//     const id = `to-${orderType}`;
+//     const update = () => {
+//       const navElement = document.getElementById(id);
+//       if (navElement) {
+//         const title = `To ${orderType.charAt(0).toUpperCase()}${orderType.slice(1)}`;
+//         navElement.textContent = `${title} (${count})`;
+//       } else {
+//         requestAnimationFrame(update);
+//       }
+//     };
+//     requestAnimationFrame(update);
+//   });
+// }
+// const cookieHeader = req.headers.cookie || "";
 
-const supabase = createClient();
+// supabase.auth.getSession().then(({ data, error }) => {
+//   console.log('Session data:', data);
+// });
+// console.log("here is the supabase client" , supabase);
+
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   // const categories = getCategoryTypes(orderType);
 
+  // console.log(supabaseClient.auth.getSession());
+  const supabase = createClientComponentClient();
+  const [session, setSession] = useState<Session | null>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      console.log("Session:", session, "Error:", error);
+      setSession(session);
+    });
+  }, []);
+
+  // if (true)return
+
+  // const supabase = supabaseClient;
   const router = useRouter();
   const pathname = usePathname();
   const [orders, setOrders] = useState<Order[]>([]);
-  
+  const { toast } = useToast();
+
   useEffect(() => {
     // Initial load
     supabase
@@ -121,25 +143,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (newOrder.production_status === orderType) {
           setOrders((prev) => {
             const next = [newOrder, ...prev];
-            updateOrderCounts(filterOutOrderCounts(next));
+            // updateOrderCounts(filterOutOrderCounts(next));
             return next;
           });
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
-        console.log('UPDATE event payload.old:', payload.old);
-        console.log('UPDATE event payload.new:', payload.new);
+        console.log("UPDATE event payload.old:", payload.old);
+        console.log("UPDATE event payload.new:", payload.new);
         const updated = payload.new as Order;
         const oldRow = payload.old as Order;
         // If only notes changed, update that field
         if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes) {
           console.log("Notes changed for order", updated.name_id);
-          console.log(updated.notes)
-          setOrders(prev =>
-            prev.map(o =>
-              o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o
-            )
-          );
+          console.log(updated.notes);
+          setOrders((prev) => prev.map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o)));
           return;
         }
         if (updated.production_status === orderType) {
@@ -147,13 +165,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             const next = prev.some((o) => o.name_id === updated.name_id)
               ? prev.map((o) => (o.name_id === updated.name_id ? updated : o))
               : [updated, ...prev];
-            updateOrderCounts(filterOutOrderCounts(next));
+            // updateOrderCounts(filterOutOrderCounts(next));
             return next;
           });
         } else {
           setOrders((prev) => {
             const next = prev.filter((o) => o.name_id !== updated.name_id);
-            updateOrderCounts(filterOutOrderCounts(next));
+            // updateOrderCounts(filterOutOrderCounts(next));
             return next;
           });
         }
@@ -162,7 +180,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const removed = payload.old as Order;
         setOrders((prev) => {
           const next = prev.filter((o) => o.name_id !== removed.name_id);
-          updateOrderCounts(filterOutOrderCounts(next));
+          // updateOrderCounts(filterOutOrderCounts(next));
           return next;
         });
       })
@@ -175,20 +193,19 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   useEffect(() => {
     const counts = filterOutOrderCounts(orders);
-    updateOrderCounts(counts);
+    // updateOrderCounts(counts);
   }, [orders]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('table')) {
+      if (!target.closest("table")) {
         setIsRowClicked(false);
         setCurrentRowClicked(null);
-
-        console.log('not a table');
+        // console.log("not a table");
         return;
       }
-      console.log("Target", target);
+      // console.log("Target", target);
       // If click is outside the table and not on the context menu, clear selection
       // if (
       //   tableRef.current &&
@@ -198,19 +215,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       //   onRowClick(e, null);
       // }
     };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
   // Memoized derived values
-  const grouped = useMemo(
-    () => groupOrdersByOrderType(orderType, orders),
-    [orderType, orders]
-  );
-  const designatedCategories = useMemo(
-    () => getButtonCategories(orderType)!,
-    [orderType]
-  );
+  const grouped = useMemo(() => groupOrdersByOrderType(orderType, orders), [orderType, orders]);
+  const designatedCategories = useMemo(() => getButtonCategories(orderType)!, [orderType]);
   const categoryCounts = useMemo(
     () => getCategoryCounts(orders, designatedCategories, orderType),
     [orders, designatedCategories]
@@ -290,31 +301,36 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // Optimistically remove from local state
       setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
       // Persist the status change
-      await updateOrderStatus(order, "production_status");
+      await updateOrderStatus(order, false);
+      // Show a notification
+      toast({
+        title: "Order updated",
+        description: `Order ${order.name_id} moved to production_status.`,
+      });
     },
-    []
+    [toast]
   );
 
-  const handleNoteChange = useCallback(
-    async (order: Order, newNotes: string) => {
-      console.log("Updating notes for order", order.name_id, "to", newNotes);
-      // Optimistically update local state
-      setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, notes: newNotes } : o)));
-      // Persist change
-      await updateOrderNotes(order, newNotes);
-    },
-    []
-  );
+  const handleNoteChange = useCallback(async (order: Order, newNotes: string) => {
+    console.log("Updating notes for order", order.name_id, "to", newNotes);
+    // Optimistically update local state
+    setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, notes: newNotes } : o)));
+    // Persist change
+    await updateOrderNotes(order, newNotes);
+  }, []);
 
   const handleMenuOptionClick = useCallback(
     async (option: string) => {
-      // console.log("Menu option clicked:", option);
-      // console.log("Current row clicked:", currentRowClicked);
       if (currentRowClicked == null) {
         return;
       }
-      if (option == "revert"){
-        await updateOrderStatus(currentRowClicked!, "production_status", true);
+      if (option == "revert") {
+        await updateOrderStatus(currentRowClicked!, true);
+        toast({
+          title: "Order reverted",
+          description: `Order ${currentRowClicked!.name_id} moved back to ${orderType}.`,
+          action: <ToastAction altText="Undo revert">Undo</ToastAction>,
+        });
         setIsRowClicked(false);
         setCurrentRowClicked(null);
         return;
@@ -322,22 +338,28 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (option == "delete") {
         console.log("Deleting line:", currentRowClicked);
         await removeOrderLine(currentRowClicked!);
-        // await updateOrderStatus(currentRowClicked!, "production_status", true);
-        // setIsRowClicked(false);
-        // setCurrentRowClicked(null);
+        toast({
+          title: "Order line deleted",
+          description: `Deleted line ${currentRowClicked!.name_id}.`,
+          action: <ToastAction altText="Undo delete">Undo</ToastAction>,
+        });
         return;
       }
       if (option == "deleteAll") {
         console.log("Deleting line:", currentRowClicked);
         await removeOrderAll(currentRowClicked?.order_id!);
+        toast({
+          title: "All orders deleted",
+          description: `Deleted all items for order ${currentRowClicked!.order_id}.`,
+          action: <ToastAction altText="Undo delete all">Undo</ToastAction>,
+        });
         return;
       }
       // Example async operation
-     
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, '_blank');
+      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, "_blank");
     },
-    [currentRowClicked]
+    [currentRowClicked, orderType, toast]
   );
 
   if (headers.length === 0) {
@@ -347,7 +369,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleRowClick = useCallback(
     (event: MouseEvent | React.MouseEvent<HTMLTableRowElement, MouseEvent>, row: Order) => {
-     console.log("Row clicked:", row);
+      console.log("Row clicked:", row);
       console.log("Event:", event);
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       setMenuPos({ x: rect.right, y: rect.bottom });
@@ -384,7 +406,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 {selectedCategory.toLowerCase() === key.split("-")[0] && (
                   <>
                     <h2 className="font-bold text-lg">{convertKeyToTitle(key)}</h2>
-                    <Table className="mb-4 w-full table-fixed bg-gray-50" >
+                    <Table className="mb-4 w-full table-fixed bg-gray-50">
                       <OrderTableHeader tableHeaders={headers} />
                       <OrderTableBody
                         data={group}
@@ -423,18 +445,20 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         )}
         {isRowClicked && (
           <div
-          className="context-menu"
+            className="context-menu"
             style={{
               position: "fixed",
-              top: menuPos.y ,
+              top: menuPos.y,
               left: menuPos.x - 150,
               zIndex: 1000,
             }}
           >
-            <ContextMenu handleMenuOptionClick={handleMenuOptionClick} orderType={orderType}/>
+            <ContextMenu handleMenuOptionClick={handleMenuOptionClick} orderType={orderType} />
           </div>
         )}
+        {/* <This is for displaying the notifications */}
       </div>
+      <Toaster />
     </>
   );
 }

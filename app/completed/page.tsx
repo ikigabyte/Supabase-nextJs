@@ -1,3 +1,5 @@
+'use server'
+
 // import { ButtonOrganizer } from "@/components/button-organizer";
 import { OrderOrganizer } from "@/components/order-organizer";
 import { Separator } from "@/components/ui/separator";

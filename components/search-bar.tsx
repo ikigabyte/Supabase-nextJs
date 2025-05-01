@@ -8,16 +8,20 @@ import { Input } from "@/components/ui/input";
 import {Search} from "lucide-react";
 import { redirect } from "next/navigation";
 
-export function SearchBar() {
+interface SearchBarProps {
+  onSearch: (query: string) => void;
+}
+export function SearchBar({ onSearch }: SearchBarProps) {
   const [query, setQuery] = useState("");
 
-  const onSearchClick = (query: string) => {
-    redirect("/search" + `?query=${query}`);
-  };
+  // const onSearchClick = (query: string) => {
+  //   redirect("/search" + `?query=${query}`);
+  // };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      onSearchClick(query);
+      e.preventDefault();
+      onSearch(query);
       // onSearch(query);
     }
   };

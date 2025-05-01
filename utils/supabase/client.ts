@@ -1,14 +1,17 @@
 // utils/supabase/client.ts
-import { createClient as _createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 let supabase: SupabaseClient | null = null
 
-export function createClient(): SupabaseClient {
+/**
+ * Returns a Supabase client scoped to the current logged-in user (reads JWT from cookies)
+ */
+export function createClientComponent(): SupabaseClient {
   if (!supabase) {
-    supabase = _createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    
+    supabase = createClientComponentClient()
+    console.log("supabase", supabase)
   }
   return supabase
 }

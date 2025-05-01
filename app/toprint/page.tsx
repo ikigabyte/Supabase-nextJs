@@ -16,6 +16,8 @@ export default async function ToPrintPage() {
     return redirect("/login");
   }
 
+  // console.log(supabase);
+  // console.log("user", user);
   // Fetch orders
   // const { data: orders } = await supabase.from("orders").select().order("due_date", { ascending: false });
 
@@ -27,7 +29,7 @@ export default async function ToPrintPage() {
   // };
   return (
     <section className="p-2 pt-10 max-w-8xl w-[90%] flex flex-col gap-2">
-      <OrderOrganizer orderType="print" defaultPage="white"/>
+      <OrderOrganizer orderType="print" defaultPage="white" />
     </section>
   );
 }

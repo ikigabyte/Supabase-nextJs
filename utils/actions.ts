@@ -1,8 +1,11 @@
-"use server"
+'use server'
 
 import { Order } from "@/types/custom";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { OrderTypes } from "./orderTypes";
+
+import { updateZendeskStatus } from "@/utils/google-functions";
 
 const getNewStatus = (currentStatus: string, revert: boolean) => {
   if (revert) {
@@ -46,6 +49,28 @@ const getTimeStamp = () => {
   return timestamp;
 }
 
+async function getSiblingOrders(orderId: number, newStatus : string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("order_id", orderId);
+  if (error) {
+    console.error("Error fetching orders for order_id", orderId, error);
+    throw new Error("Error fetching orders");
+  }
+
+  // console.log("Fetched orders for order_id", orderId, data);
+  // Inserted logic to build statuses and check if all equal newProductionStatus
+  const statuses = (data ?? []).map(o => o.production_status);
+  console.log("Statuses", statuses);
+  if (statuses.length > 0 && statuses.every(s => s === newStatus)) {
+    console.log("ready to update zendesk order");
+    return true
+  }
+  return false
+}
+
 async function addHistoryForUser(userId: string, orderId: string, newStatus: string) {
   const supabase = await createClient();
   const { data: {user} } = await supabase.auth.getUser();
@@ -64,6 +89,182 @@ async function addHistoryForUser(userId: string, orderId: string, newStatus: str
   }
 
   // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+}
+
+export async function removeOrderLine(order: Order){
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
+
+  addHistoryForUser(user.id, order.name_id, "deleted");
+  const { error: deleteError } = await supabase
+    .from("orders")
+    .delete()
+    .eq("name_id", order.name_id);
+  if (deleteError) {
+    console.error("Error deleting order", deleteError);
+    throw new Error("Error deleting order");
+  }
+
+  console.log("Order deleted successfully");
+  revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+}
+
+export async function removeOrderAll(orderId: number) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
+
+  const { error } = await supabase
+    .from("orders")
+    .delete()
+    .eq("order_id", orderId);
+  if (error) {
+    console.error("Error deleting orders", error);
+    throw new Error("Error deleting orders");
+  }
+
+  console.log(`Orders with order_id ${orderId} deleted successfully`);
+  revalidatePath("/toprint");
+}
+
+export async function updateOrderStatus(order: Order, revert : boolean = false) {
+  if (order == null) {
+    console.error("No order provided");
+    throw new Error("No order provided");
+  }
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
+  
+  // console.log("Updating order", order);
+  const newStatus  = getNewStatus(order.production_status || "", revert);
+  if (!newStatus || newStatus == null) {
+    console.error("No new status found");
+    throw new Error("No new status found");
+    
+  }
+  // console.log("now proceeding with this new thing here")
+  const orderId = parseInt(order.order_id);
+
+  await addHistoryForUser(user.id, order.name_id, newStatus);
+  // if (true) return;
+
+  if (newStatus === "completed") {
+    try{
+      await supabase.rpc("move_order", { p_id: order.name_id });
+    } catch (error) {
+      console.error("Error moving order", error);
+      throw new Error("Error moving order");
+    }
+    console.log("Order archived successfully");
+    return
+  }
+  // Retrieve existing history JSONB
+  const { data: existingRecord, error: historyError } = await supabase
+    .from("orders")
+    .select("history")
+    .eq("name_id", order.name_id)
+    .single();
+  if (historyError) {
+    console.error("Error fetching history", historyError);
+    throw new Error("Error fetching history");
+  }
+  // Ensure history is an array of strings
+  const history: string[] = Array.isArray(existingRecord?.history)
+    ? (existingRecord.history as string[])
+    : [];
+
+  const timestamp = getTimeStamp();
+  const userEmail = user.email || user.id;
+  const newEntry = `${userEmail} moves to "${newStatus}" on ${timestamp}`;
+  history.push(newEntry);
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ ...order, production_status: newStatus, history })
+    .match({ name_id: order.name_id });
+  if (error) {
+    console.error("Error updating todo", error);
+    throw new Error("Error updating todo");
+  }
+
+  console.log("Order updated successfully, new status:", newStatus);
+  const readyForZendeskUpdate = await getSiblingOrders(orderId, newStatus)
+  if (readyForZendeskUpdate) {
+    console.log("Updating Zendesk status");
+    await updateZendeskStatus(orderId, newStatus);
+  }
+
+  // console.log("Sibling orders", siblingOrders);
+  // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+}
+
+export async function updateOrderNotes(order : Order, newNotes : string){
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ ...order, notes: newNotes })
+    .match({ name_id: order.name_id });
+
+  if (error) {
+    console.error("Error updating todo", error);
+    throw new Error("Error updating todo");
+  }
+  console.log("Order updated successfully");
+  
+}
+
+export async function createOrder(formData: FormData) {
+  // await new Promise((resolve) => {
+  //     setTimeout(resolve, 3000);
+  // })
+
+  const supabase = await createClient();
+  const text = formData.get("todo") as string;
+  if (!text) {
+    throw new Error("No todo text provided");
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
+
+  const { error } = await supabase.from("orders").insert({
+    name_id: text,
+    print_method: "Front",
+  });
+  if (error) {
+    console.error("Error adding an order here", error);
+    throw new Error("Error adding todo");
+  }
+
+  revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 }
 
 // export async function addTodo(formData: FormData){
@@ -118,62 +319,6 @@ async function addHistoryForUser(userId: string, orderId: string, newStatus: str
 //   return todos;
 // }
 
-export async function removeOrderLine(order: Order){
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error("User is not logged in");
-  }
-
-  // const { data: existingRecord, error: historyError } = await supabase
-  //   .from("orders")
-  //   .select("history")
-  //   .eq("name_id", order.name_id)
-  //   .single();
-  // if (historyError) {
-  //   console.error("Error fetching history", historyError);
-  //   throw new Error("Error fetching history");
-  // }
-  addHistoryForUser(user.id, order.name_id, "deleted");
-  const { error: deleteError } = await supabase
-    .from("orders")
-    .delete()
-    .eq("name_id", order.name_id);
-  if (deleteError) {
-    console.error("Error deleting order", deleteError);
-    throw new Error("Error deleting order");
-  }
-
-  console.log("Order deleted successfully");
-  revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
-}
-
-export async function removeOrderAll(orderId: number) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error("User is not logged in");
-  }
-
-  const { error } = await supabase
-    .from("orders")
-    .delete()
-    .eq("order_id", orderId);
-  if (error) {
-    console.error("Error deleting orders", error);
-    throw new Error("Error deleting orders");
-  }
-
-  console.log(`Orders with order_id ${orderId} deleted successfully`);
-  revalidatePath("/toprint");
-}
-
 // export async function updateTodo(todo: Todo) {
 //   const supabase = await createClient();
 //   const {
@@ -191,128 +336,16 @@ export async function removeOrderAll(orderId: number) {
 //   revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 // }
 
-export async function updateOrderStatus(order: Order, property: string, revert : boolean = false) {
-  if (order == null) {
-    console.error("No order provided");
-    throw new Error("No order provided");
-  }
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("User is not logged in");
-  }
-  
-  // console.log("Updating order", order);
-  const newStatus = getNewStatus(order.production_status || "", revert);
-  if (!newStatus) {
-    console.error("No new status found");
-    throw new Error("No new status found");
-  }
-
-  await addHistoryForUser(user.id, order.name_id, newStatus);
-  // if (true) return;
-
-  if (newStatus === "completed") {
-    try{
-      await supabase.rpc("move_order", { p_id: order.name_id });
-    } catch (error) {
-      console.error("Error moving order", error);
-      throw new Error("Error moving order");
-    }
-    console.log("Order archived successfully");
-    return
-  }
-  // Retrieve existing history JSONB
-  const { data: existingRecord, error: historyError } = await supabase
-    .from("orders")
-    .select("history")
-    .eq("name_id", order.name_id)
-    .single();
-  if (historyError) {
-    console.error("Error fetching history", historyError);
-    throw new Error("Error fetching history");
-  }
-  // Ensure history is an array of strings
-  const history: string[] = Array.isArray(existingRecord?.history)
-    ? (existingRecord.history as string[])
-    : [];
   // console.log("Existing history:", history);
 
   // Build timestamped history entry
-  const timestamp = getTimeStamp();
-  const userEmail = user.email || user.id;
-  const newEntry = `${userEmail} moves to "${newStatus}" on ${timestamp}`;
-  history.push(newEntry);
-  console.log("Updated history:", history);
-  
-  // console.log(order.name_id);
-  const { error } = await supabase
-    .from("orders")
-    .update({ ...order, production_status: newStatus, history })
-    .match({ name_id: order.name_id });
-  if (error) {
-    console.error("Error updating todo", error);
-    throw new Error("Error updating todo");
-  }
 
-  console.log("Order updated successfully, new status:", newStatus);
-  // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
-}
-
-export async function updateOrderNotes(order : Order, newNotes : string){
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("User is not logged in");
-  }
-  console.log(user);
-
-  console.log(newNotes);
-
-  const { error } = await supabase
-    .from("orders")
-    .update({ ...order, notes: newNotes })
-    .match({ name_id: order.name_id });
-
-  if (error) {
-    console.error("Error updating todo", error);
-    throw new Error("Error updating todo");
-  }
-  console.log("Order updated successfully");
-  
-}
-
-export async function createOrder(formData: FormData) {
-  // await new Promise((resolve) => {
-  //     setTimeout(resolve, 3000);
-  // })
-
-  const supabase = await createClient();
-  const text = formData.get("todo") as string;
-  if (!text) {
-    throw new Error("No todo text provided");
-  }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error("User is not logged in");
-  }
-
-  const { error } = await supabase.from("orders").insert({
-    name_id: text,
-    print_method: "Front",
-  });
-  if (error) {
-    console.error("Error adding an order here", error);
-    throw new Error("Error adding todo");
-  }
-
-  revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
-}
+    // const { data: existingRecord, error: historyError } = await supabase
+  //   .from("orders")
+  //   .select("history")
+  //   .eq("name_id", order.name_id)
+  //   .single();
+  // if (historyError) {
+  //   console.error("Error fetching history", historyError);
+  //   throw new Error("Error fetching history");
+  // }

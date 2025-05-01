@@ -119,12 +119,13 @@ export type Database = {
           material: string | null
           name_id: string
           notes: string | null
-          order_id: number | null
+          order_id: number
           print_method: string | null
           production_status: string | null
-          promo: boolean | null
-          quantity: string | null
+          promo: boolean
+          quantity: string
           shape: string | null
+          shipping_method: string
         }
         Insert: {
           due_date?: string | null
@@ -135,12 +136,13 @@ export type Database = {
           material?: string | null
           name_id: string
           notes?: string | null
-          order_id?: number | null
+          order_id?: number
           print_method?: string | null
           production_status?: string | null
-          promo?: boolean | null
-          quantity?: string | null
+          promo?: boolean
+          quantity?: string
           shape?: string | null
+          shipping_method?: string
         }
         Update: {
           due_date?: string | null
@@ -151,12 +153,13 @@ export type Database = {
           material?: string | null
           name_id?: string
           notes?: string | null
-          order_id?: number | null
+          order_id?: number
           print_method?: string | null
           production_status?: string | null
-          promo?: boolean | null
-          quantity?: string | null
+          promo?: boolean
+          quantity?: string
           shape?: string | null
+          shipping_method?: string
         }
         Relationships: []
       }

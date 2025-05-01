@@ -11,6 +11,7 @@ import { SearchBar } from "./search-bar";
 
 // import { redirect } from 'next/navigation'
 import { redirect } from 'next/navigation'
+import { NavBarElement } from "./navbar-element";
 
 function getProductionCounts(
   orders: Order[],
@@ -37,42 +38,14 @@ export default async function Header() {
   let cutCount = null;
   let packCount = null;
 
-  if (user !== null) {
+  // if (user !== null) {
 
-    //! Is this a server or a client component?
-    console.log("user", user);
-    const { count: toPrintCount } = await supabase
-      .from("orders")
-      .select("*", { count: "exact" })
-
-    // const { count: toShipCount } = await supabase
-    //   .from("orders")
-    //   .select("*", { count: "exact" })
-    //   .eq("production_status", "ship");
-    // const { count: toCutCount } = await supabase
-    //   .from("orders")
-    //   .select("*", { count: "exact" })
-    //   .eq("production_status", "cut");
-
-    // const { count: toPackCount } = await supabase
-    //   .from("orders")
-    //   .select("*", { count: "exact" })
-    //   .eq("production_status", "pack");
-
-    // console.log("count", toPrintCount);
-    printCount = toPrintCount;
-    // shipCount = toShipCount;
-    // cutCount = toCutCount;
-    // packCount = toPackCount;
-
-  }
-
-  const onSearch = (searchTerm: string) => {
-    console.log("Search term:", searchTerm);
-    redirect(`/search/${searchTerm}`);
-    // redirect(302, `/search/${searchTerm}`);
-    
-  }
+  // }
+  // function onSearch(searchTerm: string) {
+  //   console.log("Search term:", searchTerm);
+  //   console.log("Redirecting to search page with term:", searchTerm);
+  //   redirect(`/search/${searchTerm}`);
+  // }
 
   // console.log(printCount); // Use a reducer here
   // console.log("totalOrderCount", totalOrderCount);
@@ -82,21 +55,13 @@ export default async function Header() {
       <div className="container flex h-14 max-w-screen-2xl items-center">
         <nav className="flex items-center space-x-4 lg:space-x-3">
           <a className="mr-5 flex items-center space-x-2" href="/">
-            <span className="font-bold text-sm">Stickerbeat Database v1.15</span>
+            <span className="font-bold text-sm">Stickerbeat Database v1.2</span>
           </a>
           <div className="flex flex-1 items-center justify-end space-x-12">
             {user !== null ? (
-                <div className="flex items-center gap-5 text-xs font-medium">
-                <Link id="to-print" href="/toprint?white">To Print</Link>
-                <Link id="to-cut" href="/tocut?regular">To Cut</Link>
-                <Link id="to-pack" href="/topack?regular">To Pack</Link>
-                <Link id="to-ship" href="/toship?regular">To Ship</Link>
-                <Link id="completed" href="/completed">Completed</Link>
-                <Link id="timeline" href="/timeline">Timeline</Link>
-                <SearchBar />
-              </div>
+              <NavBarElement/>
             ) : (
-              <Link href="/"></Link>
+              <Link href="/login"></Link>
             )}
           </div>
         </nav>
