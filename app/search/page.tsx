@@ -6,7 +6,11 @@ import { Order } from "@/types/custom";
 import { Fragment } from "react";
 import { Table, TableHead, TableRow, TableHeader } from "@/components/ui/table";
 
-export default async function SearchPage({ searchParams }: { searchParams: { query?: string } }) {
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: { query?: string | string[] };
+}) {
   const supabase = await createClient();
 
   const {
@@ -27,7 +31,7 @@ export default async function SearchPage({ searchParams }: { searchParams: { que
     // return redirect("/search");
   }
 
-  if (query) {
+  if (query && typeof query === "string") {
     const supabase = await createClient();
     const { data, error } = await supabase.from("orders").select("*").eq("order_id", parseInt(query));
     if (error) {
