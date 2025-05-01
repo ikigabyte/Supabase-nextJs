@@ -1,10 +1,19 @@
-// import { Separator } from "@/components/ui/separator";
-// import { SearchBar } from "@/components/search-bar";
-// import { createClient } from "@/utils/supabase/server";
-// import { redirect } from "next/navigation";
-// import { Order } from "@/types/custom";
-// import { Fragment } from "react";
-// import { Table, TableHead, TableRow, TableHeader } from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
+import { SearchBar } from "@/components/search-bar";
+import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
+import { Order } from "@/types/custom";
+import { Fragment } from "react";
+import { Table, TableHead, TableRow, TableHeader } from "@/components/ui/table";
+
+
+// ! temporarily disabled for now
+export default async function SearchPage(){
+  return (
+    <>
+    </>)
+    
+}
 
 // export default async function SearchPage({
 //   searchParams,
@@ -21,10 +30,9 @@
 //     console.log("User not found, redirecting to login");
 //     return redirect("/login");
 //   }
-
+  
 //   const query = searchParams.query ?? "";
 
-//   // Fetch orders matching property_id === query
 //   let ordersData: Order[] = [];
 //   if (query == null) {
 //     console.log("No query provided");
