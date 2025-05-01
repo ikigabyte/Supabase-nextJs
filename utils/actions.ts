@@ -160,7 +160,7 @@ export async function updateOrderStatus(order: Order, revert : boolean = false) 
     
   }
   // console.log("now proceeding with this new thing here")
-  const orderId = parseInt(order.order_id);
+  // const orderId = parseInt(order.order_id);
 
   await addHistoryForUser(user.id, order.name_id, newStatus);
   // if (true) return;
@@ -205,10 +205,10 @@ export async function updateOrderStatus(order: Order, revert : boolean = false) 
   }
 
   console.log("Order updated successfully, new status:", newStatus);
-  const readyForZendeskUpdate = await getSiblingOrders(orderId, newStatus)
+  const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus)
   if (readyForZendeskUpdate) {
     console.log("Updating Zendesk status");
-    await updateZendeskStatus(orderId, newStatus);
+    await updateZendeskStatus(order.order_id, newStatus);
   }
 
   // console.log("Sibling orders", siblingOrders);

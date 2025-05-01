@@ -4,6 +4,7 @@ import { OrderTypes } from "./orderTypes";
 
 export const orderKeys: Record<OrderTypes, string[]> = {
   print: [
+    "rush-regular",
     "white-gloss-regular",
     "white-gloss-tiles",
     "white-gloss-promo",
@@ -72,14 +73,20 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
   if (!keys) return null;
 
   // 1) Promo takes priority
-  if (order.promo) {
-    console.log("Promo detected");
-    const promoKey = keys.find((k) => k.endsWith("-promo") && k.startsWith(`${order.material}-${order.lamination}`));
-    if (promoKey) return promoKey;
-  }
 
-  // 2) For print orders, choose by number vs tiles
+  // 1a) Rush orders for print take highest priority
   if (orderType === "print") {
+    console.log("Rush", order.rush);
+    if (order.rush === true) {
+      console.log("Rush detected");
+      const rushKey = keys.find((k) => k.startsWith("rush"));
+      if (rushKey) return rushKey;
+    }
+    if (order.promo) {
+      // console.log("Promo detected");
+      const promoKey = keys.find((k) => k.endsWith("-promo") && k.startsWith(`${order.material}-${order.lamination}`));
+      if (promoKey) return promoKey;
+    }
 
     const suffix = order.quantity && order.quantity.includes("-") ? "tiles" : "regular";
     const key = `${order.material}-${order.lamination}-${suffix}`;

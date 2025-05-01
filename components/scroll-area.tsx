@@ -12,7 +12,7 @@ export function ScrollAreaDemo({ historySteps, scrollName }: { historySteps?: st
         <h4 className="mb-4 text-sm font-medium leading-none">{scrollName}</h4>
         {steps.map((step, index) => (
           <React.Fragment key={index}>
-            <div className="text-sm">{step}</div>
+            <div className="">{step}</div>
             <Separator className="my-2" />
           </React.Fragment>
         ))}

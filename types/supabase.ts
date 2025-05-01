@@ -124,6 +124,7 @@ export type Database = {
           production_status: string | null
           promo: boolean
           quantity: string
+          rush: boolean
           shape: string | null
           shipping_method: string
         }
@@ -141,6 +142,7 @@ export type Database = {
           production_status?: string | null
           promo?: boolean
           quantity?: string
+          rush?: boolean
           shape?: string | null
           shipping_method?: string
         }
@@ -158,6 +160,7 @@ export type Database = {
           production_status?: string | null
           promo?: boolean
           quantity?: string
+          rush?: boolean
           shape?: string | null
           shipping_method?: string
         }

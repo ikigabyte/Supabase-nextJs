@@ -1,12 +1,44 @@
 import React, { useEffect, useRef } from "react";
+import { useState } from "react";
 import { TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Order } from "@/types/custom";
-// import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
 import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
-// import { Separator } from "./ui/separator";
-// import { Toaster } from "./ui/toaster";
+
+import { Separator } from "./ui/separator";
+// A controlled input that only commits on Enter
+function NoteInput({
+  note,
+  onCommit,
+}: {
+  note: string;
+  onCommit: (value: string) => void;
+}) {
+  const [value, setValue] = useState(note);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Sync remote note changes when not focused
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      setValue(note);
+    }
+  }, [note]);
+  return (
+    <Input
+      ref={inputRef}
+      className="h-1/5 w-full border-0 text-gray-500 bg-transparent"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+          onCommit(value);
+        }
+      }}
+    />
+  );
+}
+// import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
+
 const dayOfTheWeekColor: { [key: number]: string } = {
   1: "bg-gray-100", // Monday
   2: "bg-gray-200", // Tuesday
@@ -15,12 +47,6 @@ const dayOfTheWeekColor: { [key: number]: string } = {
   5: "bg-gray-300", // Friday
 };
 
-/**
- * Converts a date string into the corresponding day of the week as a number.
- *
- * @param dateString - A string representing a date, or null. If null or invalid, defaults to 1.
- * @returns A number representing the day of the week (0 for Sunday, 1 for Monday, ..., 6 for Saturday).
- */
 const convertToDayOfTheWeek = (dateString: string | null) => {
   if (!dateString || dateString == null) {
     return 1;
@@ -63,6 +89,7 @@ export function OrderTableBody({
   setRowHistory,
   setScrollAreaName,
   onRowClick,
+  selectedNameId,
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -71,7 +98,8 @@ export function OrderTableBody({
   setMousePos: (pos: { x: number; y: number }) => void;
   setRowHistory: (history: string[]) => void;
   setScrollAreaName: (name: string) => void;
-  onRowClick: (event: React.MouseEvent<HTMLTableRowElement> | MouseEvent, row: Order) => void;
+  onRowClick: (event: React.MouseEvent<HTMLTableRowElement> | MouseEvent, row: Order | null) => void;
+  selectedNameId: string | null;
 }) {
   const lastHoveredIdRef = useRef<string | number | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
@@ -152,52 +180,54 @@ export function OrderTableBody({
         // console.log("Row ID: ", row.order_id);
 
         prevOrderId = row.order_id;
+        const showSeparator = differentOrderId && i !== 0;
+        console.log(selectedNameId);
         return (
-          <TableRow
-            key={row.name_id} // Use a unique key, such as `row.order_id`
-            className={`${"h-1 [&>td]:py-0 border-t border-white hover:bg-gray-100 text-xs"} ${
-              differentOrderId ? "border-black" : ""
-            }`}
-            onClick={(e: React.MouseEvent<HTMLTableRowElement>) => onTableClick(e, row)}
-          >
-            <TableCell
-              onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
-              onMouseLeave={handleMouseLeave}
-              className=""
+          <React.Fragment key={row.name_id}>
+            {showSeparator && (
+              <TableRow key={`sep-${row.name_id}`} className="bg-transparent border-none h-1">
+                <TableCell colSpan={13} className="h-1 bg-transparent border-none" />
+              </TableRow>
+            )}
+            <TableRow
+              key={row.name_id}
+              className={`[&>td]:py-0 bg-transparent hover:bg-transparent text-xs${
+                row.name_id === selectedNameId ? " ring-2 ring-black ring-inset relative z-10" : ""
+              }`}
+              onClick={(e: React.MouseEvent<HTMLTableRowElement>) => onTableClick(e, row)}
             >
-              {truncate(row.name_id, 30) || "test"}
-            </TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.material) || "-"}</TableCell>
-            <TableCell
-              onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
-              onMouseLeave={handleMouseLeave}
-              className=""
-            >
-              {displayCorrectQuantity(row.quantity) || "-"}
-            </TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.ink)} </TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.print_method) || ""}</TableCell>
-            <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
-              {capitalizeFirstLetter(row.due_date) || ""}
-            </TableCell>
-            <TableCell className="">{capitalizeFirstLetter(row.ihd_date) || ""}</TableCell>
-            <TableCell className="">
-              <Input
-                className="h-1/5 w-full border-0 text-gray-500 bg-transparent"
-                defaultValue={row.notes ?? ''}
-                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                  if (e.key === 'Enter') {
-                    onNotesChange(row, (e.target as HTMLInputElement).value);
-                  }
-                }}
-              />
-            </TableCell>
-            <TableCell className="">
-              <Checkbox checked={false} onCheckedChange={() => onOrderClick(row)} />
-            </TableCell>
-          </TableRow>
+              <TableCell
+                onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
+                onMouseLeave={handleMouseLeave}
+                className=""
+              >
+                {truncate(row.name_id, 30) || "test"}
+              </TableCell>
+              <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
+              <TableCell className="">{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
+              <TableCell className="">{capitalizeFirstLetter(row.material) || "-"}</TableCell>
+              <TableCell
+                onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
+                onMouseLeave={handleMouseLeave}
+                className=""
+              >
+                {displayCorrectQuantity(row.quantity) || "-"}
+              </TableCell>
+              <TableCell className="">{capitalizeFirstLetter(row.ink)} </TableCell>
+              <TableCell className="">{capitalizeFirstLetter(row.print_method) || ""}</TableCell>
+              <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
+                {capitalizeFirstLetter(row.due_date) || ""}
+              </TableCell>
+              <TableCell className="">{capitalizeFirstLetter(row.ihd_date) || ""}</TableCell>
+              <TableCell className="">{capitalizeFirstLetter(row.shipping_method) || ""}</TableCell>
+              <TableCell className="">
+                <NoteInput note={row.notes ?? ""} onCommit={(value) => onNotesChange(row, value)} />
+              </TableCell>
+              <TableCell className="">
+                <Checkbox checked={false} onCheckedChange={() => onOrderClick(row)} />
+              </TableCell>
+            </TableRow>
+          </React.Fragment>
         );
       })}
     </TableBody>

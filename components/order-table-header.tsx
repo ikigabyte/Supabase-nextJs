@@ -1,7 +1,7 @@
 import React from "react";
 import { TableHead, TableRow, TableHeader } from "@/components/ui/table";
 
-const widths: string[] = ["22%", "7%", "7%", "7%", "7%", "7%", "7%", "7%", "7%", "18%", "4%"];
+const widths: string[] = ["20%", "5%", "5%", "5%", "5%", "5%", "5%", "9%", "9%", "6%", "15%", "5%"];
 
 export function OrderTableHeader({ tableHeaders }: { tableHeaders: string[] }) {
   return (

@@ -15,6 +15,7 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "print method",
         "SHIP date",
         "IHD date",
+        "speed",
         "notes",
         orderType,
       ];
@@ -29,6 +30,7 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "-",
         "SHIP date",
         "IHD date",
+        "speed",
         "notes",
         orderType,
       ];
@@ -39,11 +41,12 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "lamination",
         "material",
         "quantity",
-        "due date",
-        "ihd date",
-        "ihd date",
+        "ink",
+        "print method",
+        "SHIP date",
+        "IHD date",
+        "speed",
         "notes",
-        "",
         orderType,
       ];
   }

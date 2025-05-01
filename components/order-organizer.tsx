@@ -10,7 +10,7 @@ import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 // lib/supabase.ts
 
-import { getButtonCategories } from "@/types/buttons";
+import { getButtonCategories  } from "@/types/buttons";
 import { updateOrderStatus, updateOrderNotes, removeOrderLine, removeOrderAll } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -37,20 +37,25 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
-    const count =
-      lowerCat === "regular"
-        ? orders.filter((order) => {
-            if (order.production_status !== orderType) {
-              return null; // Skip this order if the production_status doesn't match the orderType
-            }
-            return order.material?.toLowerCase() !== "roll";
-          }).length
-        : orders.filter((order) => {
-            if (order.production_status !== orderType) {
-              return null; // Skip this order if the production_status doesn't match the orderType
-            }
-            return order.material?.toLowerCase() === lowerCat;
-          }).length;
+    let count = 0;
+    if (lowerCat === 'rush') {
+      // Count only rush orders matching the current status
+      count = orders.filter(
+        (order) => order.production_status === orderType && order.rush === true
+      ).length;
+    } else if (lowerCat === "regular") {
+      count = orders.filter(order =>
+        order.production_status === orderType &&
+        order.rush !== true &&
+        order.material?.toLowerCase() !== "roll"
+      ).length;
+    } else {
+      count = orders.filter(order =>
+        order.production_status === orderType &&
+        order.rush !== true &&
+        order.material?.toLowerCase() === lowerCat
+      ).length;
+    }
     acc[category] = count;
     return acc;
   }, {} as Record<string, number>);
@@ -222,6 +227,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // Memoized derived values
   const grouped = useMemo(() => groupOrdersByOrderType(orderType, orders), [orderType, orders]);
   const designatedCategories = useMemo(() => getButtonCategories(orderType)!, [orderType]);
+  // const designatedColors = useMemo(() => getButtonColors(orderType)!, [orderType]);
   const categoryCounts = useMemo(
     () => getCategoryCounts(orders, designatedCategories, orderType),
     [orders, designatedCategories]
@@ -368,12 +374,24 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }
 
   const handleRowClick = useCallback(
-    (event: MouseEvent | React.MouseEvent<HTMLTableRowElement, MouseEvent>, row: Order) => {
+      (event: MouseEvent | React.MouseEvent<HTMLTableRowElement, MouseEvent>, row: Order | null) => {
+        if (!row) {
+          console.warn("Row is null, skipping click handling.");
+          return;
+        }
       console.log("Row clicked:", row);
       console.log("Event:", event);
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       setMenuPos({ x: rect.right, y: rect.bottom });
-      isRowClicked ? setIsRowClicked(false) : setIsRowClicked(true);
+
+      if (!isRowClicked){
+        setIsRowClicked(true);
+      }
+      // if (isRowClicked){
+        // setIsRowClicked(false);
+        // setCurrentRowClicked(null);
+        // return;
+      // }
       setCurrentRowClicked(row);
       // await updateOrderStatus(row, "production_status");
     },
@@ -400,15 +418,16 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           {allKeys.map((key) => {
             // console.log("this is the key", key);
             const group = grouped[key] || [];
+    
             return (
               <Fragment key={key}>
-                <div className="flex items-center justify-between"></div>
+                {/* <div className="flex items-center justify-between "></div> */}
                 {selectedCategory.toLowerCase() === key.split("-")[0] && (
                   <>
                     <h2 className="font-bold text-lg">{convertKeyToTitle(key)}</h2>
-                    <Table className="mb-4 w-full table-fixed bg-gray-50">
+                    <Table className="bg-gray-50 mb-5">
                       <OrderTableHeader tableHeaders={headers} />
-                      <OrderTableBody
+                      <OrderTableBody 
                         data={group}
                         onOrderClick={handleCheckboxClick}
                         onNotesChange={handleNoteChange}
@@ -417,6 +436,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         setRowHistory={setRowHistory}
                         setScrollAreaName={setScrollAreaName}
                         onRowClick={handleRowClick}
+                        selectedNameId={currentRowClicked?.name_id || null}
                       />
                     </Table>
                   </>
