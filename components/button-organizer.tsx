@@ -8,28 +8,28 @@ const getButtonColor = (category: string) => {
   switch (category) {
     case 'rush':
       return 'bg-red-800 text-white';
-    case 'white':
-      return 'bg-gray-800 text-white';
-    case 'glitter':
-      return 'bg-yellow-300 text-black';
-    case 'holographic':
-      return 'bg-green-500 text-white';
-    case 'clear':
-      return 'bg-pink-300 text-black';
-    case 'mag20pt':
-      return 'bg-green-800 text-white';
-    case 'mag30pt':
-      return 'bg-blue-800 text-white';
-    case 'reflective':
-      return 'bg-green-200 text-black';
-    case 'arlon':
-      return 'bg-teal-500 text-white';
-    case 'floor':
-      return 'bg-yellow-800 text-white';
-    case 'roll':
-      return 'bg-orange-300 text-black';
+    // case 'white':
+    //   return 'bg-gray-800 text-white';
+    // case 'glitter':
+    //   return 'bg-yellow-300 text-black';
+    // case 'holographic':
+    //   return 'bg-green-500 text-white';
+    // case 'clear':
+    //   return 'bg-pink-300 text-black';
+    // case 'mag20pt':
+    //   return 'bg-green-800 text-white';
+    // case 'mag30pt':
+    //   return 'bg-blue-800 text-white';
+    // case 'reflective':
+    //   return 'bg-green-200 text-black';
+    // case 'arlon':
+    //   return 'bg-teal-500 text-white';
+    // case 'floor':
+    //   return 'bg-yellow-800 text-white';
+    // case 'roll':
+    //   return 'bg-orange-300 text-black';
     default:
-      return 'bg-gray-500 text-black';
+      return 'bg-gray-900 text-white';
   }
 };
 
