@@ -37,10 +37,11 @@ export default function SearchPage() {
     }
   }, [query]);
 
+  console.log(ordersData);
   return (
     <div className="p-2 pt-10 max-w-8xl w-[70%] flex flex-col items-center gap-2 relative">
       <h1>Search Results for "{query}"</h1>
-      {ordersData !== null ? (
+      {ordersData !== null && ordersData.length > 0 ? (
         <div className="">
           <Fragment>
             <Table className="mb-4 w-full table-fixed">
