@@ -64,7 +64,7 @@ export const orderKeys: Record<OrderTypes, string[]> = {
   cut: ["regular", "roll"],
   ship: ["regular", "roll"],
   pack: ["regular", "roll"],
-  completed: [], // add this to satisfy the OrderTypes enum
+  // completed: [], // add this to satisfy the OrderTypes enum
 };
 
 export function assignKeyType(order: Order, orderType: OrderTypes): string | null {
