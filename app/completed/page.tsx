@@ -15,7 +15,7 @@ import {
 import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { OrderTableHeader } from "@/components/order-table-header";
 
-export default async function ToPrintPage({ searchParams }: { searchParams?: { page?: string } }) {
+export default async function CompletedPage() {
   const supabase = await createClient();
 
   const {
@@ -28,7 +28,7 @@ export default async function ToPrintPage({ searchParams }: { searchParams?: { p
   }
 
   // Paginated fetch from "Completed" table
-  const page = parseInt(searchParams?.page || "1", 10);
+  const page = 1; // Default to page 1
   const limit = 100;
   const from = (page - 1) * limit;
   const to = page * limit - 1;
