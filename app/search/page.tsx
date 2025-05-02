@@ -10,6 +10,8 @@ import SearchResults from "@/components/searchresults";
 //   searchParams: { query?: string | string[] };
 // }) {
 export default function SearchPage(){
+
+  const test = "test";
   // const rawQuery = searchParams.query;
   // const query = Array.isArray(rawQuery) ? rawQuery[0] : rawQuery ?? '';
   // console.log(query);
