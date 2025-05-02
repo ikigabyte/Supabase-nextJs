@@ -10,7 +10,7 @@ import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 // lib/supabase.ts
 
-import { getButtonCategories  } from "@/types/buttons";
+import { getButtonCategories } from "@/types/buttons";
 import { updateOrderStatus, updateOrderNotes, removeOrderLine, removeOrderAll } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -18,8 +18,8 @@ import { ScrollAreaDemo } from "./scroll-area";
 import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
-import { Toaster } from "./ui/toaster";
-import { ToastAction } from "./ui/toast";
+// import { Toaster } from "./ui/toaster";
+// import { ToastAction } from "./ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
@@ -38,22 +38,18 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
     let count = 0;
-    if (lowerCat === 'rush') {
+    if (lowerCat === "rush") {
       // Count only rush orders matching the current status
-      count = orders.filter(
-        (order) => order.production_status === orderType && order.rush === true
-      ).length;
+      count = orders.filter((order) => order.production_status === orderType && order.rush === true).length;
     } else if (lowerCat === "regular") {
-      count = orders.filter(order =>
-        order.production_status === orderType &&
-        order.rush !== true &&
-        order.material?.toLowerCase() !== "roll"
+      count = orders.filter(
+        (order) =>
+          order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() !== "roll"
       ).length;
     } else {
-      count = orders.filter(order =>
-        order.production_status === orderType &&
-        order.rush !== true &&
-        order.material?.toLowerCase() === lowerCat
+      count = orders.filter(
+        (order) =>
+          order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() === lowerCat
       ).length;
     }
     acc[category] = count;
@@ -125,7 +121,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const router = useRouter();
   const pathname = usePathname();
   const [orders, setOrders] = useState<Order[]>([]);
-  const { toast } = useToast();
+  // const { toast } = useToast();
 
   useEffect(() => {
     // Initial load
@@ -301,21 +297,18 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }, [defaultPage]);
 
-  const handleCheckboxClick = useCallback(
-    async (order: Order) => {
-      console.log(`Order clicked: ${order.name_id}`);
-      // Optimistically remove from local state
-      setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
-      // Persist the status change
-      await updateOrderStatus(order, false);
-      // Show a notification
-      toast({
-        title: "Order updated",
-        description: `Order ${order.name_id} moved to production_status.`,
-      });
-    },
-    [toast]
-  );
+  const handleCheckboxClick = useCallback(async (order: Order) => {
+    console.log(`Order clicked: ${order.name_id}`);
+    // Optimistically remove from local state
+    setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+    // Persist the status change
+    await updateOrderStatus(order, false);
+    // Show a notification
+    // toast({
+    //   title: "Order updated",
+    //   description: `Order ${order.name_id} moved to production_status.`,
+    // });
+  }, []);
 
   const handleNoteChange = useCallback(async (order: Order, newNotes: string) => {
     console.log("Updating notes for order", order.name_id, "to", newNotes);
@@ -332,11 +325,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
       if (option == "revert") {
         await updateOrderStatus(currentRowClicked!, true);
-        toast({
-          title: "Order reverted",
-          description: `Order ${currentRowClicked!.name_id} moved back to ${orderType}.`,
-          action: <ToastAction altText="Undo revert">Undo</ToastAction>,
-        });
+        // toast({
+        //   title: "Order reverted",
+        //   description: `Order ${currentRowClicked!.name_id} moved back to ${orderType}.`,
+        //   // action: <ToastAction altText="Undo revert">Undo</ToastAction>,
+        // });
         setIsRowClicked(false);
         setCurrentRowClicked(null);
         return;
@@ -344,28 +337,28 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (option == "delete") {
         console.log("Deleting line:", currentRowClicked);
         await removeOrderLine(currentRowClicked!);
-        toast({
-          title: "Order line deleted",
-          description: `Deleted line ${currentRowClicked!.name_id}.`,
-          action: <ToastAction altText="Undo delete">Undo</ToastAction>,
-        });
+        // toast({
+        //   title: "Order line deleted",
+        //   description: `Deleted line ${currentRowClicked!.name_id}.`,
+        //   // action: <ToastAction altText="Undo delete">Undo</ToastAction>,
+        // });
         return;
       }
       if (option == "deleteAll") {
         console.log("Deleting line:", currentRowClicked);
         await removeOrderAll(currentRowClicked?.order_id!);
-        toast({
-          title: "All orders deleted",
-          description: `Deleted all items for order ${currentRowClicked!.order_id}.`,
-          action: <ToastAction altText="Undo delete all">Undo</ToastAction>,
-        });
+        // toast({
+        //   title: "All orders deleted",
+        //   description: `Deleted all items for order ${currentRowClicked!.order_id}.`,
+        //   // action: <ToastAction altText="Undo delete all">Undo</ToastAction>,
+        // });
         return;
       }
       // Example async operation
       await new Promise((resolve) => setTimeout(resolve, 1000));
       window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, "_blank");
     },
-    [currentRowClicked, orderType, toast]
+    [currentRowClicked, orderType]
   );
 
   if (headers.length === 0) {
@@ -374,23 +367,23 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }
 
   const handleRowClick = useCallback(
-      (event: MouseEvent | React.MouseEvent<HTMLTableRowElement, MouseEvent>, row: Order | null) => {
-        if (!row) {
-          console.warn("Row is null, skipping click handling.");
-          return;
-        }
+    (event: MouseEvent | React.MouseEvent<HTMLTableRowElement, MouseEvent>, row: Order | null) => {
+      if (!row) {
+        console.warn("Row is null, skipping click handling.");
+        return;
+      }
       console.log("Row clicked:", row);
       console.log("Event:", event);
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       setMenuPos({ x: rect.right, y: rect.bottom });
 
-      if (!isRowClicked){
+      if (!isRowClicked) {
         setIsRowClicked(true);
       }
       // if (isRowClicked){
-        // setIsRowClicked(false);
-        // setCurrentRowClicked(null);
-        // return;
+      // setIsRowClicked(false);
+      // setCurrentRowClicked(null);
+      // return;
       // }
       setCurrentRowClicked(row);
       // await updateOrderStatus(row, "production_status");
@@ -418,7 +411,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           {allKeys.map((key) => {
             // console.log("this is the key", key);
             const group = grouped[key] || [];
-    
+
             return (
               <Fragment key={key}>
                 {/* <div className="flex items-center justify-between "></div> */}
@@ -427,7 +420,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                     <h2 className="font-bold text-lg">{convertKeyToTitle(key)}</h2>
                     <Table className="bg-gray-50 mb-5">
                       <OrderTableHeader tableHeaders={headers} />
-                      <OrderTableBody 
+                      <OrderTableBody
                         data={group}
                         onOrderClick={handleCheckboxClick}
                         onNotesChange={handleNoteChange}
@@ -478,7 +471,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         )}
         {/* <This is for displaying the notifications */}
       </div>
-      <Toaster />
+      {/* <Toaster /> */}
     </>
   );
 }
