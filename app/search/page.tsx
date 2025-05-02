@@ -4,12 +4,12 @@ import { Table, TableHead, TableRow, TableHeader } from "@/components/ui/table";
 
 import SearchResults from "@/components/searchresults";
 
-export default async function SearchPage({
+export default function SearchPage({
   searchParams,
 }: {
-  searchParams: { query?: string | string[] } | Promise<{ query?: string | string[] }>;
+  searchParams: { query?: string | string[] };
 }) {
-  const { query: rawQuery } = await searchParams;
+  const rawQuery = searchParams.query;
   const query = Array.isArray(rawQuery) ? rawQuery[0] : rawQuery ?? '';
   console.log(query);
   return (
