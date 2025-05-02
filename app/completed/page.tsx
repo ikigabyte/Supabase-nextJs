@@ -1,4 +1,4 @@
-'use server'
+"use server";
 
 // import { ButtonOrganizer } from "@/components/button-organizer";
 import { OrderOrganizer } from "@/components/order-organizer";
@@ -13,9 +13,13 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "@/components/ui/pagination"
+} from "@/components/ui/pagination";
 import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { OrderTableHeader } from "@/components/order-table-header";
+import { Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+import { CompletedOrganizer } from "@/components/completed-organizer";
 
 export default async function CompletedPage() {
   const supabase = await createClient();
@@ -41,8 +45,8 @@ export default async function CompletedPage() {
     .order("due_date", { ascending: false })
     .range(from, to);
 
-  console.log(orders);
-  
+  // console.log(orders);
+
   // console.log("Fetched Completed orders:", orders);
 
   const total = count || 0;
@@ -65,27 +69,10 @@ export default async function CompletedPage() {
             "ihd_date",
             "shipping speed",
             "notes",
-            "",
+            "Zendesk",
           ]}
         />
-        <TableBody>
-          {orders?.map((order) => (
-            <TableRow key={order.name_id} className="hover:bg-gray-50">
-              <TableCell>{order.name_id}</TableCell>
-              <TableCell>{order.shape}</TableCell>
-              <TableCell>{order.lamination}</TableCell>
-              <TableCell>{order.material}</TableCell>
-              <TableCell>{order.quantity}</TableCell>
-              <TableCell>{order.ink}</TableCell>
-              <TableCell>{order.print_method}</TableCell>
-              <TableCell>{order.due_date}</TableCell>
-              <TableCell>{order.ihd_date}</TableCell>
-              <TableCell>{order.notes}</TableCell>
-              {/* <TableCell>{order.notes}</TableCell> */}
-              <TableCell />
-            </TableRow>
-          ))}
-        </TableBody>
+        <CompletedOrganizer orders={orders} />
       </Table>
       <Pagination>
         <PaginationPrevious href={`?page=${Math.max(page - 1, 1)}`}>Previous</PaginationPrevious>
