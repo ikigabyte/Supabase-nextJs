@@ -28,6 +28,7 @@ export default async function CompletedPage() {
     console.log("User not found, redirecting to login");
     return redirect("/login");
   }
+  // console.log("User found:", user);
 
   // Paginated fetch from "Completed" table
   const page = 1; // Default to page 1
@@ -36,30 +37,37 @@ export default async function CompletedPage() {
   const to = page * limit - 1;
   const { data: orders, count } = await supabase
     .from("completed")
-    .select("*", { count: 'exact' })
+    .select("*", { count: "exact" })
     .order("due_date", { ascending: false })
     .range(from, to);
-  console.log("Fetched Completed orders:", orders);
+
+  console.log(orders);
+  
+  // console.log("Fetched Completed orders:", orders);
 
   const total = count || 0;
   const pages = Math.ceil(total / limit);
   return (
-    <section className="p-2 pt-10 max-w-8xl w-[90%] flex flex-col gap-2">
+    <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
+      <h1 className="font-bold text-3xl">Completed</h1>
       <Table>
         {/* Use the same headers styling */}
-        <OrderTableHeader tableHeaders={[
-          "name_id",
-          "shape",
-          "lamination",
-          "material",
-          "quantity",
-          "ink",
-          "print_method",
-          "due_date",
-          "ihd_date",
-          "notes",
-          ""
-        ]} />
+        <OrderTableHeader
+          tableHeaders={[
+            "name_id",
+            "shape",
+            "lamination",
+            "material",
+            "quantity",
+            "ink",
+            "print_method",
+            "ship date",
+            "ihd_date",
+            "shipping speed",
+            "notes",
+            "",
+          ]}
+        />
         <TableBody>
           {orders?.map((order) => (
             <TableRow key={order.name_id} className="hover:bg-gray-50">
@@ -73,6 +81,7 @@ export default async function CompletedPage() {
               <TableCell>{order.due_date}</TableCell>
               <TableCell>{order.ihd_date}</TableCell>
               <TableCell>{order.notes}</TableCell>
+              {/* <TableCell>{order.notes}</TableCell> */}
               <TableCell />
             </TableRow>
           ))}

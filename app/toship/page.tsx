@@ -4,7 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
-export default async function ToPrintPage() {
+export default async function ToPackPage() {
   const supabase = await createClient();
 
   const {
@@ -27,7 +27,7 @@ export default async function ToPrintPage() {
   // };
   return (
     <section className="p-2 pt-10 max-w-8xl w-[90%] flex flex-col gap-2">
-      <OrderOrganizer orderType="pack" defaultPage="regular"/>
+      <OrderOrganizer orderType="ship" defaultPage="regular"/>
     </section>
   );
 }
