@@ -96,13 +96,12 @@ export function TimelineOrders() {
           <TableHeader>
             <TableRow className="h-.5 [&>th]:py-0 text-xs">
               <TableHead>Order Id</TableHead>
-              <TableHead>Production Status</TableHead>
+              <TableHead>Shipping Method</TableHead>
               <TableHead>Due Date</TableHead>
               <TableHead>IHD Date</TableHead>
-              <TableHead>Ship Date</TableHead>
+              <TableHead>Production Status</TableHead>
             </TableRow>
           </TableHeader>
-
           <TableBody>
             {dueOrders.map((order) => {
               const orderDate = new Date(order.ship_date + 'T00:00:00');
@@ -116,10 +115,12 @@ export function TimelineOrders() {
               return (
                 <TableRow key={`due-${order.order_id}`} className={isPastDue ? "bg-red-100" : ""}>
                   <TableCell className="text-left">{order.order_id}</TableCell>
-                  <TableCell className="text-left">{order.production_status}</TableCell>
+                  <TableCell className="text-left">{order.shipping_method}</TableCell>
                   <TableCell className="text-left">{order.ship_date}</TableCell>
                   <TableCell className="text-left">{order.ihd_date}</TableCell>
-                  <TableCell className="text-left">{order.shipping_method}</TableCell>
+
+                  <TableCell className="text-left">{order.production_status}</TableCell>
+
                 </TableRow>
               );
             })}
@@ -135,10 +136,11 @@ export function TimelineOrders() {
             {futureOrders.map((order) => (
               <TableRow key={`future-${order.order_id}`}>
                 <TableCell className="text-left">{order.order_id}</TableCell>
-                <TableCell className="text-left">{order.production_status}</TableCell>
+                <TableCell className="text-left">{order.shipping_method}</TableCell>
                 <TableCell className="text-left">{order.ship_date}</TableCell>
                 <TableCell className="text-left">{order.ihd_date}</TableCell>
-                <TableCell className="text-left">{order.shipping_method}</TableCell>
+                <TableCell className="text-left">{order.production_status}</TableCell>
+
               </TableRow>
             ))}
           </TableBody>
