@@ -95,22 +95,22 @@ export type Database = {
         Row: {
           id: number
           inserted_at: string
-          order_id: number | null
-          production_status: string
+          name_id: string | null
+          production_change: string
           user_id: string
         }
         Insert: {
           id?: number
           inserted_at?: string
-          order_id?: number | null
-          production_status?: string
+          name_id?: string | null
+          production_change: string
           user_id: string
         }
         Update: {
           id?: number
           inserted_at?: string
-          order_id?: number | null
-          production_status?: string
+          name_id?: string | null
+          production_change?: string
           user_id?: string
         }
         Relationships: []
@@ -169,6 +169,33 @@ export type Database = {
           rush?: boolean
           shape?: string | null
           shipping_method?: string
+        }
+        Relationships: []
+      }
+      timeline: {
+        Row: {
+          date: string | null
+          ihd_date: string | null
+          order_id: number
+          production_status: string | null
+          ship_date: string | null
+          shipping_method: string | null
+        }
+        Insert: {
+          date?: string | null
+          ihd_date?: string | null
+          order_id: number
+          production_status?: string | null
+          ship_date?: string | null
+          shipping_method?: string | null
+        }
+        Update: {
+          date?: string | null
+          ihd_date?: string | null
+          order_id?: number
+          production_status?: string | null
+          ship_date?: string | null
+          shipping_method?: string | null
         }
         Relationships: []
       }

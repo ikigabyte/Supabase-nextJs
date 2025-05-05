@@ -5,7 +5,7 @@ import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
-import { SearchBar } from "./search-bar";
+
 import { useRouter } from "next/navigation";
 import type { Session } from '@supabase/supabase-js';
 
@@ -98,7 +98,9 @@ export function NavBarElement() {
       <Link id="timeline" href="/timeline">
         Timeline
       </Link>
-      <SearchBar onSearch={handleSearch} />
+      <Link id="search" href="/search">
+        Search
+      </Link>
     </div>
   );
 }

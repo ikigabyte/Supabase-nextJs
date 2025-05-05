@@ -71,22 +71,26 @@ async function getSiblingOrders(orderId: number, newStatus : string): Promise<bo
   return false
 }
 
-async function addHistoryForUser(userId: string, orderId: string, newStatus: string) {
+async function addHistoryForUser(nameid: string, newStatus: string, previousStatus : string) {
   const supabase = await createClient();
   const { data: {user} } = await supabase.auth.getUser();
   if (!user) {
       throw new Error("User is not logged in");
   }
+  // console
+  const combinedString = previousStatus + " to " + newStatus;
   const { error } = await supabase.from("history").insert({
     user_id: user.id,
-    order_id: parseInt(orderId),
-    production_status: newStatus,
+    name_id: nameid,
+    production_change: combinedString,
   }); // * It time stamps automatically
   
   if (error) {
-      console.error("Error adding todo", error);
-      throw new Error("Error adding todo");
+      console.error("Error adding history", error);
+      throw new Error("Error adding history");
   }
+
+  return true
 
   // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 }
@@ -101,7 +105,7 @@ export async function removeOrderLine(order: Order){
     throw new Error("User is not logged in");
   }
 
-  addHistoryForUser(user.id, order.name_id, "deleted");
+  addHistoryForUser(order.name_id, "deleted", order.production_status || "");
   const { error: deleteError } = await supabase
     .from("orders")
     .delete()
@@ -139,78 +143,87 @@ export async function removeOrderAll(orderId: number) {
 }
 
 export async function updateOrderStatus(order: Order, revert : boolean = false) {
-  if (order == null) {
-    console.error("No order provided");
-    throw new Error("No order provided");
-  }
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    throw new Error("User is not logged in");
-  }
-  
-  // console.log("Updating order", order);
-  const newStatus  = getNewStatus(order.production_status || "", revert);
-  if (!newStatus || newStatus == null) {
-    console.error("No new status found");
-    throw new Error("No new status found");
-    
-  }
-  // console.log("now proceeding with this new thing here")
-  // const orderId = parseInt(order.order_id);
-
-  await addHistoryForUser(user.id, order.name_id, newStatus);
-  // if (true) return;
-
-  if (newStatus === "completed") {
-    try{
-      await supabase.rpc("move_order", { p_id: order.name_id });
-    } catch (error) {
-      console.error("Error moving order", error);
-      throw new Error("Error moving order");
+  try{
+    if (order == null) {
+      console.error("No order provided");
+      throw new Error("No order provided");
     }
-    console.log("Order archived successfully");
-    return
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+  
+    if (!user) {
+      throw new Error("User is not logged in");
+    }
+    
+    // console.log("Updating order", order);
+    const newStatus  = getNewStatus(order.production_status || "", revert);
+    if (!newStatus || newStatus == null) {
+      console.error("No new status found");
+      throw new Error("No new status found");
+      
+    }
+    // console.log("now proceeding with this new thing here")
+    // const orderId = parseInt(order.order_id);
+  
+    // * Removed the await status here
+    addHistoryForUser(order.name_id, newStatus, order.production_status || "");
+    // if (true) return;
+  
+    if (newStatus === "completed") {
+      try{
+        await supabase.rpc("move_order", { p_id: order.name_id });
+      } catch (error) {
+        console.error("Error moving order", error);
+        throw new Error("Error moving order");
+      }
+      console.log("Order archived successfully");
+      return
+    }
+    // Retrieve existing history JSONB
+    const { data: existingRecord, error: historyError } = await supabase
+      .from("orders")
+      .select("history")
+      .eq("name_id", order.name_id)
+      .single();
+    if (historyError) {
+      console.error("Error fetching history", historyError);
+      throw new Error("Error fetching history");
+    }
+    // Ensure history is an array of strings
+    const history: string[] = Array.isArray(existingRecord?.history)
+      ? (existingRecord.history as string[])
+      : [];
+  
+    const timestamp = getTimeStamp();
+    const userEmail = user.email || user.id;
+    const newEntry = `${userEmail} moves to "${newStatus}" on ${timestamp}`;
+    history.push(newEntry);
+  
+    const { error } = await supabase
+      .from("orders")
+      .update({ ...order, production_status: newStatus, history })
+      .match({ name_id: order.name_id });
+    if (error) {
+      console.error("Error updating todo", error);
+      throw new Error("Error updating todo");
+    }
+  
+    console.log("Order updated successfully, new status:", newStatus);
+    const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus)
+    if (readyForZendeskUpdate) {
+      console.log("Updating Zendesk status");
+      updateZendeskStatus(order.order_id, newStatus);
+      // * Removed the await status here
+    }
+  
+  } catch (error) {
+    console.error("Error updating order status", error);
+    // throw new Error("Error updating order status");
   }
-  // Retrieve existing history JSONB
-  const { data: existingRecord, error: historyError } = await supabase
-    .from("orders")
-    .select("history")
-    .eq("name_id", order.name_id)
-    .single();
-  if (historyError) {
-    console.error("Error fetching history", historyError);
-    throw new Error("Error fetching history");
-  }
-  // Ensure history is an array of strings
-  const history: string[] = Array.isArray(existingRecord?.history)
-    ? (existingRecord.history as string[])
-    : [];
-
-  const timestamp = getTimeStamp();
-  const userEmail = user.email || user.id;
-  const newEntry = `${userEmail} moves to "${newStatus}" on ${timestamp}`;
-  history.push(newEntry);
-
-  const { error } = await supabase
-    .from("orders")
-    .update({ ...order, production_status: newStatus, history })
-    .match({ name_id: order.name_id });
-  if (error) {
-    console.error("Error updating todo", error);
-    throw new Error("Error updating todo");
-  }
-
-  console.log("Order updated successfully, new status:", newStatus);
-  const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus)
-  if (readyForZendeskUpdate) {
-    console.log("Updating Zendesk status");
-    await updateZendeskStatus(order.order_id, newStatus);
-  }
-
+   
   // console.log("Sibling orders", siblingOrders);
   // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 }

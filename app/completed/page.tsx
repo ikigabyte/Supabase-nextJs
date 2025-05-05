@@ -2,7 +2,7 @@
 
 // import { ButtonOrganizer } from "@/components/button-organizer";
 import { OrderOrganizer } from "@/components/order-organizer";
-import { Separator } from "@/components/ui/separator";
+// import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import {
