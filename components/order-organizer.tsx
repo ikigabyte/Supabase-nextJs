@@ -20,8 +20,12 @@ import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
 // import { Toaster } from "./ui/toaster";
 // import { ToastAction } from "./ui/toast";
-import { useToast } from "@/hooks/use-toast";
+// import { useToast } from "@/hooks/use-toast";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+import { Toaster } from "@/components/ui/sonner"
+import { toast } from "sonner"
+import { flightRouterStateSchema } from "next/dist/server/app-render/types";
 
 // import { filterOutOrderCounts } from "./order-organizer";
 // import { updateOrderCounts } from "./order-organizer";
@@ -33,6 +37,36 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 //   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 // )
 // import { createClient } from "@/utils/supabase/server";
+
+const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
+  if (reverse) {
+    switch (status) {
+      case "completed":
+        return "ship";
+      case "ship":
+        return "pack";
+      case "pack":
+        return "cut";
+      case "cut":
+        return "print";
+      default:
+        return status;
+    }
+  } else {
+    switch (status) {
+      case "print":
+        return "cut";
+      case "cut":
+        return "pack";
+      case "pack":
+        return "ship";
+      case "ship":
+        return "completed";
+      default:
+        return status;
+    }
+  }
+};
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -121,7 +155,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const router = useRouter();
   const pathname = usePathname();
   const [orders, setOrders] = useState<Order[]>([]);
-  // const { toast } = useToast();
+
+  // Move these hooks above useEffect so they're in scope in subscription handlers
+  const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
+  const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
+  const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
 
   useEffect(() => {
     // Initial load
@@ -133,10 +171,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .order("order_id", { ascending: false })
       .then(({ data }) => setOrders(data ?? []));
 
-    // console.log("this is the orders", data);
-    // console.log(data);
-    // console.log("this is the orders", orders);
-    // console.log("this is the count", );
     const channel = supabase
       .channel("orders_all")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
@@ -144,7 +178,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (newOrder.production_status === orderType) {
           setOrders((prev) => {
             const next = [newOrder, ...prev];
-            // updateOrderCounts(filterOutOrderCounts(next));
+            // If the inserted order is our clicked/hovered row, clear selection
+            if (currentRowClicked?.name_id === newOrder.name_id) {
+              setIsRowClicked(false);
+              setCurrentRowClicked(null);
+            }
+            if (isRowHovered) {
+              setIsRowHovered(false);
+            }
             return next;
           });
         }
@@ -159,6 +200,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           console.log("Notes changed for order", updated.name_id);
           console.log(updated.notes);
           setOrders((prev) => prev.map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o)));
+          // Clear selection/hover on notes update
+          if (currentRowClicked?.name_id === updated.name_id) {
+            setIsRowClicked(false);
+            setCurrentRowClicked(null);
+          }
+          if (isRowHovered) setIsRowHovered(false);
           return;
         }
         if (updated.production_status === orderType) {
@@ -166,13 +213,23 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             const next = prev.some((o) => o.name_id === updated.name_id)
               ? prev.map((o) => (o.name_id === updated.name_id ? updated : o))
               : [updated, ...prev];
-            // updateOrderCounts(filterOutOrderCounts(next));
+            // Clear selection/hover on status change
+            if (currentRowClicked?.name_id === updated.name_id) {
+              setIsRowClicked(false);
+              setCurrentRowClicked(null);
+            }
+            if (isRowHovered) setIsRowHovered(false);
             return next;
           });
         } else {
           setOrders((prev) => {
             const next = prev.filter((o) => o.name_id !== updated.name_id);
-            // updateOrderCounts(filterOutOrderCounts(next));
+            // Clear selection/hover on removal
+            if (currentRowClicked?.name_id === updated.name_id) {
+              setIsRowClicked(false);
+              setCurrentRowClicked(null);
+            }
+            if (isRowHovered) setIsRowHovered(false);
             return next;
           });
         }
@@ -181,7 +238,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const removed = payload.old as Order;
         setOrders((prev) => {
           const next = prev.filter((o) => o.name_id !== removed.name_id);
-          // updateOrderCounts(filterOutOrderCounts(next));
+          // Clear selection/hover if the removed order was selected/hovered
+          if (currentRowClicked?.name_id === removed.name_id) {
+            setIsRowClicked(false);
+            setCurrentRowClicked(null);
+          }
+          if (isRowHovered) setIsRowHovered(false);
           return next;
         });
       })
@@ -190,7 +252,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orderType]);
+  }, [orderType, currentRowClicked, isRowHovered]);
 
   useEffect(() => {
     const counts = filterOutOrderCounts(orders);
@@ -238,10 +300,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultPage);
   const [headers, setHeaders] = useState<string[]>(() => getMaterialHeaders(orderType, defaultPage));
   // const [scrollAreaName, setScrollAreaName] = useState<string>(orderType);
-  const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
   const [rowHistory, setRowHistory] = useState<string[] | null>(null);
-  const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
-  const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [scrollAreaName, setScrollAreaName] = useState<string>("History");
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -302,12 +361,28 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     // Optimistically remove from local state
     setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
     // Persist the status change
-    await updateOrderStatus(order, false);
+    currentRowClicked?.name_id === order.name_id
+    toast("Order updated", {
+      description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(order.production_status, false)}`,
+      action: {
+        label: "Undo",
+        onClick: () => { revertStatus(order) },
+      }
+    })
+    await updateOrderStatus(order, true);
     // Show a notification
     // toast({
     //   title: "Order updated",
     //   description: `Order ${order.name_id} moved to production_status.`,
     // });
+  }, []);
+
+  const revertStatus = useCallback(async (order: Order) => {
+    console.log("Reverting status for order", order.name_id);
+    // Optimistically update local state
+    setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
+    // Persist change
+    await updateOrderStatus(order, false, orderType);
   }, []);
 
   const handleNoteChange = useCallback(async (order: Order, newNotes: string) => {
@@ -321,15 +396,24 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const handleMenuOptionClick = useCallback(
     async (option: string) => {
       if (currentRowClicked == null) {
+        console.warn("No row clicked, skipping menu option handling.");
         return;
       }
       if (option == "revert") {
         await updateOrderStatus(currentRowClicked!, true);
-        // toast({
-        //   title: "Order reverted",
-        //   description: `Order ${currentRowClicked!.name_id} moved back to ${orderType}.`,
-        //   // action: <ToastAction altText="Undo revert">Undo</ToastAction>,
-        // });
+        toast(
+          "Order reverted",
+          {
+            description: `Order ${currentRowClicked!.name_id} has been moved back to ${orderType}`,
+            action: {
+              label: "Undo",
+              onClick: () => {
+                revertStatus(currentRowClicked!);
+              },
+            },
+          }
+          // toast({
+        );
         setIsRowClicked(false);
         setCurrentRowClicked(null);
         return;
@@ -337,6 +421,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (option == "delete") {
         console.log("Deleting line:", currentRowClicked);
         await removeOrderLine(currentRowClicked!);
+        toast("Order line deleted", {
+          description: `Deleted line ${currentRowClicked!.name_id}.`,
+          action: {
+            label: "Undo",
+            onClick: () => {},
+          },
+        });
         // toast({
         //   title: "Order line deleted",
         //   description: `Deleted line ${currentRowClicked!.name_id}.`,
@@ -347,6 +438,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (option == "deleteAll") {
         console.log("Deleting line:", currentRowClicked);
         await removeOrderAll(currentRowClicked?.order_id!);
+        toast("All orders deleted", {
+          description: `Deleted all items for order ${currentRowClicked!.order_id}.`,
+          action: {
+            label: "Undo",
+            onClick: () => {},
+          },
+        });
         // toast({
         //   title: "All orders deleted",
         //   description: `Deleted all items for order ${currentRowClicked!.order_id}.`,
@@ -471,7 +569,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         )}
         {/* <This is for displaying the notifications */}
       </div>
-      {/* <Toaster /> */}
+      <Toaster />
     </>
   );
 }

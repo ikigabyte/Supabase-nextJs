@@ -142,9 +142,8 @@ export async function removeOrderAll(orderId: number) {
   revalidatePath("/toprint");
 }
 
-export async function updateOrderStatus(order: Order, revert : boolean = false) {
-
-  try{
+export async function updateOrderStatus(order: Order, revert: boolean = false, bypassStatus?: string) {
+  try {
     if (order == null) {
       console.error("No order provided");
       throw new Error("No order provided");
@@ -153,36 +152,32 @@ export async function updateOrderStatus(order: Order, revert : boolean = false) 
     const {
       data: { user },
     } = await supabase.auth.getUser();
-  
+
     if (!user) {
       throw new Error("User is not logged in");
     }
-    
-    // console.log("Updating order", order);
-    const newStatus  = getNewStatus(order.production_status || "", revert);
+
+    console.log(order.production_status);
+    const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
+    console.log("New status", newStatus);
     if (!newStatus || newStatus == null) {
       console.error("No new status found");
       throw new Error("No new status found");
-      
     }
-    // console.log("now proceeding with this new thing here")
-    // const orderId = parseInt(order.order_id);
-  
-    // * Removed the await status here
+
     addHistoryForUser(order.name_id, newStatus, order.production_status || "");
-    // if (true) return;
-  
+
     if (newStatus === "completed") {
-      try{
+      try {
         await supabase.rpc("move_order", { p_id: order.name_id });
       } catch (error) {
         console.error("Error moving order", error);
         throw new Error("Error moving order");
       }
       console.log("Order archived successfully");
-      return
+      return;
     }
-    // Retrieve existing history JSONB
+
     const { data: existingRecord, error: historyError } = await supabase
       .from("orders")
       .select("history")
@@ -192,16 +187,16 @@ export async function updateOrderStatus(order: Order, revert : boolean = false) 
       console.error("Error fetching history", historyError);
       throw new Error("Error fetching history");
     }
-    // Ensure history is an array of strings
+
     const history: string[] = Array.isArray(existingRecord?.history)
       ? (existingRecord.history as string[])
       : [];
-  
+
     const timestamp = getTimeStamp();
     const userEmail = user.email || user.id;
     const newEntry = `${userEmail} moves to "${newStatus}" on ${timestamp}`;
     history.push(newEntry);
-  
+
     const { error } = await supabase
       .from("orders")
       .update({ ...order, production_status: newStatus, history })
@@ -210,22 +205,16 @@ export async function updateOrderStatus(order: Order, revert : boolean = false) 
       console.error("Error updating todo", error);
       throw new Error("Error updating todo");
     }
-  
+
     console.log("Order updated successfully, new status:", newStatus);
-    const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus)
+    const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
     if (readyForZendeskUpdate) {
       console.log("Updating Zendesk status");
       updateZendeskStatus(order.order_id, newStatus);
-      // * Removed the await status here
     }
-  
   } catch (error) {
     console.error("Error updating order status", error);
-    // throw new Error("Error updating order status");
   }
-   
-  // console.log("Sibling orders", siblingOrders);
-  // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 }
 
 export async function updateOrderNotes(order : Order, newNotes : string){
