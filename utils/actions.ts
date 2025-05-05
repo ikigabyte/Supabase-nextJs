@@ -142,7 +142,7 @@ export async function removeOrderAll(orderId: number) {
   revalidatePath("/toprint");
 }
 
-export async function updateOrderStatus(order: Order, revert: boolean = false, bypassStatus?: string) {
+export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {
   try {
     if (order == null) {
       console.error("No order provided");

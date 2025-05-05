@@ -359,17 +359,19 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const handleCheckboxClick = useCallback(async (order: Order) => {
     console.log(`Order clicked: ${order.name_id}`);
     // Optimistically remove from local state
-    setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+    // setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
     // Persist the status change
-    currentRowClicked?.name_id === order.name_id
+    // currentRowClicked?.name_id === order.name_id
+    await updateOrderStatus(order, false);
     toast("Order updated", {
       description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(order.production_status, false)}`,
       action: {
         label: "Undo",
         onClick: () => { revertStatus(order) },
+        // onClick: () => {  },
       }
     })
-    await updateOrderStatus(order, true);
+
     // Show a notification
     // toast({
     //   title: "Order updated",
@@ -380,7 +382,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const revertStatus = useCallback(async (order: Order) => {
     console.log("Reverting status for order", order.name_id);
     // Optimistically update local state
-    setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
+    // setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
     // Persist change
     await updateOrderStatus(order, false, orderType);
   }, []);
