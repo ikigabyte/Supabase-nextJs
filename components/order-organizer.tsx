@@ -68,6 +68,11 @@ const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   }
 };
 
+const laminationHeaderColors = {
+  "matte" : "text-purple-500",
+  "gloss" : "text-blue-500",
+}
+
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
@@ -511,15 +516,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           {allKeys.map((key) => {
             // console.log("this is the key", key);
             const group = grouped[key] || [];
-
+            const keySplit = key.split("-")
+            var headerColor = '';
+            if (keySplit.length > 1 && (keySplit.includes("gloss") || keySplit.includes("matte"))) {
+              console.log("this has the matte or gloss thing here");
+              const laminationType = keySplit[keySplit.length - 2];
+              headerColor = laminationHeaderColors[laminationType as keyof typeof laminationHeaderColors];
+            }
+            console.log("this is the header color", headerColor);
             return (
               <Fragment key={key}>
-                {/* <div className="flex items-center justify-between "></div> */}
-                {selectedCategory.toLowerCase() === key.split("-")[0] && (
-                  <>
-                    <h2 className="font-bold text-lg">{convertKeyToTitle(key)}</h2>
+              {selectedCategory.toLowerCase() === key.split("-")[0] && (
+                <>
+                <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
                     <Table className="bg-gray-50 mb-5">
-                      <OrderTableHeader tableHeaders={headers} keyName={key}/>
+                      <OrderTableHeader tableHeaders={headers}/>
                       <OrderTableBody
                         data={group}
                         onOrderClick={handleCheckboxClick}

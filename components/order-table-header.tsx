@@ -7,23 +7,23 @@ const laminationHeaderColors = {
   "matte" : "bg-purple-500",
   "gloss" : "bg-blue-500",
 }
-export function OrderTableHeader({ tableHeaders, keyName }: { tableHeaders: string[]; keyName: string }) {
+export function OrderTableHeader({ tableHeaders }: { tableHeaders: string[] }) {
 
   var laminationColor = ''
 
   // console.log("this is the keyName", keyName)
   // const lowerCase
-  const split = keyName.split("-");
+  // const split = keyName.split("-");
   // console.log("this is the split", split)
 
-  if (split.includes("matte") || split.includes("gloss")) {
-    // console.log("this has the matte or gloss thing hewre")
-    const laminationType = split[split.length - 2];
-    // console.log("this is the lamination type", laminationType)
-    laminationColor = laminationHeaderColors[laminationType as keyof typeof laminationHeaderColors];
-    // laminationColor = laminationHeaderColors[split[split.length - 1] as keyof typeof laminationHeaderColors];
-    // console.log("this is the lamination color", laminationColor)
-  }
+  // if (split.includes("matte") || split.includes("gloss")) {
+  //   // console.log("this has the matte or gloss thing hewre")
+  //   const laminationType = split[split.length - 2];
+  //   // console.log("this is the lamination type", laminationType)
+  //   laminationColor = laminationHeaderColors[laminationType as keyof typeof laminationHeaderColors];
+  //   // laminationColor = laminationHeaderColors[split[split.length - 1] as keyof typeof laminationHeaderColors];
+  //   // console.log("this is the lamination color", laminationColor)
+  // }
   // if (keyName.includes("matte") || keyName.includes("gloss")) {
   //   console.log("this has the matte or gloss thing hewre")
     
