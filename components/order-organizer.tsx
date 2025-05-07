@@ -519,7 +519,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                   <>
                     <h2 className="font-bold text-lg">{convertKeyToTitle(key)}</h2>
                     <Table className="bg-gray-50 mb-5">
-                      <OrderTableHeader tableHeaders={headers} />
+                      <OrderTableHeader tableHeaders={headers} keyName={key}/>
                       <OrderTableBody
                         data={group}
                         onOrderClick={handleCheckboxClick}

@@ -41,10 +41,19 @@ function NoteInput({
 
 const dayOfTheWeekColor: { [key: number]: string } = {
   1: "bg-gray-100", // Monday
-  2: "bg-gray-200", // Tuesday
+  2: "bg-gray-300", // Friday
   3: "bg-gray-200", // Wednesday
   4: "bg-gray-250", // Thursday
-  5: "bg-gray-300", // Friday
+  5: "bg-gray-300", // Thursday
+};
+
+const inkColors: { [key: string]: string } = {
+  "metallic": "bg-purple-100",
+  "white-ink": "bg-pink-100",
+};
+
+const materialColors : { [key: string]: string } = {
+  "clear-roll": "bg-teal-100",
 };
 
 const convertToDayOfTheWeek = (dateString: string | null) => {
@@ -181,18 +190,18 @@ export function OrderTableBody({
 
         prevOrderId = row.order_id;
         const showSeparator = differentOrderId && i !== 0;
-        console.log(selectedNameId);
+        // console.log(selectedNameId);
         return (
           <React.Fragment key={row.name_id}>
             {showSeparator && (
-              <TableRow key={`sep-${row.name_id}`} className="bg-transparent border-none h-1">
+              <TableRow key={`sep-${row.name_id}`} className="bg-white border-none h-1">
                 <TableCell colSpan={13} className="h-1 bg-transparent border-none" />
               </TableRow>
             )}
             <TableRow
               key={row.name_id}
-              className={`[&>td]:py-0 bg-transparent hover:bg-transparent text-xs${
-                row.name_id === selectedNameId ? " ring-2 ring-black ring-inset relative z-10" : ""
+              className={`[&>td]:py-0 bg-transparent hover:bg-transparent text-xs ${
+                row.name_id === selectedNameId ? " ring-2 ring-black ring-inset relative z-1" : ""
               }`}
               onClick={(e: React.MouseEvent<HTMLTableRowElement>) => onTableClick(e, row)}
             >
@@ -205,7 +214,15 @@ export function OrderTableBody({
               </TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
-              <TableCell className="">{capitalizeFirstLetter(row.material) || "-"}</TableCell>
+              <TableCell
+                className={`${
+                  row.material && materialColors[row.material.toLowerCase()]
+                    ? materialColors[row.material.toLowerCase()]
+                    : ""
+                }`}
+              >
+                {capitalizeFirstLetter(row.material) || "-"}
+              </TableCell>
               <TableCell
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
                 onMouseLeave={handleMouseLeave}
@@ -213,7 +230,11 @@ export function OrderTableBody({
               >
                 {displayCorrectQuantity(row.quantity) || "-"}
               </TableCell>
-              <TableCell className="">{capitalizeFirstLetter(row.ink)} </TableCell>
+              <TableCell
+                className={`${row.ink && inkColors[row.ink.toLowerCase()] ? inkColors[row.ink.toLowerCase()] : ""}`}
+              >
+                {capitalizeFirstLetter(row.ink)}
+              </TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.print_method) || ""}</TableCell>
               <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
                 {capitalizeFirstLetter(row.due_date) || ""}

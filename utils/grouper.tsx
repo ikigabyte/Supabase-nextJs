@@ -2,8 +2,6 @@ import { Order } from "@/types/custom";
 import { OrderTypes } from "./orderTypes";
 import { assignKeyType } from "./orderKeyAssigner";
 
-// type isTileOrRegular = string | number;
-
 export function groupOrdersByOrderType(orderType: OrderTypes, orders: Order[]) {
   const grouped: Record<string, Order[]> = {};
   orders.forEach((order) => {
@@ -12,15 +10,16 @@ export function groupOrdersByOrderType(orderType: OrderTypes, orders: Order[]) {
       // console.log("Order does not match orderType: ", order);
       return;
     }
-    const key = assignKeyType(order, orderType);
-    if (key) {
-      if (!grouped[key]) {
-        grouped[key] = [];
-      }
-      grouped[key].push(order);
-    } else{
-      console.error("Key not found for order: ", order);
+    const rawKey = assignKeyType(order, orderType);
+    if (rawKey == null || rawKey === '') {
+      // Skip orders without a valid grouping key
+      return;
     }
+    const key = String(rawKey);
+    if (!grouped[key]) {
+      grouped[key] = [];
+    }
+    grouped[key].push(order);
   });
   // console.log("Grouped Orders: ", grouped);
   return grouped;

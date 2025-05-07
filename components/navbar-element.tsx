@@ -80,7 +80,7 @@ export function NavBarElement() {
 
   return (
     <div className="flex items-center gap-5 text-xs font-medium">
-      <Link id="to-print" href="/toprint?white">
+      <Link id="to-print" href="/toprint?rush">
         To Print ({counts.print})
       </Link>
       <Link id="to-cut" href="/tocut?regular">
