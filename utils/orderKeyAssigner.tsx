@@ -76,9 +76,9 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
 
   // 1a) Rush orders for print take highest priority
   if (orderType === "print") {
-    console.log("Rush", order.rush);
+    // console.log("Rush", order.rush);
     if (order.rush === true) {
-      console.log("Rush detected");
+      // console.log("Rush detected");
       const rushKey = keys.find((k) => k.startsWith("rush"));
       if (rushKey) return rushKey;
     }

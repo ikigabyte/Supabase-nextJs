@@ -519,11 +519,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             const keySplit = key.split("-")
             var headerColor = '';
             if (keySplit.length > 1 && (keySplit.includes("gloss") || keySplit.includes("matte"))) {
-              console.log("this has the matte or gloss thing here");
+              // console.log("this has the matte or gloss thing here");
               const laminationType = keySplit[keySplit.length - 2];
               headerColor = laminationHeaderColors[laminationType as keyof typeof laminationHeaderColors];
             }
-            console.log("this is the header color", headerColor);
+            // console.log("this is the header color", headerColor);
             return (
               <Fragment key={key}>
               {selectedCategory.toLowerCase() === key.split("-")[0] && (

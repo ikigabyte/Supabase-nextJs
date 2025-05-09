@@ -45,7 +45,7 @@ export function ButtonOrganizer({
     <div className="fixed bottom-4 left-4 flex flex-row gap-2">
       {categories.map((category) => {
         const color = getButtonColor(category.toLowerCase())
-        console.log("this is the color", color);
+        // console.log("this is the color", color);
         return (
           <Button
             key={category}

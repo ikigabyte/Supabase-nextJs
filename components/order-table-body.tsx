@@ -70,24 +70,18 @@ const displayCorrectQuantity = (quantity: string | null) => {
   if (quantity == null || quantity === "") {
     return "-";
   }
-  if (quantity.includes("-")) {
-    const splitPart = quantity.split("-");
+  const cleanedQuantity = quantity.toLowerCase().replace(/qty/gi, ""); // Remove "qty" (case-insensitive)
+  if (cleanedQuantity.includes("-")) {
+    const splitPart = cleanedQuantity.split("-");
     const quantityPart = splitPart[0];
-    const sizePart = splitPart[1];
-    const testPart = splitPart[2] || "";
+    // const sizePart = splitPart[1];
+    // const testPart = splitPart[2] || "";
 
     return `${quantityPart} Tiles`;
-
-    // if (splitPart.length > 1){
-
-    //   return `${quantityPart} tiles`
-    // }
   } else {
-    return quantity;
+    return cleanedQuantity;
   }
-  // quantity.split
 };
-// const spacingBetweenOrderIds = 20
 
 export function OrderTableBody({
   data,
@@ -134,7 +128,6 @@ export function OrderTableBody({
     if (lastHoveredIdRef.current !== row.name_id) {
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       setMousePos({ x: rect.right, y: rect.bottom });
-
       if (type === "history") {
         const historyArray = Array.isArray(row.history) ? (row.history as string[]) : [];
         setRowHistory(historyArray);
@@ -142,8 +135,29 @@ export function OrderTableBody({
         lastHoveredIdRef.current = row.name_id;
       } else if (type === "quantity") {
         // console.log("Quantity hovered");
-        setRowHistory(["Quantity: " + row.quantity]);
-        setScrollAreaName("Quantity");
+        const quantity = row.quantity || "";
+        const cleanedQuantity = quantity.toLowerCase().replace(/qty/gi, ""); // Remove "qty" (case-insensitive)
+        if (!cleanedQuantity.includes("tiles")){
+          console.log("This is not a tile quantity");
+          // setRowHistory()
+          return;
+        }
+        // console.log("Cleaned quantity", cleanedQuantity);
+        const splitPart = cleanedQuantity.split("-");
+        // const removedTilePart = splitpart
+
+        // console.log("Split part", removedTilePart);
+
+        const quantityPart = splitPart[0];
+        const sizePart = splitPart[2];
+        const multiplication = parseInt(quantityPart) * parseInt(sizePart);
+        console.log("Multiplication", multiplication);
+        // console.log("Size part", sizePart);
+        // const testPart = splitPart[2] || "";
+        const combinedString = `${quantityPart} x ${sizePart} = ${multiplication} "`;
+        setRowHistory([combinedString]);
+        // setRowHistory(["Tile: " + row.quantity]);
+        setScrollAreaName("Tile Size");
         lastHoveredIdRef.current = row.name_id;
       }
       setIsRowHovered(true);
