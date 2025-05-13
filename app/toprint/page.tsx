@@ -28,7 +28,7 @@ export default async function ToPrintPage() {
   //   console.log(`Category clicked: ${category}`);
   // };
   return (
-    <section className="p-2 pt-10 max-w-8xl w-[90%] flex flex-col gap-2">
+    <section className="p-1 pt-10 w-[90%] flex flex-col gap-2 mb-40">
       <OrderOrganizer orderType="print" defaultPage="rush" />
     </section>
   );

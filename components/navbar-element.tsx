@@ -62,7 +62,7 @@ export function NavBarElement() {
             .select("*")
             .eq("production_status", status)
             .limit(5);
-          console.log(`Sample data for status '${status}':`, sampleData, sampleError);
+          // console.log(`Sample data for status '${status}':`, sampleData, sampleError);
         })
       );
       // console.log("Counts fetched:", newCounts);

@@ -1,5 +1,5 @@
 "use client";
-import React, { Fragment, useEffect, useState, useMemo, useCallback } from "react";
+import React, { Fragment, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { Table } from "@/components/ui/table";
@@ -18,14 +18,12 @@ import { ScrollAreaDemo } from "./scroll-area";
 import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
-// import { Toaster } from "./ui/toaster";
-// import { ToastAction } from "./ui/toast";
-// import { useToast } from "@/hooks/use-toast";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-
 import { Toaster } from "@/components/ui/sonner"
 import { toast } from "sonner"
-import { flightRouterStateSchema } from "next/dist/server/app-render/types";
+import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
+import { Description } from "@radix-ui/react-toast";
+// import { flightRouterStateSchema } from "next/dist/server/app-render/types";
 
 // import { filterOutOrderCounts } from "./order-organizer";
 // import { updateOrderCounts } from "./order-organizer";
@@ -110,7 +108,7 @@ function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
       return acc; // Skip this order if the production_status doesn't match the orderType
     }
     const status = order.production_status as OrderTypes;
-    console.log("this is the status", status);
+    // console.log("this is the status", status);
     if (status in acc) {
       acc[status]++;
     }
@@ -154,6 +152,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     });
   }, []);
 
+  // Track orders for which we want to ignore the next real-time update
+  const ignoreUpdateIds = useRef<Set<string>>(new Set());
+
   // if (true)return
 
   // const supabase = supabaseClient;
@@ -166,6 +167,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
 
+  // Dynamic toaster configuration
+  // const [toasterSettings, setToasterSettings] = useState<{
+  //   theme: 'light' | 'dark';
+  //   richColors: boolean;
+  // }>({
+  //   theme: 'dark',        // default theme
+  //   richColors: true,     // enable rich colors
+  // });
+  
   useEffect(() => {
     // Initial load
     supabase
@@ -180,6 +190,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .channel("orders_all")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
         const newOrder = payload.new as Order;
+        if (ignoreUpdateIds.current.has(newOrder.name_id)) {
+          ignoreUpdateIds.current.delete(newOrder.name_id);
+          return;
+        }
         if (newOrder.production_status === orderType) {
           setOrders((prev) => {
             const next = [newOrder, ...prev];
@@ -196,9 +210,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+        const updated = payload.new as Order;
+        if (ignoreUpdateIds.current.has(updated.name_id)) {
+          ignoreUpdateIds.current.delete(updated.name_id);
+          return;
+        }
         console.log("UPDATE event payload.old:", payload.old);
         console.log("UPDATE event payload.new:", payload.new);
-        const updated = payload.new as Order;
         const oldRow = payload.old as Order;
         // If only notes changed, update that field
         if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes) {
@@ -241,6 +259,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
         const removed = payload.old as Order;
+        if (ignoreUpdateIds.current.has(removed.name_id)) {
+          ignoreUpdateIds.current.delete(removed.name_id);
+          return;
+        }
         setOrders((prev) => {
           const next = prev.filter((o) => o.name_id !== removed.name_id);
           // Clear selection/hover if the removed order was selected/hovered
@@ -361,27 +383,34 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }, [defaultPage]);
 
+  const handleClipboardCopy = useCallback((order: Order) => {
+    toast("Copied to clipboard", {
+      description: `The text "${order.name_id}" has been copied to your clipboard.`,
+    });
+  }, []);
+
   const handleCheckboxClick = useCallback(async (order: Order) => {
-    console.log(`Order clicked: ${order.name_id}`);
-    // Optimistically remove from local state
-    // setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
-    // Persist the status change
-    // currentRowClicked?.name_id === order.name_id
-    await updateOrderStatus(order, false);
+    // Ignore real-time updates for this order, to prevent flicker
+    setCurrentRowClicked(null);
+    setIsRowClicked(false);
+    ignoreUpdateIds.current.add(order.name_id);
+    // console.log(`Order clicked: ${order.name_id}`);
+    setTimeout(() => {
+      setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+      updateOrderStatus(order, false);
+    }, 1000);
     toast("Order updated", {
-      description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(order.production_status, false)}`,
+      description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
+        order.production_status,
+        false
+      )}`,
       action: {
         label: "Undo",
-        onClick: () => { revertStatus(order) },
-        // onClick: () => {  },
-      }
-    })
-
-    // Show a notification
-    // toast({
-    //   title: "Order updated",
-    //   description: `Order ${order.name_id} moved to production_status.`,
-    // });
+        onClick: () => {
+          revertStatus(order);
+        },
+      },
+    });
   }, []);
 
   const revertStatus = useCallback(async (order: Order) => {
@@ -472,28 +501,33 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }
 
   const handleRowClick = useCallback(
-    (event: MouseEvent | React.MouseEvent<HTMLTableRowElement, MouseEvent>, row: Order | null) => {
+    (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
       if (!row) {
         console.warn("Row is null, skipping click handling.");
         return;
       }
       console.log("Row clicked:", row);
-      console.log("Event:", event);
-      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-      setMenuPos({ x: rect.right, y: rect.bottom });
+      // Use the provided row element directly
+      if (rowEl) {
+        // console.log("Row element:", rowEl);
+        const rect = rowEl.getBoundingClientRect();
+        setMenuPos({ x: rect.right, y: rect.bottom });
+        // console.log("setting the menu pos", rect.right, rect.bottom);
+      }
+
+      if (copiedText) {
+        toast("Copied Text", {
+          description: `Copied ${row.name_id} to clipboard.`,
+        });
+      }
 
       if (!isRowClicked) {
+        console.log("setting row clicked");
         setIsRowClicked(true);
       }
-      // if (isRowClicked){
-      // setIsRowClicked(false);
-      // setCurrentRowClicked(null);
-      // return;
-      // }
       setCurrentRowClicked(row);
-      // await updateOrderStatus(row, "production_status");
     },
-    [isRowClicked]
+    [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
   );
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
@@ -516,8 +550,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           {allKeys.map((key) => {
             // console.log("this is the key", key);
             const group = grouped[key] || [];
-            const keySplit = key.split("-")
-            var headerColor = '';
+            const keySplit = key.split("-");
+            var headerColor = "";
             if (keySplit.length > 1 && (keySplit.includes("gloss") || keySplit.includes("matte"))) {
               // console.log("this has the matte or gloss thing here");
               const laminationType = keySplit[keySplit.length - 2];
@@ -526,11 +560,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             // console.log("this is the header color", headerColor);
             return (
               <Fragment key={key}>
-              {selectedCategory.toLowerCase() === key.split("-")[0] && (
-                <>
-                <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
-                    <Table className="bg-gray-50 mb-5">
-                      <OrderTableHeader tableHeaders={headers}/>
+                {selectedCategory.toLowerCase() === key.split("-")[0] && (
+                  <>
+                    <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
+                    <Table className="bg-gray-50 mb-5 pl-10">
+                      <OrderTableHeader tableHeaders={headers} />
                       <OrderTableBody
                         data={group}
                         onOrderClick={handleCheckboxClick}
@@ -582,7 +616,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         )}
         {/* <This is for displaying the notifications */}
       </div>
-      <Toaster />
+      <Toaster
+        theme={"dark"}
+        richColors={true}
+      />
     </>
   );
 }

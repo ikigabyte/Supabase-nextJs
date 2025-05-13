@@ -1,12 +1,15 @@
-'use server'
+"use server";
 
 import { Order } from "@/types/custom";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { OrderTypes } from "./orderTypes";
 
-import { updateZendeskStatus } from "@/utils/google-functions";
+import { updateZendeskNotes, updateZendeskStatus } from "@/utils/google-functions";
 
+import projectSettings from "../project-settings.json";
+
+// console.log("Project settings", projectSettings.developer);
 const getNewStatus = (currentStatus: string, revert: boolean) => {
   if (revert) {
     switch (currentStatus) {
@@ -38,23 +41,20 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
 };
 
 const getTimeStamp = () => {
-  const timestamp = new Date().toLocaleString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+  const timestamp = new Date().toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
     hour12: true,
   });
   return timestamp;
-}
+};
 
-async function getSiblingOrders(orderId: number, newStatus : string): Promise<boolean> {
+async function getSiblingOrders(orderId: number, newStatus: string): Promise<boolean> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("order_id", orderId);
+  const { data, error } = await supabase.from("orders").select("*").eq("order_id", orderId);
   if (error) {
     console.error("Error fetching orders for order_id", orderId, error);
     throw new Error("Error fetching orders");
@@ -62,20 +62,22 @@ async function getSiblingOrders(orderId: number, newStatus : string): Promise<bo
 
   // console.log("Fetched orders for order_id", orderId, data);
   // Inserted logic to build statuses and check if all equal newProductionStatus
-  const statuses = (data ?? []).map(o => o.production_status);
+  const statuses = (data ?? []).map((o) => o.production_status);
   console.log("Statuses", statuses);
-  if (statuses.length > 0 && statuses.every(s => s === newStatus)) {
+  if (statuses.length > 0 && statuses.every((s) => s === newStatus)) {
     console.log("ready to update zendesk order");
-    return true
+    return true;
   }
-  return false
+  return false;
 }
 
-async function addHistoryForUser(nameid: string, newStatus: string, previousStatus : string) {
+async function addHistoryForUser(nameid: string, newStatus: string, previousStatus: string) {
   const supabase = await createClient();
-  const { data: {user} } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
-      throw new Error("User is not logged in");
+    throw new Error("User is not logged in");
   }
   // console
   const combinedString = previousStatus + " to " + newStatus;
@@ -84,18 +86,18 @@ async function addHistoryForUser(nameid: string, newStatus: string, previousStat
     name_id: nameid,
     production_change: combinedString,
   }); // * It time stamps automatically
-  
+
   if (error) {
-      console.error("Error adding history", error);
-      throw new Error("Error adding history");
+    console.error("Error adding history", error);
+    throw new Error("Error adding history");
   }
 
-  return true
+  return true;
 
   // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 }
 
-export async function removeOrderLine(order: Order){
+export async function removeOrderLine(order: Order) {
   const supabase = await createClient();
 
   const {
@@ -106,10 +108,7 @@ export async function removeOrderLine(order: Order){
   }
 
   addHistoryForUser(order.name_id, "deleted", order.production_status || "");
-  const { error: deleteError } = await supabase
-    .from("orders")
-    .delete()
-    .eq("name_id", order.name_id);
+  const { error: deleteError } = await supabase.from("orders").delete().eq("name_id", order.name_id);
   if (deleteError) {
     console.error("Error deleting order", deleteError);
     throw new Error("Error deleting order");
@@ -129,10 +128,7 @@ export async function removeOrderAll(orderId: number) {
     throw new Error("User is not logged in");
   }
 
-  const { error } = await supabase
-    .from("orders")
-    .delete()
-    .eq("order_id", orderId);
+  const { error } = await supabase.from("orders").delete().eq("order_id", orderId);
   if (error) {
     console.error("Error deleting orders", error);
     throw new Error("Error deleting orders");
@@ -156,17 +152,13 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
     if (!user) {
       throw new Error("User is not logged in");
     }
-
-    console.log(order.production_status);
     const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
     console.log("New status", newStatus);
     if (!newStatus || newStatus == null) {
       console.error("No new status found");
       throw new Error("No new status found");
     }
-
     addHistoryForUser(order.name_id, newStatus, order.production_status || "");
-
     if (newStatus === "completed") {
       try {
         await supabase.rpc("move_order", { p_id: order.name_id });
@@ -174,7 +166,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
         console.error("Error moving order", error);
         throw new Error("Error moving order");
       }
-      console.log("Order archived successfully");
+      // console.log("Order archived successfully");
       return;
     }
 
@@ -188,9 +180,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
       throw new Error("Error fetching history");
     }
 
-    const history: string[] = Array.isArray(existingRecord?.history)
-      ? (existingRecord.history as string[])
-      : [];
+    const history: string[] = Array.isArray(existingRecord?.history) ? (existingRecord.history as string[]) : [];
 
     const timestamp = getTimeStamp();
     const userEmail = user.email || user.id;
@@ -208,7 +198,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
     console.log("Order updated successfully, new status:", newStatus);
     const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
-    if (readyForZendeskUpdate) {
+    if (readyForZendeskUpdate && projectSettings["ignore-zendesk"] == false) {
       console.log("Updating Zendesk status");
       updateZendeskStatus(order.order_id, newStatus);
     }
@@ -217,7 +207,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   }
 }
 
-export async function updateOrderNotes(order : Order, newNotes : string){
+export async function updateOrderNotes(order: Order, newNotes: string) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -236,8 +226,13 @@ export async function updateOrderNotes(order : Order, newNotes : string){
     console.error("Error updating todo", error);
     throw new Error("Error updating todo");
   }
+  const userEmail = user.email || user.id;
+
+  const timeStamp = getTimeStamp();
+  if (projectSettings["ignore-zendesk"] == false) {
+    updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + "by"  + userEmail + " ] : \n" + newNotes);
+  }
   console.log("Order updated successfully");
-  
 }
 
 export async function createOrder(formData: FormData) {
@@ -338,16 +333,16 @@ export async function createOrder(formData: FormData) {
 //   revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 // }
 
-  // console.log("Existing history:", history);
+// console.log("Existing history:", history);
 
-  // Build timestamped history entry
+// Build timestamped history entry
 
-    // const { data: existingRecord, error: historyError } = await supabase
-  //   .from("orders")
-  //   .select("history")
-  //   .eq("name_id", order.name_id)
-  //   .single();
-  // if (historyError) {
-  //   console.error("Error fetching history", historyError);
-  //   throw new Error("Error fetching history");
-  // }
+// const { data: existingRecord, error: historyError } = await supabase
+//   .from("orders")
+//   .select("history")
+//   .eq("name_id", order.name_id)
+//   .single();
+// if (historyError) {
+//   console.error("Error fetching history", historyError);
+//   throw new Error("Error fetching history");
+// }

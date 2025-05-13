@@ -5,16 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Order } from "@/types/custom";
 import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
-
 import { Separator } from "./ui/separator";
 // A controlled input that only commits on Enter
-function NoteInput({
-  note,
-  onCommit,
-}: {
-  note: string;
-  onCommit: (value: string) => void;
-}) {
+function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
   const [value, setValue] = useState(note);
   const inputRef = useRef<HTMLInputElement>(null);
   // Sync remote note changes when not focused
@@ -26,11 +19,11 @@ function NoteInput({
   return (
     <Input
       ref={inputRef}
-      className="h-1/5 w-full border-0 text-gray-500 bg-transparent"
+      className="h-1/3 w-full bg-transparent border-0 focus:bg-gray-200"
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter') {
+        if (e.key === "Enter") {
           onCommit(value);
         }
       }}
@@ -48,11 +41,11 @@ const dayOfTheWeekColor: { [key: number]: string } = {
 };
 
 const inkColors: { [key: string]: string } = {
-  "metallic": "bg-purple-100",
+  metallic: "bg-purple-100",
   "white-ink": "bg-pink-100",
 };
 
-const materialColors : { [key: string]: string } = {
+const materialColors: { [key: string]: string } = {
   "clear-roll": "bg-teal-100",
 };
 
@@ -101,11 +94,14 @@ export function OrderTableBody({
   setMousePos: (pos: { x: number; y: number }) => void;
   setRowHistory: (history: string[]) => void;
   setScrollAreaName: (name: string) => void;
-  onRowClick: (event: React.MouseEvent<HTMLTableRowElement> | MouseEvent, row: Order | null) => void;
+  onRowClick: (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => void;
   selectedNameId: string | null;
 }) {
+  // track which rows are checked by name_id
+  const [checkedRows, setCheckedRows] = useState<Set<string>>(new Set());
   const lastHoveredIdRef = useRef<string | number | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
+  // const rowRef = useRef<HTMLTableRowElement>(null);
 
   // useEffect(() => {
   //   const handleClickOutside = (e: MouseEvent) => {
@@ -137,8 +133,8 @@ export function OrderTableBody({
         // console.log("Quantity hovered");
         const quantity = row.quantity || "";
         const cleanedQuantity = quantity.toLowerCase().replace(/qty/gi, ""); // Remove "qty" (case-insensitive)
-        if (!cleanedQuantity.includes("tiles")){
-          console.log("This is not a tile quantity");
+        if (!cleanedQuantity.includes("tiles")) {
+          // console.log("This is not a tile quantity");
           // setRowHistory()
           return;
         }
@@ -173,9 +169,6 @@ export function OrderTableBody({
     lastHoveredIdRef.current = null;
   };
 
-  const onTableClick = (event: React.MouseEvent<HTMLTableRowElement>, row: Order) => {
-    onRowClick(event, row);
-  };
   // console.log("the notes have changed here")
   // const handleMouseMove = (event: React.MouseEvent<HTMLTableRowElement>) => {
   // };
@@ -183,48 +176,51 @@ export function OrderTableBody({
   // Track previous row's order_id to detect changes
   let prevOrderId: string | number | null = null;
   let differentOrderId: boolean | null = null;
-  let isRowClicked = false;
+  // let isRowClicked = false;
   return (
     // <div className={isTableClicked ? 'border border-black' : ''} onClick={() => setIsTableClicked(true)}>
     <TableBody ref={tableRef} className="">
       {data.map((row, i) => {
-        // console.log(i);
+        // Move checkbox state out of the map, see below
+        const isChecked = checkedRows.has(row.name_id);
         const currentDay = convertToDayOfTheWeek(row.due_date);
         differentOrderId = prevOrderId !== row.order_id;
-        // const nextOrderId = data[i + 1]?.order_id;
         if (i === 0 && data.length > 1) {
           const nextOrder = data[i + 1];
           if (row.order_id !== nextOrder.order_id) {
             differentOrderId = true;
-            // console.log("The first order has a different order_id than the next order.");
           }
         }
-
-        // console.log("Row ID: ", row.order_id);
-
         prevOrderId = row.order_id;
         const showSeparator = differentOrderId && i !== 0;
-        // console.log(selectedNameId);
         return (
           <React.Fragment key={row.name_id}>
             {showSeparator && (
-              <TableRow key={`sep-${row.name_id}`} className="bg-white border-none h-1">
-                <TableCell colSpan={13} className="h-1 bg-transparent border-none" />
+              <TableRow key={`sep-${row.name_id}`} className="h-1 border-none">
+                <TableCell colSpan={13} className="h-1 bg-white hover:bg-white" />
               </TableRow>
             )}
             <TableRow
               key={row.name_id}
-              className={`[&>td]:py-0 bg-transparent hover:bg-transparent text-xs ${
-                row.name_id === selectedNameId ? " ring-2 ring-black ring-inset relative z-1" : ""
+              className={`[&>td]:py-0 bg-transparent hover:bg-transparent text-xs whitespace-normal break-all ${
+                row.name_id === selectedNameId ? " ring-1 ring-black relative z-10" : ""
               }`}
-              onClick={(e: React.MouseEvent<HTMLTableRowElement>) => onTableClick(e, row)}
+              onClick={(e) => onRowClick(e.currentTarget, row, false)}
             >
               <TableCell
                 onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                 onMouseLeave={handleMouseLeave}
-                className=""
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRowClick(e.currentTarget.closest("tr") as HTMLTableRowElement, row, true);
+                  if (row.name_id) {
+                    console.log("Copying name_id to clipboard:", row.name_id);
+                    navigator.clipboard.writeText(String(row.name_id)).catch(console.error);
+                  }
+                }}
+                className="cursor-copy"
               >
-                {truncate(row.name_id, 30) || "test"}
+                {row.name_id === selectedNameId ? row.name_id : truncate(row.name_id, 30) || "-"}
               </TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
@@ -247,7 +243,7 @@ export function OrderTableBody({
               <TableCell
                 className={`${row.ink && inkColors[row.ink.toLowerCase()] ? inkColors[row.ink.toLowerCase()] : ""}`}
               >
-                {capitalizeFirstLetter(row.ink)}
+                {capitalizeFirstLetter(row.ink)}v
               </TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.print_method) || ""}</TableCell>
               <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
@@ -259,7 +255,21 @@ export function OrderTableBody({
                 <NoteInput note={row.notes ?? ""} onCommit={(value) => onNotesChange(row, value)} />
               </TableCell>
               <TableCell className="">
-                <Checkbox checked={false} onCheckedChange={() => onOrderClick(row)} />
+                <Checkbox
+                  checked={isChecked}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onCheckedChange={(checked) => {
+                    setCheckedRows((prev) => {
+                      const next = new Set(prev);
+                      if (checked) next.add(row.name_id);
+                      else next.delete(row.name_id);
+                      return next;
+                    });
+                    onOrderClick(row);
+                  }}
+                />
               </TableCell>
             </TableRow>
           </React.Fragment>

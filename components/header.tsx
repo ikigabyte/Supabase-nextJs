@@ -55,7 +55,7 @@ export default async function Header() {
       <div className="container flex h-14 max-w-screen-2xl items-center">
         <nav className="flex items-center space-x-4 lg:space-x-3">
           <a className="mr-5 flex items-center space-x-2" href="/">
-            <span className="font-bold text-sm">Stickerbeat Database v1.2</span>
+            <span className="font-bold text-sm">Stickerbeat Database</span>
           </a>
           <div className="flex flex-1 items-center justify-end space-x-12">
             {user !== null ? (
