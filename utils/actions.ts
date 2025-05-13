@@ -230,7 +230,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
 
   const timeStamp = getTimeStamp();
   if (projectSettings["ignore-zendesk"] == false) {
-    updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + "by"  + userEmail + " ] : \n" + newNotes);
+    updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + " by "  + userEmail + " ] : \n" + newNotes);
   }
   console.log("Order updated successfully");
 }

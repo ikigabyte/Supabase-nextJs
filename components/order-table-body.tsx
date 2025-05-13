@@ -243,7 +243,7 @@ export function OrderTableBody({
               <TableCell
                 className={`${row.ink && inkColors[row.ink.toLowerCase()] ? inkColors[row.ink.toLowerCase()] : ""}`}
               >
-                {capitalizeFirstLetter(row.ink)}v
+                {capitalizeFirstLetter(row.ink)}
               </TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.print_method) || ""}</TableCell>
               <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
