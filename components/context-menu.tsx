@@ -39,25 +39,25 @@ export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOp
           handleMenuOptionClick("view");
         }}
       >
-        <Eye className="mr-3"/> Zendesk Page
+        <Eye className="mr-3" /> Zendesk Page
       </Button>
       <Separator className="my-2" />
       <Button
-        className="bg-white text-[12px] text-black hover:bg-gray-100"
+        className="bg-white text-[12px] text-red-500 hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("delete");
         }}
       >
-        <Trash className="mr-3"/> Remove Line
+        <Trash className="mr-3 text-red-500" size={16} /> Remove Item
       </Button>
       <Separator className="my-2" />
       <Button
-        className="bg-white text-[12px] text-black hover:bg-gray-100"
+        className="bg-white text-[12px] text-red-500 hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("deleteAll");
         }}
       >
-        <Eye className="mr-3"/> Remove Order
+        <Trash className="mr-3 text-red-500" size={16} /> Remove Order
       </Button>
     </div>
   );

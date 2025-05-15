@@ -1,8 +1,8 @@
-"use client";
+'use client'
 
 import { TableCell, TableBody, TableRow } from "./ui/table";
 import { Eye } from "lucide-react";
-import { Button } from "./ui/button";
+// import { Button } from "./ui/button";
 
 const openZendeskTicket = (orderId: string) => {
   const url = `https://stickerbeat.zendesk.com/agent/tickets/${orderId}`;
@@ -30,9 +30,16 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
             <TableCell>{order.ihd_date}</TableCell>
             <TableCell>{order.shipping_method}</TableCell>
             <TableCell>{order.notes}</TableCell>
-            <Button className="bg-transparent" onClick={() => openZendeskTicket(order.order_id)}>
-              <Eye className="mr-3 text-black" />
-            </Button>
+            <TableCell className="p-0">
+              <a
+                href={`https://stickerbeat.zendesk.com/agent/tickets/${order.order_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block p-2 bg-transparent"
+              >
+                <Eye className="mr-3 text-black" />
+              </a>
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

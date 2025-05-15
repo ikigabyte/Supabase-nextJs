@@ -61,6 +61,8 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "roll-gloss-promo",
     "roll-matte-tiles",
     "roll-matte-promo",
+    "special-regular",
+
   ],
   cut: ["regular", "roll"],
   ship: ["regular", "roll"],

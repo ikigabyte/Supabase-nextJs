@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 
 import { useRouter } from "next/navigation";
 import type { Session } from '@supabase/supabase-js';
+// import { Session } from "inspector";
 
 interface NavBarElementProps {
   onSearch: (searchTerm: string) => void;
@@ -29,7 +30,8 @@ export function NavBarElement() {
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log('Session:', session, 'Error:', error);
+      // console.log('Session:', session);
+      // console.log('Session:', session, 'Error:', error);
       setSession(session);
     });
   }, []);

@@ -10,18 +10,12 @@ import { SearchBar } from "./search-bar";
 // import { redirect } from "next/dist/server/api-utils";
 
 // import { redirect } from 'next/navigation'
-import { redirect } from 'next/navigation'
+import { redirect } from "next/navigation";
 import { NavBarElement } from "./navbar-element";
 
-function getProductionCounts(
-  orders: Order[],
-  orderTypes: OrderTypes[]
-): Record<string, number> {
+function getProductionCounts(orders: Order[], orderTypes: OrderTypes[]): Record<string, number> {
   return orderTypes.reduce((acc, category) => {
-    const count = orders.filter(
-      (order) =>
-        order.material?.toLowerCase() === category.toLowerCase()
-    ).length;
+    const count = orders.filter((order) => order.material?.toLowerCase() === category.toLowerCase()).length;
     acc[category] = count;
     return acc;
   }, {} as Record<string, number>);
@@ -38,6 +32,10 @@ export default async function Header() {
   let cutCount = null;
   let packCount = null;
 
+  // if (user == null) {
+  //   redirect("/login");
+  // }
+
   // if (user !== null) {
 
   // }
@@ -49,7 +47,7 @@ export default async function Header() {
 
   // console.log(printCount); // Use a reducer here
   // console.log("totalOrderCount", totalOrderCount);
-  
+
   return (
     <header className="z-10 sticky top-0 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">
@@ -58,18 +56,16 @@ export default async function Header() {
             <span className="font-bold text-sm">Stickerbeat Database</span>
           </a>
           <div className="flex flex-1 items-center justify-end space-x-12">
-            {user !== null ? (
-              <NavBarElement/>
-            ) : (
-              <Link href="/login"></Link>
-            )}
+            {user !== null ? <NavBarElement /> : <Link href="/login"></Link>}
           </div>
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
           {user !== null ? (
             <form action={signOut} className="flex items-center gap-2">
-              <Link href="/user">{user.email}</Link>
-              <Button>Sign Out</Button>
+              <Link href="/user" className="text-xs border-b-2 border-black pb-0.5">
+                {user.email}
+              </Link>
+              <Button size="sm">Sign Out</Button>
             </form>
           ) : (
             <Button asChild>

@@ -6,48 +6,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Order } from "@/types/custom";
 import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
 import { Separator } from "./ui/separator";
+import { headers } from "next/headers";
+import { convertToSpaces } from "@/lib/utils";
 // A controlled input that only commits on Enter
-function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
-  const [value, setValue] = useState(note);
-  const inputRef = useRef<HTMLInputElement>(null);
-  // Sync remote note changes when not focused
-  useEffect(() => {
-    if (document.activeElement !== inputRef.current) {
-      setValue(note);
-    }
-  }, [note]);
-  return (
-    <Input
-      ref={inputRef}
-      className="h-1/3 w-full bg-transparent border-0 focus:bg-gray-200"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Enter") {
-          onCommit(value);
-        }
-      }}
-    />
-  );
-}
-// import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
-
-const dayOfTheWeekColor: { [key: number]: string } = {
-  1: "bg-gray-100", // Monday
-  2: "bg-gray-300", // Friday
-  3: "bg-gray-200", // Wednesday
-  4: "bg-gray-250", // Thursday
-  5: "bg-gray-300", // Thursday
-};
-
-const inkColors: { [key: string]: string } = {
-  metallic: "bg-purple-100",
-  "white-ink": "bg-pink-100",
-};
-
-const materialColors: { [key: string]: string } = {
-  "clear-roll": "bg-teal-100",
-};
 
 const convertToDayOfTheWeek = (dateString: string | null) => {
   if (!dateString || dateString == null) {
@@ -75,6 +36,64 @@ const displayCorrectQuantity = (quantity: string | null) => {
     return cleanedQuantity;
   }
 };
+
+const ignoredSections: { [key: string]: string[] } = {
+  "white": ["print method"],
+  "holographic": ["print method"],
+  "mag20pt": ["print method"],
+};
+
+const isSectionIgnored = (material: string | null, section: string): boolean => {
+  if (!material || material == null) return false;
+  const lowerCaseMaterial = material.toLowerCase();
+  return ignoredSections[lowerCaseMaterial]?.includes(section) || false;
+};
+
+const dayOfTheWeekColor: { [key: number]: string } = {
+  1: "bg-gray-100", // Monday
+  2: "bg-gray-300", // Friday
+  3: "bg-gray-200", // Wednesday
+  4: "bg-gray-250", // Thursday
+  5: "bg-gray-300", // Thursday
+};
+
+const inkColors: { [key: string]: string } = {
+  metallic: "bg-purple-100",
+  "white-ink": "bg-pink-100",
+  "3" : "bg-yellow-200",
+  "4" : "bg-orange-200",
+  "6" : "bg-green-200",
+  "12" : "bg-blue-200",
+};
+
+const materialColors: { [key: string]: string } = {
+  "clear-roll": "bg-teal-100",
+};
+
+function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
+  const [value, setValue] = useState(note);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Sync remote note changes when not focused
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      setValue(note);
+    }
+  }, [note]);
+  return (
+    <Input
+      ref={inputRef}
+      className="h-1/3 w-full bg-transparent border-0 focus:bg-gray-200 text-[10px]"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+          onCommit(value);
+        }
+      }}
+    />
+  );
+}
+// import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
 
 export function OrderTableBody({
   data,
@@ -176,6 +195,7 @@ export function OrderTableBody({
   // Track previous row's order_id to detect changes
   let prevOrderId: string | number | null = null;
   let differentOrderId: boolean | null = null;
+
   // let isRowClicked = false;
   return (
     // <div className={isTableClicked ? 'border border-black' : ''} onClick={() => setIsTableClicked(true)}>
@@ -184,6 +204,9 @@ export function OrderTableBody({
         // Move checkbox state out of the map, see below
         const isChecked = checkedRows.has(row.name_id);
         const currentDay = convertToDayOfTheWeek(row.due_date);
+        const safeName = convertToSpaces(row.name_id);
+        const isSelected = row.name_id === selectedNameId;
+
         differentOrderId = prevOrderId !== row.order_id;
         if (i === 0 && data.length > 1) {
           const nextOrder = data[i + 1];
@@ -214,14 +237,22 @@ export function OrderTableBody({
                   e.stopPropagation();
                   onRowClick(e.currentTarget.closest("tr") as HTMLTableRowElement, row, true);
                   if (row.name_id) {
-                    console.log("Copying name_id to clipboard:", row.name_id);
-                    navigator.clipboard.writeText(String(row.name_id)).catch(console.error);
+                    console.log("Copying name_id to clipboard:", safeName);
+                    navigator.clipboard.writeText(String(safeName)).catch(console.error);
                   }
                 }}
-                className="cursor-copy"
+                className=""
               >
-                {row.name_id === selectedNameId ? row.name_id : truncate(row.name_id, 30) || "-"}
+                {isSelected ? safeName : truncate(safeName, 30) || "-"}
               </TableCell>
+              <TableCell
+                onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
+                onMouseLeave={handleMouseLeave}
+                className=""
+              >
+                {displayCorrectQuantity(row.quantity) || "-"}
+              </TableCell>
+
               <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
               <TableCell
@@ -233,24 +264,20 @@ export function OrderTableBody({
               >
                 {capitalizeFirstLetter(row.material) || "-"}
               </TableCell>
-              <TableCell
-                onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
-                onMouseLeave={handleMouseLeave}
-                className=""
-              >
-                {displayCorrectQuantity(row.quantity) || "-"}
-              </TableCell>
+
               <TableCell
                 className={`${row.ink && inkColors[row.ink.toLowerCase()] ? inkColors[row.ink.toLowerCase()] : ""}`}
               >
                 {capitalizeFirstLetter(row.ink)}
               </TableCell>
-              <TableCell className="">{capitalizeFirstLetter(row.print_method) || ""}</TableCell>
+              <TableCell className="text-[11px] truncate">
+                {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
+              </TableCell>
               <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
                 {capitalizeFirstLetter(row.due_date) || ""}
               </TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.ihd_date) || ""}</TableCell>
-              <TableCell className="">{capitalizeFirstLetter(row.shipping_method) || ""}</TableCell>
+              <TableCell className="text-[11px] truncate">{capitalizeFirstLetter(row.shipping_method) || ""}</TableCell>
               <TableCell className="">
                 <NoteInput note={row.notes ?? ""} onCommit={(value) => onNotesChange(row, value)} />
               </TableCell>

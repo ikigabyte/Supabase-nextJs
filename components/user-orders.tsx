@@ -54,14 +54,14 @@ export function UserOrders() {
   return (
     <>
       <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
-        <h1 className="font-bold text-3xl "> {user} Orders Touched</h1>
+        <h1 className="font-bold text-3xl "> {user} History </h1>
         <Table>
           {/* Use the same headers styling */}
           <TableHeader>
             <TableRow className="h-.5 [&>th]:py-0 text-xs">
-              <TableHead>Order Touched</TableHead>
+              <TableHead>Order Name</TableHead>
               <TableHead>Action</TableHead>
-              <TableHead>Time Touched</TableHead>
+              <TableHead>Date</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

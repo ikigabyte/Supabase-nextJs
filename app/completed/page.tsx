@@ -58,7 +58,7 @@ export default async function CompletedPage() {
         {/* Use the same headers styling */}
         <OrderTableHeader
           tableHeaders={[
-            "name_id",
+            "file name",
             "shape",
             "lamination",
             "material",

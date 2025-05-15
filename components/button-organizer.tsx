@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
+// import { ScrollArea, ScrollBar } from "@radix-ui/react-scroll-area";
 // import { getButtonColor  } from "@/types/buttons";
 
 const getButtonColor = (category: string) => {
@@ -34,7 +35,8 @@ const getButtonColor = (category: string) => {
 };
 
 export function ButtonOrganizer({
-  categories = [], counts = {},
+  categories = [],
+  counts = {},
   onCategoryClick,
 }: {
   categories?: string[];
@@ -42,15 +44,15 @@ export function ButtonOrganizer({
   onCategoryClick: (category: string) => void;
 }) {
   return (
-    <div className="fixed bottom-4 left-4 flex flex-row gap-2">
+    <div className="fixed bottom-4 left-4 text-xs flex-wrap flex gap-2">
       {categories.map((category) => {
-        const color = getButtonColor(category.toLowerCase())
+        const color = getButtonColor(category.toLowerCase());
         // console.log("this is the color", color);
         return (
           <Button
             key={category}
             variant="default"
-            className={`${color}`}
+            className={`${color} px-4 py-2`}
             // className="bg-red-500"
             // style={{ backgroundColor: color }}
             onClick={() => onCategoryClick(category)}

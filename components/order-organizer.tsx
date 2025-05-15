@@ -1,7 +1,7 @@
 "use client";
 import React, { Fragment, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, redirect } from "next/navigation";
 import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
 import { OrderTableHeader } from "./order-table-header";
@@ -19,10 +19,13 @@ import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Toaster } from "@/components/ui/sonner"
-import { toast } from "sonner"
-import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
-import { Description } from "@radix-ui/react-toast";
+import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
+// import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
+// import { Description } from "@radix-ui/react-toast";
+// import { ScrollArea } from "@radix-ui/react-scroll-area";
+// import { ScrollBar } from "./ui/scroll-area";
+import { convertToSpaces } from "@/lib/utils";
 // import { flightRouterStateSchema } from "next/dist/server/app-render/types";
 
 // import { filterOutOrderCounts } from "./order-organizer";
@@ -67,27 +70,42 @@ const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
 };
 
 const laminationHeaderColors = {
-  "matte" : "text-purple-500",
-  "gloss" : "text-blue-500",
-}
+  matte: "text-purple-500",
+  gloss: "text-blue-500",
+};
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
     let count = 0;
-    if (lowerCat === "rush") {
-      // Count only rush orders matching the current status
-      count = orders.filter((order) => order.production_status === orderType && order.rush === true).length;
-    } else if (lowerCat === "regular") {
-      count = orders.filter(
-        (order) =>
-          order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() !== "roll"
-      ).length;
+    if (orderType === "print") {
+      if (lowerCat === "rush") {
+        // Count only rush orders matching the current status
+        count = orders.filter((order) => order.production_status === orderType && order.rush === true).length;
+      } else if (lowerCat === "regular") {
+        count = orders.filter(
+          (order) =>
+            order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() !== "roll"
+        ).length;
+      } else {
+        count = orders.filter(
+          (order) =>
+            order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() === lowerCat
+        ).length;
+      }
     } else {
-      count = orders.filter(
-        (order) =>
-          order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() === lowerCat
-      ).length;
+      if (lowerCat === "rush") {
+        // Ignore rush for non-print statuses
+        count = 0;
+      } else if (lowerCat === "regular") {
+        count = orders.filter(
+          (order) => order.production_status === orderType && order.material?.toLowerCase() !== "roll"
+        ).length;
+      } else {
+        count = orders.filter(
+          (order) => order.production_status === orderType && order.material?.toLowerCase() === lowerCat
+        ).length;
+      }
     }
     acc[category] = count;
     return acc;
@@ -140,14 +158,17 @@ function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
 // console.log("here is the supabase client" , supabase);
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
-  // const categories = getCategoryTypes(orderType);
-
-  // console.log(supabaseClient.auth.getSession());
   const supabase = createClientComponentClient();
+
+  if (supabase === null) {
+    console.error("Supabase client is null");
+    redirect("/login");
+    return null; // or handle the error as needed
+  }
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log("Session:", session, "Error:", error);
+      // console.log("Session:", session, "Error:", error);
       setSession(session);
     });
   }, []);
@@ -175,14 +196,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   //   theme: 'dark',        // default theme
   //   richColors: true,     // enable rich colors
   // });
-  
+
+  // console.log(orders);
   useEffect(() => {
     // Initial load
     supabase
       .from("orders")
       .select()
       // .eq("production_status", orderType)
-      .order("due_date", { ascending: false })
+      .order("due_date", { ascending: true })
       .order("order_id", { ascending: false })
       .then(({ data }) => setOrders(data ?? []));
 
@@ -215,13 +237,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           ignoreUpdateIds.current.delete(updated.name_id);
           return;
         }
-        console.log("UPDATE event payload.old:", payload.old);
-        console.log("UPDATE event payload.new:", payload.new);
+        // console.log("UPDATE event payload.old:", payload.old);
+        // console.log("UPDATE event payload.new:", payload.new);
         const oldRow = payload.old as Order;
         // If only notes changed, update that field
         if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes) {
-          console.log("Notes changed for order", updated.name_id);
-          console.log(updated.notes);
+          // console.log("Notes changed for order", updated.name_id);
+          // console.log(updated.notes);
           setOrders((prev) => prev.map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o)));
           // Clear selection/hover on notes update
           if (currentRowClicked?.name_id === updated.name_id) {
@@ -383,11 +405,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }, [defaultPage]);
 
-  const handleClipboardCopy = useCallback((order: Order) => {
-    toast("Copied to clipboard", {
-      description: `The text "${order.name_id}" has been copied to your clipboard.`,
-    });
-  }, []);
+  // const handleClipboardCopy = useCallback((order: Order) => {
+  //   toast("Copied to clipboard", {
+  //     description: `The text "${order.name_id}" has been copied to your clipboard.`,
+  //   });
+  // }, []);
 
   const handleCheckboxClick = useCallback(async (order: Order) => {
     // Ignore real-time updates for this order, to prevent flicker
@@ -513,11 +535,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const rect = rowEl.getBoundingClientRect();
         setMenuPos({ x: rect.right, y: rect.bottom });
         // console.log("setting the menu pos", rect.right, rect.bottom);
-      }
+      } 
+      const safeName = convertToSpaces(row.name_id);
 
       if (copiedText) {
-        toast("Copied Text", {
-          description: `Copied ${row.name_id} to clipboard.`,
+        toast("Copied to clipboard", {
+          description: `Copied ${safeName} to clipboard.`,
         });
       }
 
@@ -589,6 +612,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           counts={categoryCounts}
           onCategoryClick={handleCategoryClick}
         />
+
         {isRowHovered && (
           <div
             style={{
@@ -616,10 +640,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         )}
         {/* <This is for displaying the notifications */}
       </div>
-      <Toaster
-        theme={"dark"}
-        richColors={true}
-      />
+      <Toaster theme={"dark"} richColors={true} />
     </>
   );
 }

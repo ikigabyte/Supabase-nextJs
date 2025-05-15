@@ -1,14 +1,13 @@
 import React from "react";
 import { TableHead, TableRow, TableHeader } from "@/components/ui/table";
 
-const widths: string[] = ["20%", "5%", "5%", "5%", "5%", "5%", "5%", "9%", "9%", "6%", "15%", "5%"];
+const widths: string[] = ["20%", "5%", "5%", "5%", "5%", "5%", "5%", "7%", "7%", "6%", "19%", "5%"];
 
 const laminationHeaderColors = {
   "matte" : "bg-purple-500",
   "gloss" : "bg-blue-500",
 }
 export function OrderTableHeader({ tableHeaders }: { tableHeaders: string[] }) {
-
   var laminationColor = ''
 
   // console.log("this is the keyName", keyName)
@@ -54,7 +53,7 @@ export function OrderTableHeader({ tableHeaders }: { tableHeaders: string[] }) {
           <TableHead
             key={index}
             className={
-              `border-r border-gray-200 text-white ${
+              `border-r border-gray-200 text-white truncate text-[11px]${
                 tableHeaders[index]?.toLowerCase() === 'lamination' && laminationColor
                   ? laminationColor
                   : ''
