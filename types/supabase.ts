@@ -117,7 +117,7 @@ export type Database = {
       }
       orders: {
         Row: {
-          due_date: string | null
+          due_date: string
           history: Json | null
           ihd_date: string | null
           ink: string | null
@@ -135,7 +135,7 @@ export type Database = {
           shipping_method: string
         }
         Insert: {
-          due_date?: string | null
+          due_date?: string
           history?: Json | null
           ihd_date?: string | null
           ink?: string | null
@@ -153,7 +153,7 @@ export type Database = {
           shipping_method?: string
         }
         Update: {
-          due_date?: string | null
+          due_date?: string
           history?: Json | null
           ihd_date?: string | null
           ink?: string | null

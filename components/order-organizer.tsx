@@ -227,7 +227,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             if (isRowHovered) {
               setIsRowHovered(false);
             }
-            return next;
+            return next.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+            // return next.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
           });
         }
       })
@@ -264,7 +265,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               setCurrentRowClicked(null);
             }
             if (isRowHovered) setIsRowHovered(false);
-            return next;
+            return next.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
           });
         } else {
           setOrders((prev) => {
@@ -275,7 +276,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               setCurrentRowClicked(null);
             }
             if (isRowHovered) setIsRowHovered(false);
-            return next;
+            return next.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
           });
         }
       })
@@ -293,7 +294,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             setCurrentRowClicked(null);
           }
           if (isRowHovered) setIsRowHovered(false);
-          return next;
+          return next.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
         });
       })
       .subscribe();
@@ -539,7 +540,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const rect = rowEl.getBoundingClientRect();
         setMenuPos({ x: rect.right, y: rect.bottom });
         // console.log("setting the menu pos", rect.right, rect.bottom);
-      } 
+      }
       const safeName = convertToSpaces(row.name_id);
 
       if (copiedText) {
