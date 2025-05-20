@@ -26,6 +26,8 @@ import { toast } from "sonner";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
 // import { ScrollBar } from "./ui/scroll-area";
 import { convertToSpaces } from "@/lib/utils";
+
+const databaseVersion = 1.5;
 // import { flightRouterStateSchema } from "next/dist/server/app-render/types";
 
 // import { filterOutOrderCounts } from "./order-organizer";
@@ -38,6 +40,8 @@ import { convertToSpaces } from "@/lib/utils";
 //   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 // )
 // import { createClient } from "@/utils/supabase/server";
+
+console.log("Database Version", databaseVersion);
 
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   if (reverse) {

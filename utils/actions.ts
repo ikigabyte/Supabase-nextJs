@@ -7,7 +7,7 @@ import { OrderTypes } from "./orderTypes";
 
 import { updateZendeskNotes, updateZendeskStatus } from "@/utils/google-functions";
 
-import projectSettings from "../project-settings.json";
+// import projectSettings from "../project-settings.json";
 
 // console.log("Project settings", projectSettings.developer);
 const getNewStatus = (currentStatus: string, revert: boolean) => {
