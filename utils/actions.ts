@@ -1,4 +1,4 @@
-"use server";
+'use server'
 
 import { Order } from "@/types/custom";
 import { createClient } from "@/utils/supabase/server";
@@ -139,6 +139,7 @@ export async function removeOrderAll(orderId: number) {
 }
 
 export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {
+  const ignore_zendesk = process.env.IGNORE_ZENDESK || false;
   try {
     if (order == null) {
       console.error("No order provided");
@@ -198,7 +199,8 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
     console.log("Order updated successfully, new status:", newStatus);
     const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
-    if (readyForZendeskUpdate && projectSettings["zendesk-connections"] == true) {
+
+    if (readyForZendeskUpdate && !ignore_zendesk) {
       console.log("Updating Zendesk status");
       updateZendeskStatus(order.order_id, newStatus);
     }
@@ -208,6 +210,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 }
 
 export async function updateOrderNotes(order: Order, newNotes: string) {
+   const ignore_zendesk = process.env.IGNORE_ZENDESK || false;
   const supabase = await createClient();
   const {
     data: { user },
@@ -229,7 +232,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
   const userEmail = user.email || user.id;
 
   const timeStamp = getTimeStamp();
-  if (projectSettings["zendesk-connections"] == true) {
+  if (!ignore_zendesk) {
     updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + " by "  + userEmail + " ] : \n" + newNotes);
   }
   console.log("Order updated successfully");
