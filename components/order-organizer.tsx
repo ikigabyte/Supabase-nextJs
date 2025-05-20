@@ -436,10 +436,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, []);
 
   const revertStatus = useCallback(async (order: Order) => {
-    console.log("Reverting status for order", order.name_id);
+    // console.log("Reverting status for order", order.name_id);
     // Optimistically update local state
     // setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
     // Persist change
+    if (ignoreUpdateIds.current.has(order.name_id)) {
+      console.log("Deleting the order here from the ignoreUpdateIds section", order.name_id);
+      ignoreUpdateIds.current.delete(order.name_id);
+    }
     await updateOrderStatus(order, false, orderType);
   }, []);
 
@@ -512,7 +516,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
       // Example async operation
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, "_blank");
+      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, "_top");
     },
     [currentRowClicked, orderType]
   );

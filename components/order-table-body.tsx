@@ -38,9 +38,9 @@ const displayCorrectQuantity = (quantity: string | null) => {
 };
 
 const ignoredSections: { [key: string]: string[] } = {
-  "white": ["print method"],
-  "holographic": ["print method"],
-  "mag20pt": ["print method"],
+  white: ["print method"],
+  holographic: ["print method"],
+  mag20pt: ["print method"],
 };
 
 const isSectionIgnored = (material: string | null, section: string): boolean => {
@@ -60,10 +60,10 @@ const dayOfTheWeekColor: { [key: number]: string } = {
 const inkColors: { [key: string]: string } = {
   metallic: "bg-purple-100",
   "white-ink": "bg-pink-100",
-  "3" : "bg-yellow-200",
-  "4" : "bg-orange-200",
-  "6" : "bg-green-200",
-  "12" : "bg-blue-200",
+  "3": "bg-yellow-200",
+  "4": "bg-orange-200",
+  "6": "bg-green-200",
+  "12": "bg-blue-200",
 };
 
 const materialColors: { [key: string]: string } = {
@@ -166,7 +166,6 @@ export function OrderTableBody({
         const quantityPart = splitPart[0];
         const sizePart = splitPart[2];
         const multiplication = parseInt(quantityPart) * parseInt(sizePart);
-        console.log("Multiplication", multiplication);
         // console.log("Size part", sizePart);
         // const testPart = splitPart[2] || "";
         const combinedString = `${quantityPart} x ${sizePart} = ${multiplication} "`;
@@ -295,6 +294,15 @@ export function OrderTableBody({
                       return next;
                     });
                     onOrderClick(row);
+                    if (checked) {
+                      setTimeout(() => {
+                        setCheckedRows((prev) => {
+                          const next = new Set(prev);
+                          next.delete(row.name_id);
+                          return next;
+                        });
+                      }, 2000);
+                    }
                   }}
                 />
               </TableCell>

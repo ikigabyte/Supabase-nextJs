@@ -2,5 +2,5 @@
 
 {
   "developer": false,
-  "ignore-zendesk": false
+  "zendesk-connections": true
 }
