@@ -139,7 +139,7 @@ export async function removeOrderAll(orderId: number) {
 }
 
 export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {
-  const ignore_zendesk = process.env.IGNORE_ZENDESK || false;
+  const ignore_zendesk_env = process.env.IGNORE_ZENDESK || false;
   try {
     if (order == null) {
       console.error("No order provided");
@@ -199,9 +199,8 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
     console.log("Order updated successfully, new status:", newStatus);
     const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
-
-    if (readyForZendeskUpdate && !ignore_zendesk) {
-      console.log("Updating Zendesk status");
+    // console.log(ignore_zendesk_env)
+    if (readyForZendeskUpdate && (ignore_zendesk_env == false || ignore_zendesk_env == "false")) {
       updateZendeskStatus(order.order_id, newStatus);
     }
   } catch (error) {
