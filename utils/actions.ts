@@ -161,7 +161,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
     }
     addHistoryForUser(order.name_id, newStatus, order.production_status || "");
     if (newStatus === "completed") {
-      try {
+      try { 
         await supabase.rpc("move_order", { p_id: order.name_id });
       } catch (error) {
         console.error("Error moving order", error);
@@ -237,34 +237,34 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
   console.log("Order updated successfully");
 }
 
-export async function createOrder(formData: FormData) {
-  // await new Promise((resolve) => {
-  //     setTimeout(resolve, 3000);
-  // })
+// export async function createOrder(formData: FormData) {
+//   // await new Promise((resolve) => {
+//   //     setTimeout(resolve, 3000);
+//   // })
 
-  const supabase = await createClient();
-  const text = formData.get("todo") as string;
-  if (!text) {
-    throw new Error("No todo text provided");
-  }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error("User is not logged in");
-  }
+//   const supabase = await createClient();
+//   const text = formData.get("todo") as string;
+//   if (!text) {
+//     throw new Error("No todo text provided");
+//   }
+//   const {
+//     data: { user },
+//   } = await supabase.auth.getUser();
+//   if (!user) {
+//     throw new Error("User is not logged in");
+//   }
 
-  const { error } = await supabase.from("orders").insert({
-    name_id: text,
-    print_method: "Front",
-  });
-  if (error) {
-    console.error("Error adding an order here", error);
-    throw new Error("Error adding todo");
-  }
+//   const { error } = await supabase.from("orders").insert({
+//     name_id: text,
+//     print_method: "Front",
+//   });
+//   if (error) {
+//     console.error("Error adding an order here", error);
+//     throw new Error("Error adding todo");
+//   }
 
-  revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
-}
+//   revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+// }
 
 // export async function addTodo(formData: FormData){
 
