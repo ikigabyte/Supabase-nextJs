@@ -2,8 +2,8 @@
 // import * as React from "react"
 import React, { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { SkipBack, Eye, MailOpen, Trash } from "lucide-react";
 import { Separator } from "./ui/separator";
+import {  redirect } from "next/navigation";
 // import { OrderTypes } from "@/utils/orderTypes";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { TimelineOrder } from "@/types/custom";
@@ -11,7 +11,7 @@ import { TimelineOrder } from "@/types/custom";
 // import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 
-const supabase = createClientComponentClient();
+// const supabase = createClientComponentClient();
 
 function formatLastUpdated(isoString: string) {
   if (!isoString) return "";
@@ -54,6 +54,8 @@ function isDateBeforeOrEqual(dateA: string | Date, dateB: string | Date) {
 //   return date.toLocaleDateString("en-US", options);
 // };
 
+const supabase = createClientComponentClient();
+
 export function TimelineOrders() {
   const [dueOrders, setDueOrders] = useState<TimelineOrder[]>([]);
   const [futureOrders, setFutureOrders] = useState<TimelineOrder[]>([]);
@@ -67,6 +69,13 @@ export function TimelineOrders() {
   //     setUser(data.user?.email ?? "Guest");
   //   });
   // }, [user]);
+
+  if (supabase === null) {
+    console.error("Supabase client is null");
+    redirect("/login");
+    return null; // or handle the error as needed
+  }
+  console.log("Supabase client initialized:", supabase);
 
   useEffect(() => {
     supabase
