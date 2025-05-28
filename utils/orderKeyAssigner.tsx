@@ -78,7 +78,7 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
 
   // 1a) Rush orders for print take highest priority
   if (orderType === "print") {
-    if (order.orderType == 2) {
+    if (order.orderType === 2) {
       const specialKey = keys.find((k) => k.startsWith("special"));
       return specialKey || null;
     }
@@ -90,7 +90,7 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
     }
 
     // Convert for promo and order type here / also change the way they're coming in from the log
-    if (order.promo) {
+    if (order.orderType === 1) {
       // console.log("Promo detected");
       const promoKey = keys.find((k) => k.endsWith("-promo") && k.startsWith(`${order.material}-${order.lamination}`));
       if (promoKey) return promoKey;
