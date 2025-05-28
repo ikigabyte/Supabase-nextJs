@@ -240,18 +240,19 @@ export function OrderTableBody({
             differentOrderId = true;
           }
         }
-        prevOrderId = row.order_id;
-        const showSeparator = differentOrderId && i !== 0;
+        const prev = data[i - 1];
+        const showSeparator = i > 0 && row.order_id !== prev.order_id;
+
         return (
           <React.Fragment key={row.name_id}>
             {showSeparator && (
-              <TableRow key={`sep-${row.name_id}`} className="h-1 border-none">
-                <TableCell colSpan={13} className="h-1 bg-white hover:bg-white" />
+              <TableRow key={`sep-${row.name_id}`} className="h-full border-none">
+                <TableCell colSpan={13} className="h-4 bg-transparent hover:bg-white" />
               </TableRow>
             )}
             <TableRow
               key={row.name_id}
-              className={`[&>td]:py-1 align-top bg-transparent max-h-[14px] hover:bg-transparent text-xs whitespace-normal break-all ${
+              className={`[&>td]:py-1 align-top border-gray-300 border-b-2 bg-gray-100 max-h-[14px] hover:bg-gray-300 text-xs whitespace-normal break-all ${
                 row.name_id === selectedNameId ? " ring-1 ring-black relative z-10" : ""
               }`}
               onClick={(e) => onRowClick(e.currentTarget, row, false)}
@@ -269,7 +270,6 @@ export function OrderTableBody({
                 }}
                 className=""
               >
-                
                 {isSelected ? safeName : truncate(safeName, 40) || "-"}
               </TableCell>
               <TableCell
@@ -306,7 +306,6 @@ export function OrderTableBody({
               <TableCell className="">{capitalizeFirstLetter(row.ihd_date) || ""}</TableCell>
               <TableCell className="text-[11px] truncate">{capitalizeFirstLetter(row.shipping_method) || ""}</TableCell>
               <TableCell className="">
-
                 {/* <Textarea ></Textarea> */}
                 <NoteInput note={row.notes ?? ""} onCommit={(value) => onNotesChange(row, value)} />
               </TableCell>

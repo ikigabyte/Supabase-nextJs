@@ -603,7 +603,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 {selectedCategory.toLowerCase() === key.split("-")[0] && (
                   <>
                     <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
-                    <Table className="bg-gray-50 mb-5 pl-10">
+                    <Table className="mb-5 pl-10">
                       <OrderTableHeader tableHeaders={headers} />
                       <OrderTableBody
                         data={group}
