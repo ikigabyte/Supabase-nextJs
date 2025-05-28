@@ -8,6 +8,7 @@ import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
 import { Separator } from "./ui/separator";
 import { headers } from "next/headers";
 import { convertToSpaces } from "@/lib/utils";
+import { Textarea } from "./ui/textarea";
 // A controlled input that only commits on Enter
 
 const convertToDayOfTheWeek = (dateString: string | null) => {
@@ -72,25 +73,48 @@ const materialColors: { [key: string]: string } = {
 
 function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
   const [value, setValue] = useState(note);
-  const inputRef = useRef<HTMLInputElement>(null);
-  // Sync remote note changes when not focused
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     if (document.activeElement !== inputRef.current) {
       setValue(note);
     }
   }, [note]);
+
+  // Auto-resize on input
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = inputRef.current.scrollHeight + "px";
+    }
+  };
+
+  // Initial auto-resize
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = inputRef.current.scrollHeight + "px";
+    }
+  }, [value]);
+
   return (
-    <Input
-      ref={inputRef}
-      className="h-1/3 w-full bg-transparent border-0 focus:bg-gray-200 text-[10px]"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Enter") {
-          onCommit(value);
-        }
-      }}
-    />
+    <>
+      <Textarea
+        ref={inputRef}
+        className="overflow-y-hidden resize-none bg-transparent border-0 focus:bg-gray-200 text-[11px]"
+        value={value}
+        rows={1}
+        onInput={handleInput}
+        onChange={handleInput}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onCommit(value);
+          }
+        }}
+      />
+     </>
   );
 }
 // import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
@@ -105,6 +129,7 @@ export function OrderTableBody({
   setScrollAreaName,
   onRowClick,
   selectedNameId,
+  isSpecialSection,
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -115,6 +140,8 @@ export function OrderTableBody({
   setScrollAreaName: (name: string) => void;
   onRowClick: (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => void;
   selectedNameId: string | null;
+  isSpecialSection?: boolean; // Optional prop to indicate if this is a special section
+  // isTableClicked?: boolean; // Optional prop to indicate if the table is clicked
 }) {
   // track which rows are checked by name_id
   const [checkedRows, setCheckedRows] = useState<Set<string>>(new Set());
@@ -224,7 +251,7 @@ export function OrderTableBody({
             )}
             <TableRow
               key={row.name_id}
-              className={`[&>td]:py-0 bg-transparent hover:bg-transparent text-xs whitespace-normal break-all ${
+              className={`[&>td]:py-1 align-top bg-transparent max-h-[14px] hover:bg-transparent text-xs whitespace-normal break-all ${
                 row.name_id === selectedNameId ? " ring-1 ring-black relative z-10" : ""
               }`}
               onClick={(e) => onRowClick(e.currentTarget, row, false)}
@@ -242,7 +269,8 @@ export function OrderTableBody({
                 }}
                 className=""
               >
-                {isSelected ? safeName : truncate(safeName, 30) || "-"}
+                
+                {isSelected ? safeName : truncate(safeName, 40) || "-"}
               </TableCell>
               <TableCell
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
@@ -278,30 +306,32 @@ export function OrderTableBody({
               <TableCell className="">{capitalizeFirstLetter(row.ihd_date) || ""}</TableCell>
               <TableCell className="text-[11px] truncate">{capitalizeFirstLetter(row.shipping_method) || ""}</TableCell>
               <TableCell className="">
+
+                {/* <Textarea ></Textarea> */}
                 <NoteInput note={row.notes ?? ""} onCommit={(value) => onNotesChange(row, value)} />
               </TableCell>
               <TableCell className="">
                 <Checkbox
                   checked={isChecked}
+                  disabled={isChecked}
                   onClick={(e) => {
                     e.stopPropagation();
                   }}
                   onCheckedChange={(checked) => {
-                    setCheckedRows((prev) => {
-                      const next = new Set(prev);
-                      if (checked) next.add(row.name_id);
-                      else next.delete(row.name_id);
-                      return next;
-                    });
-                    onOrderClick(row);
                     if (checked) {
+                      setCheckedRows((prev) => {
+                        const next = new Set(prev);
+                        next.add(row.name_id);
+                        return next;
+                      });
                       setTimeout(() => {
+                        onOrderClick(row);
                         setCheckedRows((prev) => {
                           const next = new Set(prev);
                           next.delete(row.name_id);
                           return next;
                         });
-                      }, 2000);
+                      }, 3000); // 3 seconds
                     }
                   }}
                 />

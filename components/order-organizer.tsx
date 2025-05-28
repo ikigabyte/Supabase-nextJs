@@ -27,7 +27,7 @@ import { toast } from "sonner";
 // import { ScrollBar } from "./ui/scroll-area";
 import { convertToSpaces } from "@/lib/utils";
 
-const databaseVersion = 1.5;
+const databaseVersion = 1.65;
 // import { flightRouterStateSchema } from "next/dist/server/app-render/types";
 
 // import { filterOutOrderCounts } from "./order-organizer";
@@ -86,6 +86,8 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
       if (lowerCat === "rush") {
         // Count only rush orders matching the current status
         count = orders.filter((order) => order.production_status === orderType && order.rush === true).length;
+      } else if (lowerCat === "special") {
+        count = orders.filter((order) => order.production_status === orderType && order.orderType === 2).length;
       } else if (lowerCat === "regular") {
         count = orders.filter(
           (order) =>
@@ -421,11 +423,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     setCurrentRowClicked(null);
     setIsRowClicked(false);
     ignoreUpdateIds.current.add(order.name_id);
+    // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
     // console.log(`Order clicked: ${order.name_id}`);
-    setTimeout(() => {
-      setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+       setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
       updateOrderStatus(order, false);
-    }, 1000);
+    // setTimeout(() => {
+   
+    // }, 1000);
     toast("Order updated", {
       description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
         order.production_status,
@@ -563,6 +567,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   );
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
+  // const isSpecialSection = (key: string) => {
+  //   const keySplit = key.split("-");
+
+  // };
 
   // console.log("this is the all keys", allKeys);
   // console.log(visibleGroups);
@@ -647,7 +655,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             <ContextMenu handleMenuOptionClick={handleMenuOptionClick} orderType={orderType} />
           </div>
         )}
-        {/* <This is for displaying the notifications */}
+        {/* <This is for dialaying the notifications */}
       </div>
       <Toaster theme={"dark"} richColors={true} />
     </>
