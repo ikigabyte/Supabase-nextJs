@@ -114,7 +114,7 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
           }
         }}
       />
-     </>
+    </>
   );
 }
 // import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
@@ -130,6 +130,8 @@ export function OrderTableBody({
   onRowClick,
   selectedNameId,
   isSpecialSection,
+  multiSelectedRows = new Map<string, string | null>(),
+  setMultiSelectedRows,
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -141,12 +143,19 @@ export function OrderTableBody({
   onRowClick: (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => void;
   selectedNameId: string | null;
   isSpecialSection?: boolean; // Optional prop to indicate if this is a special section
-  // isTableClicked?: boolean; // Optional prop to indicate if the table is clicked
+  multiSelectedRows?: Map<string, string | null>;
+  setMultiSelectedRows: React.Dispatch<React.SetStateAction<Map<string, string | null>>>;
 }) {
+  // Ensure multiSelectedRows is never nullish
+  if (!multiSelectedRows) {
+    console.warn("multiSelectedRows was null or undefined, defaulting to empty Map");
+    multiSelectedRows = new Map<string, string | null>();
+  }
   // track which rows are checked by name_id
   const [checkedRows, setCheckedRows] = useState<Set<string>>(new Set());
   const lastHoveredIdRef = useRef<string | number | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
+
   // const rowRef = useRef<HTMLTableRowElement>(null);
 
   // useEffect(() => {
@@ -165,6 +174,12 @@ export function OrderTableBody({
   //   document.addEventListener('click', handleClickOutside);
   //   return () => document.removeEventListener('click', handleClickOutside);
   // }, []);
+
+  const handleShiftClickRows = (selectedRows: Array<Order>) => {
+    selectedRows.forEach((row) => {
+      console.log(row.quantity);
+    });
+  };
 
   const handleMouseEnter = (event: React.MouseEvent<HTMLTableCellElement>, row: Order, type: string) => {
     if (lastHoveredIdRef.current !== row.name_id) {
@@ -222,10 +237,12 @@ export function OrderTableBody({
   let prevOrderId: string | number | null = null;
   let differentOrderId: boolean | null = null;
 
+  // const lastSelectedIndexRef = useRef<number | null>(null);
+
   // let isRowClicked = false;
   return (
     // <div className={isTableClicked ? 'border border-black' : ''} onClick={() => setIsTableClicked(true)}>
-    <TableBody ref={tableRef} className="">
+    <TableBody ref={tableRef} className="py-5">
       {data.map((row, i) => {
         // Move checkbox state out of the map, see below
         const isChecked = checkedRows.has(row.name_id);
@@ -252,21 +269,40 @@ export function OrderTableBody({
             )}
             <TableRow
               key={row.name_id}
-              className={`[&>td]:py-1 align-top border-gray-300 border-b-2 bg-gray-100 max-h-[14px] hover:bg-gray-300 text-xs whitespace-normal break-all ${
-                row.name_id === selectedNameId ? " ring-1 ring-black relative z-10" : ""
-              }`}
-              onClick={(e) => onRowClick(e.currentTarget, row, false)}
+              className={`
+                [&>td]:py-1 align-top border-gray-300 border-b-2 bg-gray-100 max-h-[14px] hover:bg-gray-300 text-xs whitespace-normal break-all
+                ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
+              `}
+              onClick={(e) => {
+                // Toggle multi-selection on left click, storing name_id and quantity
+                setMultiSelectedRows((prev) => {
+                  const next = new Map(prev);
+                  if (next.has(row.name_id)) {
+                    next.delete(row.name_id);
+                  } else {
+                    next.set(row.name_id, row.quantity);
+                  }
+                  return next;
+                });
+
+                // Preserve original click behavior
+                // onRowClick(e.currentTarget, row, false);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                onRowClick(e.currentTarget, row, false);
+              }}
             >
               <TableCell
                 onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                 onMouseLeave={handleMouseLeave}
                 onClick={(e) => {
-                  e.stopPropagation();
-                  onRowClick(e.currentTarget.closest("tr") as HTMLTableRowElement, row, true);
-                  if (row.name_id) {
-                    console.log("Copying name_id to clipboard:", safeName);
-                    navigator.clipboard.writeText(String(safeName)).catch(console.error);
-                  }
+                  // e.stopPropagation();
+                  // onRowClick(e.currentTarget.closest("tr") as HTMLTableRowElement, row, true);
+                  // if (row.name_id) {
+                  //   console.log("Copying name_id to clipboard:", safeName);
+                  //   navigator.clipboard.writeText(String(safeName)).catch(console.error);
+                  // }
                 }}
                 className=""
               >
@@ -300,10 +336,8 @@ export function OrderTableBody({
               <TableCell className="text-[11px] truncate">
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
-              <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>
-                {capitalizeFirstLetter(row.due_date) || ""}
-              </TableCell>
-              <TableCell className="">{capitalizeFirstLetter(row.ihd_date) || ""}</TableCell>
+              <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>{row.due_date}</TableCell>
+              <TableCell className="">{row.ihd_date}</TableCell>
               <TableCell className="text-[11px] truncate">{capitalizeFirstLetter(row.shipping_method) || ""}</TableCell>
               <TableCell className="">
                 {/* <Textarea ></Textarea> */}

@@ -209,7 +209,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 }
 
 export async function updateOrderNotes(order: Order, newNotes: string) {
-   const ignore_zendesk = process.env.IGNORE_ZENDESK || false;
+  const ignore_zendesk = process.env.IGNORE_ZENDESK || false;
   const supabase = await createClient();
   const {
     data: { user },
@@ -232,9 +232,52 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
 
   const timeStamp = getTimeStamp();
   if (!ignore_zendesk) {
-    updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + " by "  + userEmail + " ] : \n" + newNotes);
+    updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
   }
   console.log("Order updated successfully");
+}
+
+/**
+ * Create a custom order using the values submitted from the OrderInputter.
+ * @param values - a Record of header keys to input values
+ */
+
+export async function createCustomOrder(values: Record<string, string>) {
+  // console.log("Creating custom order with values:", values);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  console.log("User", user);
+  // console.log(values);
+  // const missingFields = Object.entries(values)
+  //   .filter(([key, val]) => val.trim() === "")
+  //   .map(([key]) => key);
+  // if (missingFields.length > 0) {
+  //   console.error("Missing required fields for order:", missingFields);
+  //   throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
+  // }
+
+  // Insert the new order; mapping record keys to database column names
+  const orderData: Record<string, string> & { orderType: string; production_status: string } = { ...values, orderType: "2", production_status: "print" }; // force orderType to "2"
+  if (!orderData.due_date || (typeof orderData.due_date === "string" && orderData.due_date.trim() === "")) {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    orderData.due_date = `${yyyy}-${mm}-${dd}`;
+  }
+  const { error } = await supabase
+    .from("orders")
+    .insert([orderData as unknown as { due_date: string; name_id: string }]);
+  if (error) {
+    console.error("Error creating custom order", error);
+    return { result: false, message: error.message };
+  }
+  return { result: true, message: "Order created successfully" };
+
+  // revalidate pages showing orders if needed
+  // revalidatePath("/toprint");
 }
 
 // export async function createOrder(formData: FormData) {

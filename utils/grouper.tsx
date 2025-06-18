@@ -12,6 +12,7 @@ export function groupOrdersByOrderType(orderType: OrderTypes, orders: Order[]) {
     }
     const rawKey = assignKeyType(order, orderType);
     if (rawKey == null || rawKey === '') {
+      console.warn("Order has no valid grouping key: ", order);
       // Skip orders without a valid grouping key
       return;
     }

@@ -33,7 +33,6 @@ const getButtonColor = (category: string) => {
       return 'bg-gray-900 text-white';
   }
 };
-
 export function ButtonOrganizer({
   categories = [],
   counts = {},
@@ -44,23 +43,22 @@ export function ButtonOrganizer({
   onCategoryClick: (category: string) => void;
 }) {
   return (
-    <div className="fixed bottom-4 left-4 text-xs flex-wrap flex gap-2">
-      {categories.map((category) => {
-        const color = getButtonColor(category.toLowerCase());
-        // console.log("this is the color", color);
-        return (
-          <Button
-            key={category}
-            variant="default"
-            className={`${color} px-4 py-2`}
-            // className="bg-red-500"
-            // style={{ backgroundColor: color }}
-            onClick={() => onCategoryClick(category)}
-          >
-            {category} ({counts[category] || 0})
-          </Button>
-        );
-      })}
+    <div className="w-full flex justify-center">
+      <div className="fixed bottom-0 left-0 pl-5 right-0 w-full flex justify-left bg-gray-500 py-2 z-30 shadow-lg">
+        {categories.map((category) => {
+          const color = getButtonColor(category.toLowerCase());
+          return (
+            <Button
+              key={category}
+              variant="default"
+              className={`${color} px-3 py-2 mx-1`}
+              onClick={() => onCategoryClick(category)}
+            >
+              {category} ({counts[category] || 0})
+            </Button>
+          );
+        })}
+      </div>
     </div>
   );
 }

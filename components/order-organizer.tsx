@@ -1,4 +1,5 @@
-"use client";
+'use client'
+
 import React, { Fragment, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { useRouter, usePathname, redirect } from "next/navigation";
@@ -6,18 +7,20 @@ import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
 import { OrderTableHeader } from "./order-table-header";
 import { OrderTableBody } from "./order-table-body";
+import { OrderInputter } from "./order-inputter";
 import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 // lib/supabase.ts
 
 import { getButtonCategories } from "@/types/buttons";
-import { updateOrderStatus, updateOrderNotes, removeOrderLine, removeOrderAll } from "@/utils/actions";
+import { updateOrderStatus, updateOrderNotes, removeOrderLine, removeOrderAll, createCustomOrder } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
 import { ScrollAreaDemo } from "./scroll-area";
 import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
+import { OrderViewer } from "./order-viewer";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -28,6 +31,20 @@ import { toast } from "sonner";
 import { convertToSpaces } from "@/lib/utils";
 
 const databaseVersion = 1.65;
+
+const databaseHeaders = [
+  "order_id",
+  "name_id",
+  "due_date",
+  "shape",
+  "material",  
+  "quantity",
+  "lamination",
+  "print_method",
+  "due_date",
+  "ihd_date",
+
+]
 // import { flightRouterStateSchema } from "next/dist/server/app-render/types";
 
 // import { filterOutOrderCounts } from "./order-organizer";
@@ -118,6 +135,9 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
   }, {} as Record<string, number>);
 }
 
+// function convertDateStringtoTime(dateString : string) : Date{
+// }
+
 function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
   // Initialize counts for each status
   const initial: Record<OrderTypes, number> = {
@@ -181,10 +201,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   // Track orders for which we want to ignore the next real-time update
   const ignoreUpdateIds = useRef<Set<string>>(new Set());
-
-  // if (true)return
-
-  // const supabase = supabaseClient;
   const router = useRouter();
   const pathname = usePathname();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -193,31 +209,35 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
+  const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
 
-  // Dynamic toaster configuration
-  // const [toasterSettings, setToasterSettings] = useState<{
-  //   theme: 'light' | 'dark';
-  //   richColors: boolean;
-  // }>({
-  //   theme: 'dark',        // default theme
-  //   richColors: true,     // enable rich colors
-  // });
-
-  // console.log(orders);
   useEffect(() => {
     // Initial load
     supabase
       .from("orders")
       .select()
-      // .eq("production_status", orderType)
-      .order("due_date", { ascending: true })
+      .eq("production_status", orderType) // Ensure we only fetch orders of the current type
       .order("order_id", { ascending: false })
-      .then(({ data }) => setOrders(data ?? []));
-
+      .then(({ data }) => {
+        // Always sort by due_date (ascending)
+        const sorted = (data ?? [])
+          .slice()
+          .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+        setOrders(sorted);
+      });
     const channel = supabase
       .channel("orders_all")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
         const newOrder = payload.new as Order;
+        // Remove from multiSelectedRows if present
+        if (multiSelectedRows.has(newOrder.name_id)) {
+          console.log(`Removing ${newOrder.name_id} from multiSelectedRows due to INSERT`);
+          setMultiSelectedRows(prev => {
+            const next = new Map(prev);
+            next.delete(newOrder.name_id);
+            return next;
+          });
+        }
         if (ignoreUpdateIds.current.has(newOrder.name_id)) {
           ignoreUpdateIds.current.delete(newOrder.name_id);
           return;
@@ -233,13 +253,24 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             if (isRowHovered) {
               setIsRowHovered(false);
             }
-            return next.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
-            // return next.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+            // Always sort by due_date (ascending)
+            return next.slice().sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
           });
+        } else {
+          // console.log("New order does not match orderType:", newOrder.production_status, orderType);
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
         const updated = payload.new as Order;
+        // Remove from multiSelectedRows if present
+        if (multiSelectedRows.has(updated.name_id)) {
+          console.log(`Removing ${updated.name_id} from multiSelectedRows due to UPDATE`);
+          setMultiSelectedRows(prev => {
+            const next = new Map(prev);
+            next.delete(updated.name_id);
+            return next;
+          });
+        }
         if (ignoreUpdateIds.current.has(updated.name_id)) {
           ignoreUpdateIds.current.delete(updated.name_id);
           return;
@@ -251,7 +282,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes) {
           // console.log("Notes changed for order", updated.name_id);
           // console.log(updated.notes);
-          setOrders((prev) => prev.map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o)));
+          setOrders((prev) =>
+            prev
+              .map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o))
+              .slice()
+              .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+          );
           // Clear selection/hover on notes update
           if (currentRowClicked?.name_id === updated.name_id) {
             setIsRowClicked(false);
@@ -271,7 +307,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               setCurrentRowClicked(null);
             }
             if (isRowHovered) setIsRowHovered(false);
-            return next.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+            // Always sort by due_date (ascending)
+            return next.slice().sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
           });
         } else {
           setOrders((prev) => {
@@ -282,12 +319,22 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               setCurrentRowClicked(null);
             }
             if (isRowHovered) setIsRowHovered(false);
-            return next.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+            // Always sort by due_date (ascending)
+            return next.slice().sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
           });
         }
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
         const removed = payload.old as Order;
+        // Remove from multiSelectedRows if present
+        if (multiSelectedRows.has(removed.name_id)) {
+          console.log(`Removing ${removed.name_id} from multiSelectedRows due to DELETE`);
+          setMultiSelectedRows(prev => {
+            const next = new Map(prev);
+            next.delete(removed.name_id);
+            return next;
+          });
+        }
         if (ignoreUpdateIds.current.has(removed.name_id)) {
           ignoreUpdateIds.current.delete(removed.name_id);
           return;
@@ -300,7 +347,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             setCurrentRowClicked(null);
           }
           if (isRowHovered) setIsRowHovered(false);
-          return next.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+          // Always sort by due_date (ascending)
+          return next.slice().sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
         });
       })
       .subscribe();
@@ -321,6 +369,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (!target.closest("table")) {
         setIsRowClicked(false);
         setCurrentRowClicked(null);
+        setMultiSelectedRows(new Map<string, string | null>());
         // console.log("not a table");
         return;
       }
@@ -338,7 +387,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // Memoized derived values
   const grouped = useMemo(() => groupOrdersByOrderType(orderType, orders), [orderType, orders]);
   const designatedCategories = useMemo(() => getButtonCategories(orderType)!, [orderType]);
   // const designatedColors = useMemo(() => getButtonColors(orderType)!, [orderType]);
@@ -346,6 +394,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     () => getCategoryCounts(orders, designatedCategories, orderType),
     [orders, designatedCategories]
   );
+
   if (!designatedCategories) {
     console.error("designatedCategories is undefined");
     return null; // or handle the error as needed
@@ -389,6 +438,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleCategoryClick = useCallback(
     (category: string) => {
+      // console.log(`Category clicked: ${category}`);
       setSelectedCategory(category);
       setHeaders(getMaterialHeaders(orderType, category.toLowerCase()));
       router.push(`${pathname}?${category.toLowerCase()}`);
@@ -412,12 +462,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }, [defaultPage]);
 
-  // const handleClipboardCopy = useCallback((order: Order) => {
-  //   toast("Copied to clipboard", {
-  //     description: `The text "${order.name_id}" has been copied to your clipboard.`,
-  //   });
-  // }, []);
-
   const handleCheckboxClick = useCallback(async (order: Order) => {
     // Ignore real-time updates for this order, to prevent flicker
     setCurrentRowClicked(null);
@@ -425,10 +469,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     ignoreUpdateIds.current.add(order.name_id);
     // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
     // console.log(`Order clicked: ${order.name_id}`);
-       setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
-      updateOrderStatus(order, false);
+    setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+    updateOrderStatus(order, false);
     // setTimeout(() => {
-   
+
     // }, 1000);
     toast("Order updated", {
       description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
@@ -443,12 +487,49 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       },
     });
   }, []);
+  // const createNewOrder = useCallback(async (Record<stringify, string) => {
+  //   // console.log("Reverting status for order", order.name_id);
+  //   // Optimistically update local state
+  //   // setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
+  //   // Persist change
+  //   console.log("Creating new order", order.name_id);
+  //   // if (ignoreUpdateIds.current.has(order.name_id)) {
+  //   //   console.log("Deleting the order here from the ignoreUpdateIds section", order.name_id);
+  //   //   ignoreUpdateIds.current.delete(order.name_id);
+  //   // }
+  //   await updateOrderStatus(order, false, orderType);
+  // }, []);
+
+    const handleNewOrderSubmit = useCallback(
+      async (values: Record<string, string>) => {
+        console.log("New order submitted with values:", values);
+        const result = await createCustomOrder(values);
+        if (result.result == false) {
+          // console.error("Error creating custom order:", result.message);
+          toast("Error creating order", {
+            description: `${result.message}`,
+          });
+          return;
+        } else{
+          console.log("Order created successfully:", result);
+          toast("Order created", {
+            description: `Order has been created.`,
+          });
+          // Optimistically update local state
+          // setOrders((prev) => [result, ...prev]);
+          // Clear input fields
+          setScrollAreaName("History");
+        }
+      },
+      [orderType, session]
+    );
 
   const revertStatus = useCallback(async (order: Order) => {
     // console.log("Reverting status for order", order.name_id);
     // Optimistically update local state
     // setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
     // Persist change
+
     if (ignoreUpdateIds.current.has(order.name_id)) {
       console.log("Deleting the order here from the ignoreUpdateIds section", order.name_id);
       ignoreUpdateIds.current.delete(order.name_id);
@@ -457,7 +538,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, []);
 
   const handleNoteChange = useCallback(async (order: Order, newNotes: string) => {
-    console.log("Updating notes for order", order.name_id, "to", newNotes);
+    // console.log("Updating notes for order", order.name_id, "to", newNotes);
     // Optimistically update local state
     setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, notes: newNotes } : o)));
     // Persist change
@@ -565,17 +646,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     },
     [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
   );
+  // console.log(multiSelectedRows);
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
-  // const isSpecialSection = (key: string) => {
-  //   const keySplit = key.split("-");
-
-  // };
-
-  // console.log("this is the all keys", allKeys);
-  // console.log(visibleGroups);
-  // console.log(visibleGroups[key]);
-  // console.log(designatedCategories);
+  console.log(grouped);
   return (
     <>
       <div className="relative">
@@ -586,10 +660,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           </h1>
           <Separator className="w-full mb-10" />
         </div>
+        {selectedCategory.toLowerCase() === "special" && (
+          <OrderInputter tableHeaders={databaseHeaders} onSubmit={handleNewOrderSubmit}></OrderInputter>
+          // <OrderInputter tableHeaders={headers} onSubmit={createNewOrder}></OrderInputter>
+        )}
         <Fragment>
           {allKeys.map((key) => {
             // console.log("this is the key", key);
             const group = grouped[key] || [];
+            // console.log(group);
             const keySplit = key.split("-");
             var headerColor = "";
             if (keySplit.length > 1 && (keySplit.includes("gloss") || keySplit.includes("matte"))) {
@@ -603,7 +682,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 {selectedCategory.toLowerCase() === key.split("-")[0] && (
                   <>
                     <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
-                    <Table className="mb-5 pl-10">
+                      <Table className="mb-5 w-[99.5%] mx-auto">
                       <OrderTableHeader tableHeaders={headers} />
                       <OrderTableBody
                         data={group}
@@ -615,6 +694,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         setScrollAreaName={setScrollAreaName}
                         onRowClick={handleRowClick}
                         selectedNameId={currentRowClicked?.name_id || null}
+                        multiSelectedRows={multiSelectedRows}
+                        setMultiSelectedRows={setMultiSelectedRows}
                       />
                     </Table>
                   </>
@@ -624,6 +705,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           })}
         </Fragment>
         {/* Pass both categories and onCategoryClick to ButtonOrganizer */}
+
         <ButtonOrganizer
           categories={designatedCategories}
           counts={categoryCounts}
@@ -657,6 +739,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         )}
         {/* <This is for dialaying the notifications */}
       </div>
+      {multiSelectedRows.size > 0 && <OrderViewer rows={multiSelectedRows} />}
       <Toaster theme={"dark"} richColors={true} />
     </>
   );

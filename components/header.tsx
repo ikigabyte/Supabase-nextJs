@@ -27,27 +27,6 @@ export default async function Header() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let printCount = null;
-  let shipCount = null;
-  let cutCount = null;
-  let packCount = null;
-
-  // if (user == null) {
-  //   redirect("/login");
-  // }
-
-  // if (user !== null) {
-
-  // }
-  // function onSearch(searchTerm: string) {
-  //   console.log("Search term:", searchTerm);
-  //   console.log("Redirecting to search page with term:", searchTerm);
-  //   redirect(`/search/${searchTerm}`);
-  // }
-
-  // console.log(printCount); // Use a reducer here
-  // console.log("totalOrderCount", totalOrderCount);
-
   return (
     <header className="z-10 sticky top-0 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">

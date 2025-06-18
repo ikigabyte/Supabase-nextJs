@@ -30,16 +30,16 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "glitter-matte-regular",
     "glitter-matte-tiles",
     "glitter-matte-promo",
-    "mag20pt-gloss-regular",
-    "mag20pt-gloss-tiles",
-    "mag20pt-gloss-promo",
-    "mag20pt-matte-regular",
-    "mag20pt-matte-tiles",
-    "mag20pt-matte-promo",
-    "mag30pt-gloss-regular",
-    "mag30pt-gloss-tiles",
-    "mag30pt-matte-regular",
-    "mag30pt-matte-tiles",
+    "20ptmag-gloss-regular",
+    "20ptmag-gloss-tiles",
+    "20ptmag-gloss-promo",
+    "20ptmag-matte-regular",
+    "20ptmag-matte-tiles",
+    "20ptmag-matte-promo",
+    "30ptmag-gloss-regular",
+    "30ptmag-gloss-tiles",
+    "30ptmag-matte-regular",
+    "30ptmag-matte-tiles",
     "cling-clear-regular",
     "cling-clear-tiles",
     "cling-white-regular",
@@ -73,7 +73,6 @@ export const orderKeys: Record<OrderTypes, string[]> = {
 export function assignKeyType(order: Order, orderType: OrderTypes): string | null {
   const keys = orderKeys[orderType];
   if (!keys) return null;
-
   // 1) Promo takes priority
 
   // 1a) Rush orders for print take highest priority
