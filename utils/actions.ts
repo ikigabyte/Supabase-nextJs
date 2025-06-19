@@ -231,7 +231,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
   const userEmail = user.email || user.id;
 
   const timeStamp = getTimeStamp();
-  if (!ignore_zendesk) {
+  if (!ignore_zendesk || ignore_zendesk == "false") {
     updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
   }
   console.log("Order updated successfully");
