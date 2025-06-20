@@ -6,7 +6,9 @@ import { Input } from "./ui/input";
 import { count } from "console";
 import { OrderTypes } from "@/utils/orderTypes";
 import { Order } from "@/types/custom";
-import { SearchBar } from "./search-bar";
+
+// import {}
+// import { SearchBar } from "./search-bar";
 // import { redirect } from "next/dist/server/api-utils";
 
 // import { redirect } from 'next/navigation'
@@ -19,6 +21,10 @@ function getProductionCounts(orders: Order[], orderTypes: OrderTypes[]): Record<
     acc[category] = count;
     return acc;
   }, {} as Record<string, number>);
+}
+
+const getInitals = (name: string) => {
+    return name[0].charAt(0).toUpperCase();
 }
 
 export default async function Header() {
@@ -41,9 +47,14 @@ export default async function Header() {
         <div className="flex flex-1 items-center justify-end space-x-2">
           {user !== null ? (
             <form action={signOut} className="flex items-center gap-2">
-              <Link href="/user" className="text-xs border-b-2 border-black pb-0.5">
-                {user.email}
-              </Link>
+              <Button
+                asChild
+                size="icon"
+                className="rounded-full w-8 h-8 p-0 flex items-center justify-center text-xs font-bold border border-black"
+                title={user.email}
+              >
+                <Link href="/user">{getInitals(user.email || "User")}</Link>
+              </Button>
               <Button size="sm">Sign Out</Button>
             </form>
           ) : (

@@ -306,7 +306,7 @@ export function OrderTableBody({
                 }}
                 className=""
               >
-                {isSelected ? safeName : truncate(safeName, 40) || "-"}
+                {multiSelectedRows.has(row.name_id) ? safeName : truncate(safeName, 40) || "-"}
               </TableCell>
               <TableCell
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}

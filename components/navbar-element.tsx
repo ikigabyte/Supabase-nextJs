@@ -17,15 +17,13 @@ interface NavBarElementProps {
 export function NavBarElement() {
   const router = useRouter();
 
-  const handleSearch = (query: string) => {
-    console.log("Search query:", query);
-    router.push(`/search?query=${query}`);
-  };
+  // const handleSearch = (query: string) => {
+  //   console.log("Search query:", query);
+  //   router.push(`/search?query=${query}`);
+  // };
 
   // console.log(supabase)
-  
   const [counts, setCounts] = useState({ print: 0, cut: 0, pack: 0, ship: 0 });
-
   const supabase = createClientComponentClient();
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
