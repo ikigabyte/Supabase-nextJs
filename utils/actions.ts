@@ -63,9 +63,11 @@ async function getSiblingOrders(orderId: number, newStatus: string): Promise<boo
   // console.log("Fetched orders for order_id", orderId, data);
   // Inserted logic to build statuses and check if all equal newProductionStatus
   const statuses = (data ?? []).map((o) => o.production_status);
-  console.log("Statuses", statuses);
+  // console.log("Statuses", statuses);
   if (statuses.length > 0 && statuses.every((s) => s === newStatus)) {
     console.log("ready to update zendesk order");
+    console.log("All sibling orders have the same status:", newStatus);
+    console.log("Order ID:", orderId);
     return true;
   }
   return false;
@@ -154,7 +156,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
       throw new Error("User is not logged in");
     }
     const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
-    console.log("New status", newStatus);
+    // console.log("New status", newStatus);
     if (!newStatus || newStatus == null) {
       console.error("No new status found");
       throw new Error("No new status found");
@@ -201,7 +203,8 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
     const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
     // console.log(ignore_zendesk_env)
     if (readyForZendeskUpdate && (ignore_zendesk_env == false || ignore_zendesk_env == "false")) {
-      updateZendeskStatus(order.order_id, newStatus);
+      console.log("Updating Zendesk with new status:", newStatus, "for order_id:", order.order_id);
+      await updateZendeskStatus(order.order_id, newStatus);
     }
   } catch (error) {
     console.error("Error updating order status", error);
