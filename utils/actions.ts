@@ -139,75 +139,61 @@ export async function removeOrderAll(orderId: number) {
   console.log(`Orders with order_id ${orderId} deleted successfully`);
   revalidatePath("/toprint");
 }
-
 export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {
-  const ignore_zendesk_env = process.env.IGNORE_ZENDESK || false;
-  try {
-    if (order == null) {
-      console.error("No order provided");
-      throw new Error("No order provided");
-    }
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const ignoreZendesk = process.env.IGNORE_ZENDESK === "true"
 
-    if (!user) {
-      throw new Error("User is not logged in");
-    }
-    const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
-    // console.log("New status", newStatus);
-    if (!newStatus || newStatus == null) {
-      console.error("No new status found");
-      throw new Error("No new status found");
-    }
-    addHistoryForUser(order.name_id, newStatus, order.production_status || "");
-    if (newStatus === "completed") {
-      try { 
-        await supabase.rpc("move_order", { p_id: order.name_id });
-      } catch (error) {
-        console.error("Error moving order", error);
-        throw new Error("Error moving order");
-      }
-      // console.log("Order archived successfully");
-      return;
-    }
+  if (!order) throw new Error("No order provided");
 
-    const { data: existingRecord, error: historyError } = await supabase
-      .from("orders")
-      .select("history")
-      .eq("name_id", order.name_id)
-      .single();
-    if (historyError) {
-      console.error("Error fetching history", historyError);
-      throw new Error("Error fetching history");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("User is not logged in");
+
+  const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
+  if (!newStatus) throw new Error("No new status found");
+
+  const addHistoryPromise = addHistoryForUser(order.name_id, newStatus, order.production_status || "");
+
+  if (newStatus === "completed") {
+    try {
+      await supabase.rpc("move_order", { p_id: order.name_id });
+    } catch (err) {
+      console.error("Error moving order", err);
+      throw new Error("Error moving order");
     }
+    return;
+  }
 
-    const history: string[] = Array.isArray(existingRecord?.history) ? (existingRecord.history as string[]) : [];
+  const { data: existingRecord, error: historyError } = await supabase
+    .from("orders")
+    .select("history")
+    .eq("name_id", order.name_id)
+    .single();
+  if (historyError) throw new Error("Error fetching history");
 
-    const timestamp = getTimeStamp();
-    const userEmail = user.email || user.id;
-    const newEntry = `${userEmail} moves to "${newStatus}" on ${timestamp}`;
-    history.push(newEntry);
+  const history: string[] = Array.isArray(existingRecord?.history)
+    ? existingRecord.history.filter((h: unknown): h is string => typeof h === "string")
+    : [];
+  const timestamp = getTimeStamp();
+  const userEmail = user.email || user.id;
+  history.push(`${userEmail} moves to "${newStatus}" on ${timestamp}`);
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ ...order, production_status: newStatus, history })
-      .match({ name_id: order.name_id });
-    if (error) {
-      console.error("Error updating todo", error);
-      throw new Error("Error updating todo");
-    }
+  const updateOrderPromise = supabase
+    .from("orders")
+    .update({ ...order, production_status: newStatus, history })
+    .match({ name_id: order.name_id });
 
-    console.log("Order updated successfully, new status:", newStatus);
-    const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
-    // console.log(ignore_zendesk_env)
-    if (readyForZendeskUpdate && (ignore_zendesk_env == false || ignore_zendesk_env == "false")) {
-      console.log("Updating Zendesk with new status:", newStatus, "for order_id:", order.order_id);
-      await updateZendeskStatus(order.order_id, newStatus);
-    }
-  } catch (error) {
-    console.error("Error updating order status", error);
+  // Run both in parallel
+  await Promise.all([addHistoryPromise, updateOrderPromise]);
+
+  const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
+
+  // Send webhook async (non-blocking)
+  if (readyForZendeskUpdate && !ignoreZendesk) {
+    console.log("Triggering Zendesk webhook…");
+    void updateZendeskStatus(order.order_id, newStatus); // don't block
   }
 }
 
