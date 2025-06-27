@@ -188,13 +188,13 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   // Run both in parallel
   await Promise.all([addHistoryPromise, updateOrderPromise]);
 
-  const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
+  // const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
 
-  // Send webhook async (non-blocking)
-  if (readyForZendeskUpdate && !ignoreZendesk) {
-    console.log("Triggering Zendesk webhook…");
-    void updateZendeskStatus(order.order_id, newStatus); // don't block
-  }
+  // // Send webhook async (non-blocking)
+  // if (readyForZendeskUpdate && !ignoreZendesk) {
+  //   console.log("Triggering Zendesk webhook…");
+  //   void updateZendeskStatus(order.order_id, newStatus); // don't block
+  // }
 }
 
 export async function updateOrderNotes(order: Order, newNotes: string) {
