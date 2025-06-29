@@ -11,7 +11,20 @@ import { TimelineOrder } from "@/types/custom";
 // import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 
+import Papa from "papaparse";
 // const supabase = createClientComponentClient();
+
+const STATUS_ORDER = ["to_print", "to_cut", "to_ship", "to_pack"] as const;
+type StatusType = typeof STATUS_ORDER[number];
+
+function getStatusIndex(status: string): number {
+  // Ensure the status is a valid member of STATUS_ORDER
+  const normalized = status.toLowerCase();
+  if (STATUS_ORDER.includes(normalized as StatusType)) {
+    return STATUS_ORDER.indexOf(normalized as StatusType);
+  }
+  return -1;
+}
 
 function formatLastUpdated(isoString: string) {
   if (!isoString) return "";
@@ -120,6 +133,40 @@ export function TimelineOrders() {
       });
     // console.log("Time Updated:", timeUpdated);
   }, []);
+
+const handleDownloadCSV = () => {
+  if (dueOrders.length === 0) {
+    alert("No due orders to export.");
+    return;
+  }
+
+  const csv = Papa.unparse(
+    dueOrders.map((order) => {
+      const currentIdx = getStatusIndex(order.production_status ?? "");
+      // Option 1: Use checkmark (✓) and blank
+      // Option 2: Use TRUE/FALSE
+      return {
+        "Order ID": order.order_id,
+        "Shipping Method": order.shipping_method,
+        "Due Date": order.ship_date,
+        "IHD Date": order.ihd_date,
+        Print: currentIdx >= 0 ? "✓" : "",
+        Cut: currentIdx >= 1 ? "✓" : "",
+        Ship: currentIdx >= 2 ? "✓" : "",
+        Pack: currentIdx >= 3 ? "✓" : "",
+      };
+    })
+  );
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", "due_orders.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
   // console.log("Timeline Orders:", orders);
 
   // console.log("Due Orders:", dueOrders);
@@ -141,7 +188,7 @@ export function TimelineOrders() {
         <h1 className="font-bold text-3xl "> Timeline Orders </h1>
         <p className="text-left font-regular text-md">Last Updated: {timeUpdated} </p>
         <h1 className="text-center font-bold text-lg">Orders Due</h1>
-
+        <Button onClick={handleDownloadCSV}>Download CSV</Button>
         <Table>
           {/* Use the same headers styling */}
           <TableHeader>
@@ -172,7 +219,6 @@ export function TimelineOrders() {
                   <TableCell className="text-left">{order.shipping_method}</TableCell>
                   <TableCell className="text-left">{order.ship_date}</TableCell>
                   <TableCell className="text-left">{order.ihd_date}</TableCell>
-
                   <TableCell className="text-left">{order.production_status}</TableCell>
                 </TableRow>
               );

@@ -98,6 +98,15 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
     }
   }, [value]);
 
+  const handleBlur = () => {
+    if (value !== note) {
+      console.log("Committing note change:", value);
+      onCommit(value);
+    } else {
+      console.log("No change in note, not committing.");
+    }
+  };
+
   return (
     <>
       <Textarea
@@ -107,6 +116,7 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
         rows={1}
         onInput={handleInput}
         onChange={handleInput}
+        onBlur={handleBlur}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -132,6 +142,7 @@ export function OrderTableBody({
   isSpecialSection,
   multiSelectedRows = new Map<string, string | null>(),
   setMultiSelectedRows,
+  hashValue,
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -145,6 +156,7 @@ export function OrderTableBody({
   isSpecialSection?: boolean; // Optional prop to indicate if this is a special section
   multiSelectedRows?: Map<string, string | null>;
   setMultiSelectedRows: React.Dispatch<React.SetStateAction<Map<string, string | null>>>;
+  hashValue?: string | null; // Optional prop to track hash value
 }) {
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
@@ -156,6 +168,7 @@ export function OrderTableBody({
   const lastHoveredIdRef = useRef<string | number | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
 
+  // console.log("The hash value is" , hashValue);
   // const rowRef = useRef<HTMLTableRowElement>(null);
 
   // useEffect(() => {
@@ -270,9 +283,12 @@ export function OrderTableBody({
             <TableRow
               key={row.name_id}
               className={`
-                [&>td]:py-1 align-top border-gray-300 border-b-2 bg-gray-100 max-h-[14px] hover:bg-gray-300 text-xs whitespace-normal break-all
-                ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
-              `}
+              [&>td]:py-1 align-top border-gray-300 border-b-2 bg-gray-100 max-h-[14px] hover:bg-gray-300 text-xs whitespace-normal break-all
+              ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
+              ${String(row.order_id) === hashValue ? "bg-yellow-200 !hover:bg-yellow-300" : ""}
+            `}
+              // ...other props
+
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
                 setMultiSelectedRows((prev) => {

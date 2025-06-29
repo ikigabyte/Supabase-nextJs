@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import React, { Fragment, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -13,7 +13,13 @@ import { ButtonOrganizer } from "./button-organizer";
 // lib/supabase.ts
 
 import { getButtonCategories } from "@/types/buttons";
-import { updateOrderStatus, updateOrderNotes, removeOrderLine, removeOrderAll, createCustomOrder } from "@/utils/actions";
+import {
+  updateOrderStatus,
+  updateOrderNotes,
+  removeOrderLine,
+  removeOrderAll,
+  createCustomOrder,
+} from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
 import { ScrollAreaDemo } from "./scroll-area";
@@ -30,21 +36,20 @@ import { toast } from "sonner";
 // import { ScrollBar } from "./ui/scroll-area";
 import { convertToSpaces } from "@/lib/utils";
 
-const databaseVersion = 1.65;
+const databaseVersion = 1.79;
 
 const databaseHeaders = [
   "order_id",
   "name_id",
   "due_date",
   "shape",
-  "material",  
+  "material",
   "quantity",
   "lamination",
   "print_method",
   "due_date",
   "ihd_date",
-
-]
+];
 // import { flightRouterStateSchema } from "next/dist/server/app-render/types";
 
 // import { filterOutOrderCounts } from "./order-organizer";
@@ -210,6 +215,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
+  const [hashValue, setHashValue] = useState<string | null>(null);
 
   useEffect(() => {
     // Initial load
@@ -232,7 +238,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(newOrder.name_id)) {
           console.log(`Removing ${newOrder.name_id} from multiSelectedRows due to INSERT`);
-          setMultiSelectedRows(prev => {
+          setMultiSelectedRows((prev) => {
             const next = new Map(prev);
             next.delete(newOrder.name_id);
             return next;
@@ -265,7 +271,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(updated.name_id)) {
           console.log(`Removing ${updated.name_id} from multiSelectedRows due to UPDATE`);
-          setMultiSelectedRows(prev => {
+          setMultiSelectedRows((prev) => {
             const next = new Map(prev);
             next.delete(updated.name_id);
             return next;
@@ -329,7 +335,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(removed.name_id)) {
           console.log(`Removing ${removed.name_id} from multiSelectedRows due to DELETE`);
-          setMultiSelectedRows(prev => {
+          setMultiSelectedRows((prev) => {
             const next = new Map(prev);
             next.delete(removed.name_id);
             return next;
@@ -362,6 +368,20 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     const counts = filterOutOrderCounts(orders);
     // updateOrderCounts(counts);
   }, [orders]);
+
+  // Hash values
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const search = window.location.search;
+      let value = null;
+      const eqIndex = search.indexOf("=");
+      if (eqIndex !== -1) {
+        value = decodeURIComponent(search.substring(eqIndex + 1));
+      }
+      setHashValue(value);
+      console.log("Hash value set to:", value);
+    }
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -500,29 +520,29 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   //   await updateOrderStatus(order, false, orderType);
   // }, []);
 
-    const handleNewOrderSubmit = useCallback(
-      async (values: Record<string, string>) => {
-        console.log("New order submitted with values:", values);
-        const result = await createCustomOrder(values);
-        if (result.result == false) {
-          // console.error("Error creating custom order:", result.message);
-          toast("Error creating order", {
-            description: `${result.message}`,
-          });
-          return;
-        } else{
-          console.log("Order created successfully:", result);
-          toast("Order created", {
-            description: `Order has been created.`,
-          });
-          // Optimistically update local state
-          // setOrders((prev) => [result, ...prev]);
-          // Clear input fields
-          setScrollAreaName("History");
-        }
-      },
-      [orderType, session]
-    );
+  const handleNewOrderSubmit = useCallback(
+    async (values: Record<string, string>) => {
+      console.log("New order submitted with values:", values);
+      const result = await createCustomOrder(values);
+      if (result.result == false) {
+        // console.error("Error creating custom order:", result.message);
+        toast("Error creating order", {
+          description: `${result.message}`,
+        });
+        return;
+      } else {
+        console.log("Order created successfully:", result);
+        toast("Order created", {
+          description: `Order has been created.`,
+        });
+        // Optimistically update local state
+        // setOrders((prev) => [result, ...prev]);
+        // Clear input fields
+        setScrollAreaName("History");
+      }
+    },
+    [orderType, session]
+  );
 
   const revertStatus = useCallback(async (order: Order) => {
     // console.log("Reverting status for order", order.name_id);
@@ -631,7 +651,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // console.log("setting the menu pos", rect.right, rect.bottom);
       }
       const safeName = convertToSpaces(row.name_id);
-
       if (copiedText) {
         toast("Copied to clipboard", {
           description: `Copied ${safeName} to clipboard.`,
@@ -649,7 +668,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // console.log(multiSelectedRows);
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
-  console.log(grouped);
+  // console.log(grouped);
   return (
     <>
       <div className="relative">
@@ -682,7 +701,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 {selectedCategory.toLowerCase() === key.split("-")[0] && (
                   <>
                     <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
-                      <Table className="mb-5 w-[99.5%] mx-auto">
+                    <Table className="mb-5 w-[99.5%] mx-auto">
                       <OrderTableHeader tableHeaders={headers} />
                       <OrderTableBody
                         data={group}
@@ -696,6 +715,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         selectedNameId={currentRowClicked?.name_id || null}
                         multiSelectedRows={multiSelectedRows}
                         setMultiSelectedRows={setMultiSelectedRows}
+                        hashValue={hashValue}
                       />
                     </Table>
                   </>
