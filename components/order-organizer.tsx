@@ -100,6 +100,22 @@ const laminationHeaderColors = {
   gloss: "text-blue-500",
 };
 
+function handleDragging(e: MouseEvent | null, event: boolean) {
+  // basically what you have to do is use this function to keep track of the tables that are being hovered over 
+  // return that table back 
+  // use that table to reference which tables to highlight and add that ring individualy
+  if (!e) {
+    console.log("Dragging stopped");
+    return
+  }
+  const cell = (e.target as HTMLElement).closest("td");
+  if (cell) {
+    console.log("Dragging over cell:", cell);
+  }
+  console.log(event)
+  // You can set dragging state here if needed
+}
+
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
@@ -209,14 +225,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const router = useRouter();
   const pathname = usePathname();
   const [orders, setOrders] = useState<Order[]>([]);
-
+  const [dragging, setDragging] = useState(false);
   // Move these hooks above useEffect so they're in scope in subscription handlers
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
   const [hashValue, setHashValue] = useState<string | null>(null);
-
+  const hoveredCells = useRef<Set<HTMLElement>>(new Set());
+  
   useEffect(() => {
     // Initial load
     supabase
@@ -365,6 +382,87 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, [orderType, currentRowClicked, isRowHovered]);
 
   useEffect(() => {
+    const onCopy = (e: ClipboardEvent) => {
+      // Log the innerText of all hovered cells
+      if (hoveredCells.current && hoveredCells.current.size > 0) {
+        const values = [...hoveredCells.current].map((cell) => cell.innerText);
+        console.log("Hovered cell values:", values);
+        const clipboardText = values.join("\n"); // or use "," or "\t" for CSV/TSV
+
+        // Set the clipboard data
+        e.preventDefault();
+        e.clipboardData?.setData("text/plain", clipboardText);
+      }
+    };
+    document.addEventListener("copy", onCopy);
+    return () => document.removeEventListener("copy", onCopy);
+  }, []);
+
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.buttons === 1) {
+
+        // Clears as soon as a new drag starts
+        hoveredCells.current.clear(); // Clear hovered cells on mouse up
+        if (!dragging) {
+          document.body.style.setProperty("user-select", "none", "important");
+          setDragging(true);
+          handleDragging(e, true);
+          // console.log("starting drag");
+        }
+      }
+    };
+    const onMouseUp = () => {
+      if (dragging) {
+        setDragging(false);
+        handleDragging(null, false);
+
+        // console.log("stopped dragging");
+      }
+      document.body.style.removeProperty("user-select");
+      
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mouseup", onMouseUp);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [dragging]);
+
+useEffect(() => {
+  function handleMouseMove(e: MouseEvent) {
+    if (!dragging) return;
+
+    // Get the cell being hovered
+    const cell = (e.target as HTMLElement).closest("td");
+    if (!cell) return;
+
+    // Get the row containing this cell
+    const row = cell.parentElement;
+    if (!row) return;
+
+    // Get all <td> cells in this row
+    const cells = Array.from(row.querySelectorAll("td"));
+    console.log("Hovered cells:", cells);
+    const index = cells.indexOf(cell);
+
+    if (index !== -1) {
+      // Add all cells up to and including the hovered cell
+      for (let i = 0; i <= index; i++) {
+        hoveredCells.current.add(cells[i]);
+      }
+    }
+  }
+  if (dragging) {
+    document.addEventListener("mousemove", handleMouseMove);
+  }
+  return () => {
+    document.removeEventListener("mousemove", handleMouseMove);
+  };
+}, [dragging]);
+
+  useEffect(() => {
     const counts = filterOutOrderCounts(orders);
     // updateOrderCounts(counts);
   }, [orders]);
@@ -390,18 +488,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         setIsRowClicked(false);
         setCurrentRowClicked(null);
         setMultiSelectedRows(new Map<string, string | null>());
-        // console.log("not a table");
-        return;
       }
-      // console.log("Target", target);
-      // If click is outside the table and not on the context menu, clear selection
-      // if (
-      //   tableRef.current &&
-      //   !tableRef.current.contains(target) &&
-      //   !target.closest('.context-menu')
-      // ) {
-      //   onRowClick(e, null);
-      // }
     };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
@@ -429,6 +516,33 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [scrollAreaName, setScrollAreaName] = useState<string>("History");
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const [hoveredTables, setHoveredTables] = useState<Set<string>>(new Set());
+  const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+
+  // useEffect(() => {
+  //   // Disables text selection while dragging
+  //   if (dragging) {
+      
+  //   } else {
+  //     document.body.style.removeProperty("user-select");
+  //   }
+  //   return () => {
+  //     document.body.style.removeProperty("user-select");
+  //   };
+  // }, [dragging]);
+
+  // useEffect(() => {
+  //   const handleMouseUp = () => {
+  //     if (dragging) {
+  //       setDragging(false);
+  //       setSelectedTables(new Set(hoveredTables));
+  //       // Optionally reset hoveredTables if needed
+  //     }
+  //   };
+  //   document.addEventListener("mouseup", handleMouseUp);
+  //   return () => document.removeEventListener("mouseup", handleMouseUp);
+  // }, [dragging, hoveredTables]);
 
   // console.log("this is the headers", headers);
   // setHeaders(getMaterialHeaders(orderType, defaultPage));
@@ -642,7 +756,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         console.warn("Row is null, skipping click handling.");
         return;
       }
-      console.log("Row clicked:", row);
+      // console.log("Row clicked:", row);
       // Use the provided row element directly
       if (rowEl) {
         // console.log("Row element:", rowEl);
@@ -716,6 +830,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         multiSelectedRows={multiSelectedRows}
                         setMultiSelectedRows={setMultiSelectedRows}
                         hashValue={hashValue}
+                        hoveredCells={hoveredCells}
                       />
                     </Table>
                   </>

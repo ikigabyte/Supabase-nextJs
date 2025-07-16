@@ -38,6 +38,20 @@ const displayCorrectQuantity = (quantity: string | null) => {
   }
 };
 
+function boldUntilDash(text: string) {
+  const dashIndex = text.indexOf("-");
+  // console.log("Dash index:", dashIndex);
+  if (dashIndex === -1) {
+    return text;
+  }
+  return (
+    <>
+      <b>{text.slice(0, dashIndex)}</b>
+      {text.slice(dashIndex)}
+    </>
+  );
+}
+
 const ignoredSections: { [key: string]: string[] } = {
   white: ["print method"],
   holographic: ["print method"],
@@ -143,6 +157,7 @@ export function OrderTableBody({
   multiSelectedRows = new Map<string, string | null>(),
   setMultiSelectedRows,
   hashValue,
+  hoveredCells,
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -157,6 +172,7 @@ export function OrderTableBody({
   multiSelectedRows?: Map<string, string | null>;
   setMultiSelectedRows: React.Dispatch<React.SetStateAction<Map<string, string | null>>>;
   hashValue?: string | null; // Optional prop to track hash value
+  hoveredCells?: React.MutableRefObject<Set<HTMLElement>>;
 }) {
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
@@ -168,8 +184,7 @@ export function OrderTableBody({
   const lastHoveredIdRef = useRef<string | number | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
 
-  // console.log("The hash value is" , hashValue);
-  // const rowRef = useRef<HTMLTableRowElement>(null);
+  // Handling the dragging here
 
   // useEffect(() => {
   //   const handleClickOutside = (e: MouseEvent) => {
@@ -188,6 +203,7 @@ export function OrderTableBody({
   //   return () => document.removeEventListener('click', handleClickOutside);
   // }, []);
 
+  // console.log(hoveredCells?.current ? Array.from(hoveredCells.current) : "No hovered cells");
   const handleShiftClickRows = (selectedRows: Array<Order>) => {
     selectedRows.forEach((row) => {
       console.log(row.quantity);
@@ -250,6 +266,8 @@ export function OrderTableBody({
   let prevOrderId: string | number | null = null;
   let differentOrderId: boolean | null = null;
 
+  const cellRefs = useRef<Array<HTMLTableCellElement | null>>([]);
+
   // const lastSelectedIndexRef = useRef<number | null>(null);
 
   // let isRowClicked = false;
@@ -257,6 +275,8 @@ export function OrderTableBody({
     // <div className={isTableClicked ? 'border border-black' : ''} onClick={() => setIsTableClicked(true)}>
     <TableBody ref={tableRef} className="py-5">
       {data.map((row, i) => {
+        // const nameCellRef = useRef<HTMLTableCellElement>(null);
+
         // Move checkbox state out of the map, see below
         const isChecked = checkedRows.has(row.name_id);
         const currentDay = convertToDayOfTheWeek(row.due_date);
@@ -277,7 +297,7 @@ export function OrderTableBody({
           <React.Fragment key={row.name_id}>
             {showSeparator && (
               <TableRow key={`sep-${row.name_id}`} className="h-full border-none">
-                <TableCell colSpan={13} className="h-4 bg-transparent hover:bg-white" />
+                <TableCell colSpan={5} className="h-4 bg-transparent hover:bg-white" />
               </TableRow>
             )}
             <TableRow
@@ -287,8 +307,6 @@ export function OrderTableBody({
               ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
               ${String(row.order_id) === hashValue ? "bg-yellow-200 !hover:bg-yellow-300" : ""}
             `}
-              // ...other props
-
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
                 setMultiSelectedRows((prev) => {
@@ -309,7 +327,14 @@ export function OrderTableBody({
                 onRowClick(e.currentTarget, row, false);
               }}
             >
+              {/* This is the file name cell / first cell */}
               <TableCell
+                ref={(el) => (cellRefs.current[i] = el)}
+                className={
+                  hoveredCells?.current && cellRefs.current[i] && hoveredCells.current.has(cellRefs.current[i]!)
+                    ? "bg-blue-100"
+                    : ""
+                }
                 onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                 onMouseLeave={handleMouseLeave}
                 onClick={(e) => {
@@ -320,10 +345,10 @@ export function OrderTableBody({
                   //   navigator.clipboard.writeText(String(safeName)).catch(console.error);
                   // }
                 }}
-                className=""
               >
-                {multiSelectedRows.has(row.name_id) ? safeName : truncate(safeName, 40) || "-"}
+                {boldUntilDash(multiSelectedRows.has(row.name_id) ? safeName : truncate(safeName, 40) || "-")}
               </TableCell>
+              <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
               <TableCell
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
                 onMouseLeave={handleMouseLeave}
@@ -332,7 +357,6 @@ export function OrderTableBody({
                 {displayCorrectQuantity(row.quantity) || "-"}
               </TableCell>
 
-              <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
               <TableCell className="">{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
               <TableCell
                 className={`${
