@@ -64,6 +64,7 @@ const databaseHeaders = [
 // import { createClient } from "@/utils/supabase/server";
 
 console.log("Database Version", databaseVersion);
+const draggingThreshold = 1; // px
 
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   if (reverse) {
@@ -101,18 +102,18 @@ const laminationHeaderColors = {
 };
 
 function handleDragging(e: MouseEvent | null, event: boolean) {
-  // basically what you have to do is use this function to keep track of the tables that are being hovered over 
-  // return that table back 
+  // basically what you have to do is use this function to keep track of the tables that are being hovered over
+  // return that table back
   // use that table to reference which tables to highlight and add that ring individualy
   if (!e) {
     console.log("Dragging stopped");
-    return
+    return;
   }
   const cell = (e.target as HTMLElement).closest("td");
   if (cell) {
     console.log("Dragging over cell:", cell);
   }
-  console.log(event)
+  console.log(event);
   // You can set dragging state here if needed
 }
 
@@ -232,8 +233,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
   const [hashValue, setHashValue] = useState<string | null>(null);
-  const hoveredCells = useRef<Set<HTMLElement>>(new Set());
-  
+  const [, forceUpdate] = useState(0);
+  const dragSelections = useRef<
+    Map<HTMLTableElement, { startRow: number; endRow: number /* , startCol: number; endCol: number */ }>
+  >(new Map());
+
+  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+  const dragStartTime = useRef<number>(0);
+  const pendingDragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map());
+
   useEffect(() => {
     // Initial load
     supabase
@@ -380,87 +388,205 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       supabase.removeChannel(channel);
     };
   }, [orderType, currentRowClicked, isRowHovered]);
-
   useEffect(() => {
     const onCopy = (e: ClipboardEvent) => {
-      // Log the innerText of all hovered cells
-      if (hoveredCells.current && hoveredCells.current.size > 0) {
-        const values = [...hoveredCells.current].map((cell) => cell.innerText);
-        console.log("Hovered cell values:", values);
-        const clipboardText = values.join("\n"); // or use "," or "\t" for CSV/TSV
-
-        // Set the clipboard data
-        e.preventDefault();
-        e.clipboardData?.setData("text/plain", clipboardText);
+      if (dragSelections.current.size === 0) {
+        return;
       }
+      let values = [] as string[];
+      dragSelections.current.forEach((selection, table) => {
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        // Only data rows (exclude separators)
+        const dataRows = Array.from(tbody.children).filter(
+          (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
+        );
+        const rowStart = Math.min(selection.startRow, selection.endRow);
+        const rowEnd = Math.max(selection.startRow, selection.endRow);
+        for (let i = rowStart; i <= rowEnd; i++) {
+          const row = dataRows[i];
+          if (!row) continue;
+          const cells = Array.from(row.children).slice(0, 3) as HTMLTableCellElement[];
+          const types = cells.map((cell) => cell.getAttribute("datatype") || cell.innerText.toUpperCase());
+          console.log("Selected row columns:", types);
+          const valuesRow = cells.map((cell) => cell.innerText.toUpperCase() + "   ");
+          values.push(valuesRow.join(""));
+        }
+      });
+      console.log(values);
+      e.preventDefault();
+      e.clipboardData?.setData("text/plain", values.join("\n"));
     };
     document.addEventListener("copy", onCopy);
     return () => document.removeEventListener("copy", onCopy);
   }, []);
 
+  // dragSelections.current.clear();
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       if (e.buttons === 1) {
+        dragSelections.current.clear();
+        pendingDragSelections.current.clear();
+        dragStartPos.current = { x: e.clientX, y: e.clientY };
+        dragStartTime.current = Date.now();
 
-        // Clears as soon as a new drag starts
-        hoveredCells.current.clear(); // Clear hovered cells on mouse up
-        if (!dragging) {
-          document.body.style.setProperty("user-select", "none", "important");
-          setDragging(true);
-          handleDragging(e, true);
-          // console.log("starting drag");
+        // --- Add this block to initialize pendingDragSelections ---
+        const cell = (e.target as HTMLElement).closest("td");
+        if (cell) {
+          const row = cell.parentElement as HTMLTableRowElement | null;
+          if (row) {
+            const table = row.closest("table") as HTMLTableElement | null;
+            if (table) {
+              let rowIndex = -1;
+              const tbody = row.parentElement;
+              if (tbody && tbody.nodeName === "TBODY") {
+                const allRows = Array.from(tbody.children).filter((el) => el.nodeName === "TR");
+                const dataRows = allRows.filter((el) => el.getAttribute("datatype") === "data");
+                const rowType = row.getAttribute("datatype");
+
+                if (rowType === "data") {
+                  rowIndex = dataRows.indexOf(row);
+                } else {
+                  // If separator, get the next data row after this separator
+                  const sepIdx = allRows.indexOf(row);
+                  let found = false;
+                  for (let i = sepIdx + 1; i < allRows.length; i++) {
+                    if (allRows[i].getAttribute("datatype") === "data") {
+                      rowIndex = dataRows.indexOf(allRows[i]);
+                      found = true;
+                      break;
+                    }
+                  }
+                  if (!found) {
+                    rowIndex = dataRows.length - 1;
+                  }
+                }
+              }
+              // Only set if we have a valid index
+              if (rowIndex !== -1) {
+                pendingDragSelections.current.set(table, {
+                  startRow: rowIndex,
+                  endRow: rowIndex,
+                });
+              }
+            }
+          }
         }
       }
     };
-    const onMouseUp = () => {
-      if (dragging) {
-        setDragging(false);
-        handleDragging(null, false);
 
-        // console.log("stopped dragging");
+    const onMouseMove = (e: MouseEvent) => {
+      if (dragStartPos.current) {
+        const dx = Math.abs(e.clientX - dragStartPos.current.x);
+        const dy = Math.abs(e.clientY - dragStartPos.current.y);
+        if ((dx > draggingThreshold || dy > draggingThreshold) && !dragging) {
+          // This is a drag
+          // hoveredCells.current.clear();
+          document.body.style.cursor = "grabbing";
+          document.body.style.setProperty("user-select", "none", "important");
+          setDragging(true);
+          // handleDragging(e, true);
+        }
       }
-      document.body.style.removeProperty("user-select");
-      
     };
+
+    const onMouseUp = (e: MouseEvent) => {
+      // console.log(dragSelections.current);
+      document.body.style.cursor = "";
+      // console.log(pendingDragSelections.current);
+      dragSelections.current = new Map(pendingDragSelections.current);
+      forceUpdate((n) => n + 1); // Dummy state to re-render
+      if (dragging) {
+        // console.log(dragSelections.current)
+        setDragging(false);
+        // handleDragging(null, false);
+      } else {
+        // dragSelections.current.clear();
+        // dragSelections.current = new Map(); // Clear selections on mouse up
+
+        // This is a click (not a drag)
+        // You can handle click here if needed
+        // console.log("This was a click, not a drag");
+        pendingDragSelections.current.clear();
+        dragSelections.current.clear();
+        forceUpdate((n) => n + 1);
+      }
+
+      document.body.style.removeProperty("user-select");
+      dragStartPos.current = null;
+      dragStartTime.current = 0;
+    };
+
     document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
+
     return () => {
       document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
   }, [dragging]);
 
-useEffect(() => {
-  function handleMouseMove(e: MouseEvent) {
-    if (!dragging) return;
+  useEffect(() => {
+    function handleMouseMove(e: MouseEvent) {
+      if (!dragging) return;
+      const cell = (e.target as HTMLElement).closest("td");
+      if (!cell) return;
+      const row = cell.parentElement as HTMLTableRowElement | null;
+      if (!row) return;
+      const table = row.closest("table") as HTMLTableElement | null;
+      if (!table) return;
+      let rowIndex = -1;
+      // Get row and column indices
+      const tbody = row.parentElement;
+      if (tbody && tbody.nodeName === "TBODY") {
+        const allRows = Array.from(tbody.children).filter((el) => el.nodeName === "TR");
+        const dataRows = allRows.filter((el) => el.getAttribute("datatype") === "data");
+        const rowType = row.getAttribute("datatype");
+        // console.log("Row type:", rowType, "Data rows:", dataRows.length);
+        if (rowType === "data") {
+          rowIndex = dataRows.indexOf(row);
+        } else {
+          // If separator, get the next data row after this separator
+          const sepIdx = allRows.indexOf(row);
+          let found = false;
+          for (let i = sepIdx + 1; i < allRows.length; i++) {
+            if (allRows[i].getAttribute("datatype") === "data") {
+              rowIndex = dataRows.indexOf(allRows[i]);
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            // If no data row after, set to last row
+            rowIndex = dataRows.length - 1;
+          }
+        }
+      }
+      console.log(rowIndex);
 
-    // Get the cell being hovered
-    const cell = (e.target as HTMLElement).closest("td");
-    if (!cell) return;
-
-    // Get the row containing this cell
-    const row = cell.parentElement;
-    if (!row) return;
-
-    // Get all <td> cells in this row
-    const cells = Array.from(row.querySelectorAll("td"));
-    console.log("Hovered cells:", cells);
-    const index = cells.indexOf(cell);
-
-    if (index !== -1) {
-      // Add all cells up to and including the hovered cell
-      for (let i = 0; i <= index; i++) {
-        hoveredCells.current.add(cells[i]);
+      if (!pendingDragSelections.current.has(table)) {
+        pendingDragSelections.current.set(table, {
+          startRow: rowIndex,
+          endRow: rowIndex,
+        });
+      } else {
+        const prev = pendingDragSelections.current.get(table)!;
+        pendingDragSelections.current.set(table, {
+          startRow: prev.startRow,
+          endRow: rowIndex,
+        });
       }
     }
-  }
-  if (dragging) {
-    document.addEventListener("mousemove", handleMouseMove);
-  }
-  return () => {
-    document.removeEventListener("mousemove", handleMouseMove);
-  };
-}, [dragging]);
+
+    if (dragging) {
+      document.addEventListener("mousemove", handleMouseMove);
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, [dragging]);
 
   useEffect(() => {
     const counts = filterOutOrderCounts(orders);
@@ -481,13 +607,17 @@ useEffect(() => {
     }
   }, []);
 
+  // * Disabled the handle click outside instead now it's just a click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest("table")) {
-        setIsRowClicked(false);
-        setCurrentRowClicked(null);
-        setMultiSelectedRows(new Map<string, string | null>());
+        // console.log("Clicked outside of table, resetting selections");
+        // dragSelections.current.clear();
+        // setDragging(false);
+        // setIsRowClicked(false);
+        // setCurrentRowClicked(null);
+        // setMultiSelectedRows(new Map<string, string | null>());
       }
     };
     document.addEventListener("click", handleClickOutside);
@@ -523,7 +653,7 @@ useEffect(() => {
   // useEffect(() => {
   //   // Disables text selection while dragging
   //   if (dragging) {
-      
+
   //   } else {
   //     document.body.style.removeProperty("user-select");
   //   }
@@ -828,9 +958,9 @@ useEffect(() => {
                         onRowClick={handleRowClick}
                         selectedNameId={currentRowClicked?.name_id || null}
                         multiSelectedRows={multiSelectedRows}
-                        setMultiSelectedRows={setMultiSelectedRows}
+                        setMultiSelectedRows={setMultiSelectedRows} // Inactive for now
                         hashValue={hashValue}
-                        hoveredCells={hoveredCells}
+                        dragSelections={dragSelections}
                       />
                     </Table>
                   </>
@@ -874,7 +1004,7 @@ useEffect(() => {
         )}
         {/* <This is for dialaying the notifications */}
       </div>
-      {multiSelectedRows.size > 0 && <OrderViewer rows={multiSelectedRows} />}
+      {dragSelections.current.size > 0 && <OrderViewer dragSelections={dragSelections} />}
       <Toaster theme={"dark"} richColors={true} />
     </>
   );

@@ -65,11 +65,11 @@ const isSectionIgnored = (material: string | null, section: string): boolean => 
 };
 
 const dayOfTheWeekColor: { [key: number]: string } = {
-  1: "bg-gray-100", // Monday
-  2: "bg-gray-300", // Friday
-  3: "bg-gray-200", // Wednesday
-  4: "bg-gray-250", // Thursday
-  5: "bg-gray-300", // Thursday
+  1: "bg-gray-50", // Monday
+  2: "bg-gray-250", // Friday
+  3: "bg-gray-100", // Wednesday
+  4: "bg-gray-150", // Thursday
+  5: "bg-gray-200", // Thursday
 };
 
 const inkColors: { [key: string]: string } = {
@@ -157,7 +157,8 @@ export function OrderTableBody({
   multiSelectedRows = new Map<string, string | null>(),
   setMultiSelectedRows,
   hashValue,
-  hoveredCells,
+  dragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map()),
+
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -172,7 +173,7 @@ export function OrderTableBody({
   multiSelectedRows?: Map<string, string | null>;
   setMultiSelectedRows: React.Dispatch<React.SetStateAction<Map<string, string | null>>>;
   hashValue?: string | null; // Optional prop to track hash value
-  hoveredCells?: React.MutableRefObject<Set<HTMLElement>>;
+  dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
 }) {
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
@@ -266,7 +267,10 @@ export function OrderTableBody({
   let prevOrderId: string | number | null = null;
   let differentOrderId: boolean | null = null;
 
-  const cellRefs = useRef<Array<HTMLTableCellElement | null>>([]);
+  const cellRefs = useRef<Array<Array<HTMLTableCellElement | null>>>([]);
+
+  const tableEl = tableRef.current?.closest("table") as HTMLTableElement | null;
+  const dragSelection = dragSelections?.current && tableEl ? dragSelections.current.get(tableEl) : null;
 
   // const lastSelectedIndexRef = useRef<number | null>(null);
 
@@ -282,6 +286,10 @@ export function OrderTableBody({
         const currentDay = convertToDayOfTheWeek(row.due_date);
         const safeName = convertToSpaces(row.name_id);
         const isSelected = row.name_id === selectedNameId;
+        const isHighlighted =
+          !!dragSelection &&
+          Math.min(dragSelection.startRow, dragSelection.endRow) <= i &&
+          i <= Math.max(dragSelection.startRow, dragSelection.endRow);
 
         differentOrderId = prevOrderId !== row.order_id;
         if (i === 0 && data.length > 1) {
@@ -293,32 +301,35 @@ export function OrderTableBody({
         const prev = data[i - 1];
         const showSeparator = i > 0 && row.order_id !== prev.order_id;
 
+        //* Took this out of line 309
+        // ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
+        // ${String(row.order_id) === hashValue ? "bg-yellow-200 !hover:bg-yellow-300" : ""}
+
         return (
           <React.Fragment key={row.name_id}>
             {showSeparator && (
-              <TableRow key={`sep-${row.name_id}`} className="h-full border-none">
+              <TableRow key={`sep-${row.name_id}`} className="h-full border-none" datatype="seperator">
                 <TableCell colSpan={5} className="h-4 bg-transparent hover:bg-white" />
               </TableRow>
             )}
             <TableRow
+              datatype="data"
               key={row.name_id}
               className={`
-              [&>td]:py-1 align-top border-gray-300 border-b-2 bg-gray-100 max-h-[14px] hover:bg-gray-300 text-xs whitespace-normal break-all
-              ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
-              ${String(row.order_id) === hashValue ? "bg-yellow-200 !hover:bg-yellow-300" : ""}
+              [&>td]:py-1 align-top border-none ring-black-300 ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all
+              ${isHighlighted ? "bg-blue-100 hover:bg-blue-200" : currentDay ? dayOfTheWeekColor[currentDay] : ""}
             `}
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
-                setMultiSelectedRows((prev) => {
-                  const next = new Map(prev);
-                  if (next.has(row.name_id)) {
-                    next.delete(row.name_id);
-                  } else {
-                    next.set(row.name_id, row.quantity);
-                  }
-                  return next;
-                });
-
+                // setMultiSelectedRows((prev) => {
+                //   const next = new Map(prev);
+                //   if (next.has(row.name_id)) {
+                //     next.delete(row.name_id);
+                //   } else {
+                //     next.set(row.name_id, row.quantity);
+                //   }
+                //   return next;
+                // });
                 // Preserve original click behavior
                 // onRowClick(e.currentTarget, row, false);
               }}
@@ -329,12 +340,18 @@ export function OrderTableBody({
             >
               {/* This is the file name cell / first cell */}
               <TableCell
-                ref={(el) => (cellRefs.current[i] = el)}
-                className={
-                  hoveredCells?.current && cellRefs.current[i] && hoveredCells.current.has(cellRefs.current[i]!)
-                    ? "bg-blue-100"
-                    : ""
-                }
+                ref={(el) => {
+                  if (!cellRefs.current[i]) cellRefs.current[i] = [];
+                  cellRefs.current[i][0] = el;
+                }}
+                // className={
+                //   hoveredCells?.current &&
+                //   cellRefs.current[i] &&
+                //   cellRefs.current[i][0] &&
+                //   hoveredCells.current.has(cellRefs.current[i][0]!)
+                //     ? "bg-blue-100"
+                //     : ""
+                // }
                 onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                 onMouseLeave={handleMouseLeave}
                 onClick={(e) => {
@@ -346,18 +363,46 @@ export function OrderTableBody({
                   // }
                 }}
               >
-                {boldUntilDash(multiSelectedRows.has(row.name_id) ? safeName : truncate(safeName, 40) || "-")}
+                {isHighlighted ? boldUntilDash(safeName) : boldUntilDash(truncate(safeName, 30)) || "-"}
+                {/* {boldUntilDash(multiSelectedRows.has(row.name_id) ? safeName : truncate(safeName, 40) || "-")} */}
               </TableCell>
-              <TableCell className="">{capitalizeFirstLetter(row.shape) || "-"}</TableCell>
+              <TableCell
+                ref={(el) => {
+                  if (!cellRefs.current[i]) cellRefs.current[i] = [];
+                  cellRefs.current[i][1] = el;
+                }}
+                // className={
+                //   hoveredCells?.current &&
+                //   cellRefs.current[i] &&
+                //   cellRefs.current[i][1] &&
+                //   hoveredCells.current.has(cellRefs.current[i][1]!)
+                //     ? "bg-blue-100"
+                //     : ""
+                // }
+              >
+                {capitalizeFirstLetter(row.shape) || "-"}
+              </TableCell>
               <TableCell
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
                 onMouseLeave={handleMouseLeave}
-                className=""
+                // className={
+                //   hoveredCells?.current && cellRefs.current[i] && hoveredCells.current.has(cellRefs.current[i]!)
+                //     ? "bg-blue-100"
+                //     : ""
+                // }
               >
                 {displayCorrectQuantity(row.quantity) || "-"}
               </TableCell>
 
-              <TableCell className="">{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
+              <TableCell
+              // className={
+              //   hoveredCells?.current && cellRefs.current[i] && hoveredCells.current.has(cellRefs.current[i]!)
+              //     ? "bg-blue-100"
+              //     : ""
+              // }
+              >
+                {capitalizeFirstLetter(row.lamination) || "-"}
+              </TableCell>
               <TableCell
                 className={`${
                   row.material && materialColors[row.material.toLowerCase()]
@@ -368,22 +413,20 @@ export function OrderTableBody({
                 {capitalizeFirstLetter(row.material) || "-"}
               </TableCell>
 
-              <TableCell
-                className={`${row.ink && inkColors[row.ink.toLowerCase()] ? inkColors[row.ink.toLowerCase()] : ""}`}
-              >
-                {capitalizeFirstLetter(row.ink)}
-              </TableCell>
-              <TableCell className="text-[11px] truncate">
+              <TableCell className="">{capitalizeFirstLetter(row.ink)}</TableCell>
+              <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
-              <TableCell className={currentDay ? dayOfTheWeekColor[currentDay] : ""}>{row.due_date}</TableCell>
+              <TableCell className="">{row.due_date}</TableCell>
               <TableCell className="">{row.ihd_date}</TableCell>
-              <TableCell className="text-[11px] truncate">{capitalizeFirstLetter(row.shipping_method) || ""}</TableCell>
-              <TableCell className="">
+              <TableCell className={`text-[11px] truncate`}>
+                {capitalizeFirstLetter(row.shipping_method) || ""}
+              </TableCell>
+              <TableCell className={``}>
                 {/* <Textarea ></Textarea> */}
                 <NoteInput note={row.notes ?? ""} onCommit={(value) => onNotesChange(row, value)} />
               </TableCell>
-              <TableCell className="">
+              <TableCell>
                 <Checkbox
                   checked={isChecked}
                   disabled={isChecked}
