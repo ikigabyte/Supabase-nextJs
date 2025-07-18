@@ -233,6 +233,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
   const [hashValue, setHashValue] = useState<string | null>(null);
+  const pendingRemovalIds = useRef<Set<string>>(new Set());
   const [, forceUpdate] = useState(0);
   const dragSelections = useRef<
     Map<HTMLTableElement, { startRow: number; endRow: number /* , startCol: number; endCol: number */ }>
@@ -273,6 +274,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           ignoreUpdateIds.current.delete(newOrder.name_id);
           return;
         }
+        if (pendingRemovalIds.current.has(newOrder.name_id)) {
+          if (newOrder.production_status !== orderType) {
+            return;
+          } else {
+            pendingRemovalIds.current.delete(newOrder.name_id);
+          }
+        }
+
         if (newOrder.production_status === orderType) {
           setOrders((prev) => {
             const next = [newOrder, ...prev];
@@ -306,6 +315,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           ignoreUpdateIds.current.delete(updated.name_id);
           return;
         }
+
+        if (pendingRemovalIds.current.has(updated.name_id)) {
+          if (updated.production_status !== orderType) {
+            return;
+          } else {
+            pendingRemovalIds.current.delete(updated.name_id);
+          }
+        }
+
         // console.log("UPDATE event payload.old:", payload.old);
         // console.log("UPDATE event payload.new:", payload.new);
         const oldRow = payload.old as Order;
@@ -370,6 +388,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           ignoreUpdateIds.current.delete(removed.name_id);
           return;
         }
+
+        if (pendingRemovalIds.current.has(removed.name_id)) {
+          if (removed.production_status !== orderType) {
+            return;
+          } else {
+            pendingRemovalIds.current.delete(removed.name_id);
+          }
+        }
+
         setOrders((prev) => {
           const next = prev.filter((o) => o.name_id !== removed.name_id);
           // Clear selection/hover if the removed order was selected/hovered
@@ -491,7 +518,23 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
 
     const onMouseUp = (e: MouseEvent) => {
+      // console.log(e.button);
+      if (e.button !== 0) {
+        return;
+      }
       // console.log(dragSelections.current);
+      // console.log("Mouse up event detected");
+      const target = e.target as HTMLElement;
+      //  console.log(target.getAttribute("datatype"));
+      if (target.getAttribute("datatype") === "menu-option") {
+        console.log("Clicked on a menu option, not resetting selections");
+        return;
+      }
+      if (!target.closest("table")) {
+        console.log("Clicked outside of table, resetting selections");
+        setIsRowClicked(false);
+        setCurrentRowClicked(null);
+      }
       document.body.style.cursor = "";
       // console.log(pendingDragSelections.current);
       dragSelections.current = new Map(pendingDragSelections.current);
@@ -504,11 +547,62 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // dragSelections.current.clear();
         // dragSelections.current = new Map(); // Clear selections on mouse up
 
+        console.log("This was a click, not a drag");
+        pendingDragSelections.current.clear();
+        dragSelections.current.clear();
+        const cell = (e.target as HTMLElement).closest("td");
+        if (!cell) {
+          forceUpdate((n) => n + 1);
+          return;
+        }
+        const row = cell.parentElement as HTMLTableRowElement | null;
+        if (!row) {
+          forceUpdate((n) => n + 1);
+          return;
+        }
+        const table = row.closest("table") as HTMLTableElement | null;
+        if (!table) {
+          forceUpdate((n) => n + 1);
+          return;
+        }
+
         // This is a click (not a drag)
         // You can handle click here if needed
         // console.log("This was a click, not a drag");
-        pendingDragSelections.current.clear();
-        dragSelections.current.clear();
+
+        let rowIndex = -1;
+        const tbody = row.parentElement;
+        if (tbody && tbody.nodeName === "TBODY") {
+          const allRows = Array.from(tbody.children).filter((el) => el.nodeName === "TR");
+          const dataRows = allRows.filter((el) => el.getAttribute("datatype") === "data");
+          const rowType = row.getAttribute("datatype");
+
+          if (rowType === "data") {
+            rowIndex = dataRows.indexOf(row);
+          } else {
+            // If separator, get the next data row after this separator
+            const sepIdx = allRows.indexOf(row);
+            let found = false;
+            for (let i = sepIdx + 1; i < allRows.length; i++) {
+              if (allRows[i].getAttribute("datatype") === "data") {
+                rowIndex = dataRows.indexOf(allRows[i]);
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              rowIndex = dataRows.length - 1;
+            }
+          }
+        }
+
+        // If valid, set selection for that single row in that table
+        if (rowIndex !== -1) {
+          dragSelections.current.set(table, {
+            startRow: rowIndex,
+            endRow: rowIndex,
+          });
+        }
         forceUpdate((n) => n + 1);
       }
 
@@ -564,8 +658,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           }
         }
       }
-      console.log(rowIndex);
-
+      // console.log(rowIndex);
       if (!pendingDragSelections.current.has(table)) {
         pendingDragSelections.current.set(table, {
           startRow: rowIndex,
@@ -608,21 +701,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, []);
 
   // * Disabled the handle click outside instead now it's just a click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest("table")) {
-        // console.log("Clicked outside of table, resetting selections");
-        // dragSelections.current.clear();
-        // setDragging(false);
-        // setIsRowClicked(false);
-        // setCurrentRowClicked(null);
-        // setMultiSelectedRows(new Map<string, string | null>());
-      }
-    };
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
+  // useEffect(() => {
+  //   const handleClickOutside = (e: MouseEvent) => {
+
+  //   };
+  //   document.addEventListener("click", handleClickOutside);
+  //   return () => document.removeEventListener("click", handleClickOutside);
+  // }, []);
 
   const grouped = useMemo(() => groupOrdersByOrderType(orderType, orders), [orderType, orders]);
   const designatedCategories = useMemo(() => getButtonCategories(orderType)!, [orderType]);
@@ -731,12 +816,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     setCurrentRowClicked(null);
     setIsRowClicked(false);
     ignoreUpdateIds.current.add(order.name_id);
+    pendingRemovalIds.current.add(order.name_id);
     // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
     // console.log(`Order clicked: ${order.name_id}`);
     setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
     updateOrderStatus(order, false);
     // setTimeout(() => {
-
     // }, 1000);
     toast("Order updated", {
       description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
@@ -788,8 +873,30 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     [orderType, session]
   );
 
+  const handleDoubleClick = useCallback(
+    async (fileName: string) => {
+      if (orderType === "print") {
+        return;
+      }
+      try {
+        // Read clipboard text (requires permissions in some browsers)
+        const clipboardText = await navigator.clipboard.readText();
+        if (clipboardText === String(fileName)) {
+          return;
+        }
+      } catch (err) {
+        // Ignore clipboard read errors
+      }
+      toast("Copied to clipboard", {
+        description: `${fileName} has been copied to the clipboard.`,
+      });
+      navigator.clipboard.writeText(String(fileName));
+    },
+    [orderType]
+  );
+
   const revertStatus = useCallback(async (order: Order) => {
-    // console.log("Reverting status for order", order.name_id);
+    console.log("Reverting status for order", order.name_id);
     // Optimistically update local state
     // setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
     // Persist change
@@ -798,6 +905,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       console.log("Deleting the order here from the ignoreUpdateIds section", order.name_id);
       ignoreUpdateIds.current.delete(order.name_id);
     }
+    if (pendingRemovalIds.current.has(order.name_id)) {
+      console.log("Deleting the order here from the pendingRemovalIds section", order.name_id);
+      pendingRemovalIds.current.delete(order.name_id);
+    }
+
     await updateOrderStatus(order, false, orderType);
   }, []);
 
@@ -823,7 +935,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             description: `Order ${currentRowClicked!.name_id} has been moved back to ${orderType}`,
             action: {
               label: "Undo",
-              onClick: () => {
+              onClick: (e) => {
+                // e.stopPropagation();
                 revertStatus(currentRowClicked!);
               },
             },
@@ -886,6 +999,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         console.warn("Row is null, skipping click handling.");
         return;
       }
+      console.log("Row clicked:", row.name_id);
       // console.log("Row clicked:", row);
       // Use the provided row element directly
       if (rowEl) {
@@ -960,6 +1074,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         multiSelectedRows={multiSelectedRows}
                         setMultiSelectedRows={setMultiSelectedRows} // Inactive for now
                         hashValue={hashValue}
+                        handleDoubleClick={handleDoubleClick}
                         dragSelections={dragSelections}
                       />
                     </Table>
@@ -1004,7 +1119,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         )}
         {/* <This is for dialaying the notifications */}
       </div>
-      {dragSelections.current.size > 0 && <OrderViewer dragSelections={dragSelections} />}
+      {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
+        1 && <OrderViewer dragSelections={dragSelections} />}
       <Toaster theme={"dark"} richColors={true} />
     </>
   );

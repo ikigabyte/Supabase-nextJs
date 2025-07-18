@@ -11,8 +11,12 @@ export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOp
       {orderType !== "print" && (
         <>
           <Button
+            datatype="menu-option"
             className="bg-white text-[12px] text-black hover:bg-gray-100"
-            onClick={() => {
+            onClick={(e) => {
+              // e.stopPropagation();
+              // e.preventDefault();
+              // console.log("Context menu clicked for email");
               handleMenuOptionClick("revert");
               // if (orderType === "cut") {
               //   console.log("revert to print");
@@ -34,6 +38,7 @@ export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOp
       )}
 
       <Button
+        datatype="menu-option"
         className="bg-white text-[12px] text-black hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("view");
@@ -43,6 +48,7 @@ export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOp
       </Button>
       <Separator className="my-2" />
       <Button
+        datatype="menu-option"
         className="bg-white text-[12px] text-red-500 hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("delete");
@@ -52,6 +58,7 @@ export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOp
       </Button>
       <Separator className="my-2" />
       <Button
+        datatype="menu-option"
         className="bg-white text-[12px] text-red-500 hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("deleteAll");

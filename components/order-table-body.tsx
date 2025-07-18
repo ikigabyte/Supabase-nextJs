@@ -12,12 +12,16 @@ import { Textarea } from "./ui/textarea";
 // A controlled input that only commits on Enter
 
 const convertToDayOfTheWeek = (dateString: string | null) => {
-  if (!dateString || dateString == null) {
-    return 1;
-  }
-  const date = new Date(dateString);
+  if (!dateString) return null;
+  // Parse as local date
+  const [year, month, day] = dateString.split("-").map(Number);
+  const date = new Date(year, month - 1, day); // monthIndex is 0-based
   const dayNumber = date.getDay();
-  // console.log(dayNumber);
+  if (dayNumber === 0) {
+    console.log(dateString);
+    console.log("Sunday detected, returning 0");
+    return 0;
+  }
   return dayNumber;
 };
 
@@ -65,11 +69,11 @@ const isSectionIgnored = (material: string | null, section: string): boolean => 
 };
 
 const dayOfTheWeekColor: { [key: number]: string } = {
-  1: "bg-gray-50", // Monday
-  2: "bg-gray-250", // Friday
-  3: "bg-gray-100", // Wednesday
-  4: "bg-gray-150", // Thursday
-  5: "bg-gray-200", // Thursday
+  1: "bg-gray-302", // Monday
+  2: "bg-gray-301", // Tuesday // change this to friday
+  3: "bg-gray-303", // Wednesday
+  4: "bg-gray-302", // Thursday
+  5: "bg-gray-305", // Friday
 };
 
 const inkColors: { [key: string]: string } = {
@@ -141,7 +145,6 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
     </>
   );
 }
-// import {DayOfTheWeekColor} from "@/utils/dayOfTheWeekColor";
 
 export function OrderTableBody({
   data,
@@ -157,8 +160,8 @@ export function OrderTableBody({
   multiSelectedRows = new Map<string, string | null>(),
   setMultiSelectedRows,
   hashValue,
+  handleDoubleClick,
   dragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map()),
-
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -173,7 +176,8 @@ export function OrderTableBody({
   multiSelectedRows?: Map<string, string | null>;
   setMultiSelectedRows: React.Dispatch<React.SetStateAction<Map<string, string | null>>>;
   hashValue?: string | null; // Optional prop to track hash value
-  dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
+  handleDoubleClick: (fileName: string) => void;
+  dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>,
 }) {
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
@@ -304,7 +308,7 @@ export function OrderTableBody({
         //* Took this out of line 309
         // ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
         // ${String(row.order_id) === hashValue ? "bg-yellow-200 !hover:bg-yellow-300" : ""}
-
+        // console.log(currentDay)
         return (
           <React.Fragment key={row.name_id}>
             {showSeparator && (
@@ -317,7 +321,13 @@ export function OrderTableBody({
               key={row.name_id}
               className={`
               [&>td]:py-1 align-top border-none ring-black-300 ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all
-              ${isHighlighted ? "bg-blue-100 hover:bg-blue-200" : currentDay ? dayOfTheWeekColor[currentDay] : ""}
+              ${
+                isHighlighted
+                  ? "bg-blue-100 hover:bg-blue-200"
+                  : currentDay
+                  ? dayOfTheWeekColor[currentDay]
+                  : "bg-blue-300"
+              }
             `}
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
@@ -335,6 +345,7 @@ export function OrderTableBody({
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
+                console.log("Context menu clicked on row", row.name_id);
                 onRowClick(e.currentTarget, row, false);
               }}
             >
@@ -354,13 +365,9 @@ export function OrderTableBody({
                 // }
                 onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                 onMouseLeave={handleMouseLeave}
-                onClick={(e) => {
-                  // e.stopPropagation();
-                  // onRowClick(e.currentTarget.closest("tr") as HTMLTableRowElement, row, true);
-                  // if (row.name_id) {
-                  //   console.log("Copying name_id to clipboard:", safeName);
-                  //   navigator.clipboard.writeText(String(safeName)).catch(console.error);
-                  // }
+                onDoubleClick={(e) => {
+                  handleDoubleClick(safeName)
+                
                 }}
               >
                 {isHighlighted ? boldUntilDash(safeName) : boldUntilDash(truncate(safeName, 30)) || "-"}
