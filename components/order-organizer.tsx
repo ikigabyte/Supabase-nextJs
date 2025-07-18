@@ -101,22 +101,6 @@ const laminationHeaderColors = {
   gloss: "text-blue-500",
 };
 
-function handleDragging(e: MouseEvent | null, event: boolean) {
-  // basically what you have to do is use this function to keep track of the tables that are being hovered over
-  // return that table back
-  // use that table to reference which tables to highlight and add that ring individualy
-  if (!e) {
-    console.log("Dragging stopped");
-    return;
-  }
-  const cell = (e.target as HTMLElement).closest("td");
-  if (cell) {
-    console.log("Dragging over cell:", cell);
-  }
-  console.log(event);
-  // You can set dragging state here if needed
-}
-
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
@@ -1040,6 +1024,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         {selectedCategory.toLowerCase() === "special" && (
           <OrderInputter tableHeaders={databaseHeaders} onSubmit={handleNewOrderSubmit}></OrderInputter>
           // <OrderInputter tableHeaders={headers} onSubmit={createNewOrder}></OrderInputter>
+        )}
+        {orders.length === 0 && (
+          <div className="mb-4 text-yellow-700 bg-yellow-100 p-2 rounded">
+            ⚠️ Orders are unable to be loaded - Please check your internet connection or contact support.
+          </div>
         )}
         <Fragment>
           {allKeys.map((key) => {
