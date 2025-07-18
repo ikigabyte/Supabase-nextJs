@@ -209,6 +209,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const ignoreUpdateIds = useRef<Set<string>>(new Set());
   const router = useRouter();
   const pathname = usePathname();
+  const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [dragging, setDragging] = useState(false);
   // Move these hooks above useEffect so they're in scope in subscription handlers
@@ -229,6 +230,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   useEffect(() => {
     // Initial load
+    setLoading(true);
     supabase
       .from("orders")
       .select()
@@ -1025,7 +1027,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           <OrderInputter tableHeaders={databaseHeaders} onSubmit={handleNewOrderSubmit}></OrderInputter>
           // <OrderInputter tableHeaders={headers} onSubmit={createNewOrder}></OrderInputter>
         )}
-        {orders.length === 0 && (
+        {!loading && orders.length === 0 && (
           <div className="mb-4 text-yellow-700 bg-yellow-100 p-2 rounded">
             ⚠️ Orders are unable to be loaded - Please check your internet connection or contact support.
           </div>
