@@ -125,7 +125,12 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
     const lowerCat = category.toLowerCase();
     let count = 0;
     if (orderType === "print") {
-      if (lowerCat === "rush") {
+      if (lowerCat === "sheets") {
+        // **Sheets count logic takes priority over rush**
+        count = orders.filter(
+          (order) => order.production_status === orderType && order.shape?.toLowerCase() === "sheets"
+        ).length;
+      } else if (lowerCat === "rush") {
         // Count only rush orders matching the current status
         count = orders.filter((order) => order.production_status === orderType && order.rush === true).length;
       } else if (lowerCat === "special") {
@@ -134,11 +139,6 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
         count = orders.filter(
           (order) =>
             order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() !== "roll"
-        ).length;
-      } else if (lowerCat === "sheets") {
-        // **Sheets count logic**
-        count = orders.filter(
-          (order) => order.production_status === orderType && order.shape?.toLowerCase() === "sheets"
         ).length;
       } else {
         count = orders.filter(
@@ -262,9 +262,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .order("order_id", { ascending: false })
       .then(({ data }) => {
         // Always sort by due_date (ascending)
-        const sorted = (data ?? [])
-          .slice()
-          // .sort(sortOrders);
+        const sorted = (data ?? []).slice();
+        // .sort(sortOrders);
         setOrders(sorted);
       });
     const channel = supabase
@@ -342,9 +341,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           // console.log("Notes changed for order", updated.name_id);
           // console.log(updated.notes);
           setOrders((prev) =>
-            prev
-              .map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o))
-              .slice()
+            prev.map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o)).slice()
           );
           // Clear selection/hover on notes update
           if (currentRowClicked?.name_id === updated.name_id) {
@@ -415,7 +412,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           }
           if (isRowHovered) setIsRowHovered(false);
           // Always sort by due_date (ascending)
-          return next.slice()
+          return next.slice();
         });
       })
       .subscribe();

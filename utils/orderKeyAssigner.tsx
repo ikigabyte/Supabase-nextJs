@@ -6,6 +6,7 @@ export const orderKeys: Record<OrderTypes, string[]> = {
   print: [
     "special-regular",
     "rush-regular",
+    "sheets-rush",
     "sheets-gloss",
     "sheets-matte",
     "sheets-no-lamination",
@@ -84,17 +85,21 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
       return specialKey || null;
     }
     // console.log("Rush", order.rush);
-    if (order.rush === true) {
-      // console.log("Rush detected");
-      const rushKey = keys.find((k) => k.startsWith("rush"));
-      if (rushKey) return rushKey;
-    }
     if (order.shape === "sheets") {
       const lamination = order.lamination === "gloss" ? "gloss" : "matte";
+      if (order.rush === true) {
+        const rushSheetsKey = keys.find((k) => k === `sheets-rush`);
+        if (rushSheetsKey) return rushSheetsKey;
+      }
       const sheetsKey = keys.find((k) => k.startsWith(`sheets-${lamination}`));
       if (sheetsKey) return sheetsKey;
       const noLaminationKey = keys.find((k) => k.startsWith("sheets-no-lamination"));
       if (noLaminationKey) return noLaminationKey;
+    }
+    if (order.rush === true) {
+      // console.log("Rush detected");
+      const rushKey = keys.find((k) => k.startsWith("rush"));
+      if (rushKey) return rushKey;
     }
 
     // Convert for promo and order type here / also change the way they're coming in from the log
