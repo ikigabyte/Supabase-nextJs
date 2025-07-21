@@ -101,6 +101,25 @@ const laminationHeaderColors = {
   gloss: "text-blue-500",
 };
 
+function extractDashNumber(name: string): number {
+  const match = name.match(/-(\d+)-/);
+  return match ? parseInt(match[1], 10) : Infinity;
+}
+
+// function sortOrders(a: Order, b: Order) {
+//   // 1. Group by order number
+//   if (a.order_id !== b.order_id) return a.order_id - b.order_id;
+
+//   // 2. Within group, sort by due date ascending
+//   const dateDiff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+//   if (dateDiff !== 0) return dateDiff;
+
+//   // 3. Within group and date, sort by dash number (if any)
+//   const aNum = extractDashNumber(a.name_id);
+//   const bNum = extractDashNumber(b.name_id);
+//   return aNum - bNum;
+// }
+
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
@@ -240,7 +259,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // Always sort by due_date (ascending)
         const sorted = (data ?? [])
           .slice()
-          .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+          // .sort(sortOrders);
         setOrders(sorted);
       });
     const channel = supabase
@@ -280,7 +299,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               setIsRowHovered(false);
             }
             // Always sort by due_date (ascending)
-            return next.slice().sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+            return next.slice();
           });
         } else {
           // console.log("New order does not match orderType:", newOrder.production_status, orderType);
@@ -321,7 +340,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             prev
               .map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o))
               .slice()
-              .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
           );
           // Clear selection/hover on notes update
           if (currentRowClicked?.name_id === updated.name_id) {
@@ -343,7 +361,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             }
             if (isRowHovered) setIsRowHovered(false);
             // Always sort by due_date (ascending)
-            return next.slice().sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+            return next.slice();
           });
         } else {
           setOrders((prev) => {
@@ -355,7 +373,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             }
             if (isRowHovered) setIsRowHovered(false);
             // Always sort by due_date (ascending)
-            return next.slice().sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+            return next.slice();
           });
         }
       })
@@ -392,7 +410,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           }
           if (isRowHovered) setIsRowHovered(false);
           // Always sort by due_date (ascending)
-          return next.slice().sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+          return next.slice()
         });
       })
       .subscribe();
