@@ -238,7 +238,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [dragging, setDragging] = useState(false);
   // Move these hooks above useEffect so they're in scope in subscription handlers
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
+  const rowRefs = useRef<{ [name_id: string]: HTMLTableRowElement | null }>({});
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
   const [hashValue, setHashValue] = useState<string | null>(null);
@@ -251,6 +253,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragStartTime = useRef<number>(0);
   const pendingDragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map());
+
+  const [circlePos, setCirclePos] = useState<{ top: number; right: number; height: number } | null>(null);
 
   useEffect(() => {
     // Initial load
@@ -453,6 +457,23 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     document.addEventListener("copy", onCopy);
     return () => document.removeEventListener("copy", onCopy);
   }, []);
+
+  useEffect(() => {
+    const targetNameId = "99889-TESTA-ORDER-2";
+    const rowEl = rowRefs.current[targetNameId];
+    const containerEl = containerRef.current;
+    if (rowEl && containerEl) {
+      const rowRect = rowEl.getBoundingClientRect();
+      const containerRect = containerEl.getBoundingClientRect();
+      setCirclePos({
+        top: rowRect.top - containerRect.top,
+        right: containerRect.right - rowRect.right,
+        height: rowRect.height,
+      });
+    } else {
+      setCirclePos(null);
+    }
+  }, [orders]);
 
   // dragSelections.current.clear();
   useEffect(() => {
@@ -1039,7 +1060,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // console.log(grouped);
   return (
     <>
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <div>
           <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
             {"To " + orderType.charAt(0).toUpperCase() + orderType.slice(1)} -{" "}
@@ -1091,6 +1112,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         hashValue={hashValue}
                         handleDoubleClick={handleDoubleClick}
                         dragSelections={dragSelections}
+                        getRowRef={(name_id: string) => (el: HTMLTableRowElement | null) => {
+                          rowRefs.current[name_id] = el;
+                        }}
                       />
                     </Table>
                   </>
@@ -1100,6 +1124,23 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           })}
         </Fragment>
         {/* Pass both categories and onCategoryClick to ButtonOrganizer */}
+
+        {/* Render circle if position is found */}
+        {circlePos && (
+          <div
+            style={{
+              position: "absolute",
+              top: circlePos.top + circlePos.height / 2,
+              right: circlePos.right - 40, // 40px gap from the table's right edge
+              transform: "translateY(-50%)",
+              width: `${circlePos.height}px`,
+              height: `${circlePos.height}px`,
+              background: "red",
+              borderRadius: "50%",
+              zIndex: 100,
+            }}
+          />
+        )}
 
         <ButtonOrganizer
           categories={designatedCategories}

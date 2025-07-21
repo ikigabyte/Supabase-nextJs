@@ -162,6 +162,7 @@ export function OrderTableBody({
   hashValue,
   handleDoubleClick,
   dragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map()),
+  getRowRef
 }: {
   data: Array<Order>;
   onOrderClick: (order: Order) => void;
@@ -178,6 +179,7 @@ export function OrderTableBody({
   hashValue?: string | null; // Optional prop to track hash value
   handleDoubleClick: (fileName: string) => void;
   dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
+  getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void
 }) {
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
@@ -319,6 +321,7 @@ export function OrderTableBody({
               </TableRow>
             )}
             <TableRow
+              ref={getRowRef ? getRowRef(row.name_id) : undefined}
               datatype="data"
               key={row.name_id}
               className={`
