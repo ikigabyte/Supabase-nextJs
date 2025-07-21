@@ -864,19 +864,23 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (orderType === "print") {
         return;
       }
-      try {
-        // Read clipboard text (requires permissions in some browsers)
-        const clipboardText = await navigator.clipboard.readText();
-        if (clipboardText === String(fileName)) {
-          return;
-        }
-      } catch (err) {
-        // Ignore clipboard read errors
-      }
+
+      // Read clipboard text (requires permissions in some browsers)
+      // const clipboardText = await navigator.clipboard.readText();
+      // if (clipboardText === String(fileName)) {
+      //   return;
+      // }
       toast("Copied to clipboard", {
         description: `${fileName} has been copied to the clipboard.`,
       });
-      navigator.clipboard.writeText(String(fileName));
+      // Write text here to the clipboard
+      try {
+        await navigator.clipboard.writeText(String(fileName));
+      } catch (err) {
+        console.error("Failed to write to clipboard:", err);
+      }
+      // e.preventDefault();
+      // Clipboard
     },
     [orderType]
   );
