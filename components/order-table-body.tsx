@@ -177,7 +177,7 @@ export function OrderTableBody({
   setMultiSelectedRows: React.Dispatch<React.SetStateAction<Map<string, string | null>>>;
   hashValue?: string | null; // Optional prop to track hash value
   handleDoubleClick: (fileName: string) => void;
-  dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>,
+  dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
 }) {
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
@@ -188,6 +188,8 @@ export function OrderTableBody({
   const [checkedRows, setCheckedRows] = useState<Set<string>>(new Set());
   const lastHoveredIdRef = useRef<string | number | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
+  const clickTimeout = useRef<NodeJS.Timeout | null>(null);
+  const lastClickTime = useRef<number>(0);
 
   // Handling the dragging here
 
@@ -365,9 +367,21 @@ export function OrderTableBody({
                 // }
                 onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                 onMouseLeave={handleMouseLeave}
-                onDoubleClick={(e) => {
-                  handleDoubleClick(safeName)
-                
+                onClick={(e) => {
+                  const now = Date.now();
+                  if (now - lastClickTime.current < 350) {
+                    console.log("Double click detected on", safeName);
+                    // 350ms threshold for double click
+                    if (clickTimeout.current) clearTimeout(clickTimeout.current);
+                    lastClickTime.current = 0;
+                    handleDoubleClick(safeName); // Call your double click handler
+                  } else {
+                    lastClickTime.current = now;
+                    if (clickTimeout.current) clearTimeout(clickTimeout.current);
+                    clickTimeout.current = setTimeout(() => {
+                      lastClickTime.current = 0;
+                    }, 400);
+                  }
                 }}
               >
                 {isHighlighted ? boldUntilDash(safeName) : boldUntilDash(truncate(safeName, 30)) || "-"}
