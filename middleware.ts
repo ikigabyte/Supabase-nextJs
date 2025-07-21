@@ -1,8 +1,17 @@
-import { type NextRequest } from 'next/server'
-import { updateSession } from '@/utils/supabase/middleware'
+import { type NextRequest, NextResponse } from 'next/server'
+import { updateSession } from "@/utils/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request)  // From the other file you made
+  const { response, user } = await updateSession(request);
+  // console.log("Middleware executed, user:", user);
+  // Redirect if not logged in and not already on login page
+  if (!user && !request.nextUrl.pathname.startsWith("/login")) {
+    console.log("User not logged in, redirecting to login page");
+    // return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  return response;
+  // If the response is a redirect, return it
 }
 
 export const config = {

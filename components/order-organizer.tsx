@@ -135,6 +135,11 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
           (order) =>
             order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() !== "roll"
         ).length;
+      } else if (lowerCat === "sheets") {
+        // **Sheets count logic**
+        count = orders.filter(
+          (order) => order.production_status === orderType && order.shape?.toLowerCase() === "sheets"
+        ).length;
       } else {
         count = orders.filter(
           (order) =>
