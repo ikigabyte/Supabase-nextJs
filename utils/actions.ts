@@ -197,6 +197,10 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   // }
 }
 export async function addOrderViewer(name_ids: string[]) {
+  if (!name_ids || name_ids.length === 0) {
+    console.warn("No name_ids provided for order viewers");
+    return false;
+  }
   const supabase = await createClient();
 
   // Get the current user

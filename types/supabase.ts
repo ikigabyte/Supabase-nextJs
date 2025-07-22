@@ -123,18 +123,18 @@ export type Database = {
       order_viewers: {
         Row: {
           last_updated: string
-          name_id: string | null
-          user_id: number
+          name_id: string
+          user_id: string
         }
         Insert: {
           last_updated?: string
-          name_id?: string | null
-          user_id?: number
+          name_id: string
+          user_id?: string
         }
         Update: {
           last_updated?: string
-          name_id?: string | null
-          user_id?: number
+          name_id?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -226,6 +226,10 @@ export type Database = {
     Functions: {
       move_order: {
         Args: { p_id: string }
+        Returns: undefined
+      }
+      scheduler_deleter: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
     }
