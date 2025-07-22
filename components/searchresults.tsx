@@ -63,7 +63,7 @@ export default function SearchResults() {
         <Table>
           <TableHeader>
             <TableRow className="h-.5 [&>th]:py-0 text-xs">
-              <TableHead className="border-r border-gray-200">Order ID</TableHead>
+              <TableHead className="border-r border-gray-200">File ID</TableHead>
               <TableHead className="border-r border-gray-200">Production Status</TableHead>
               <TableHead className="border-r border-gray-200">Material</TableHead>
             </TableRow>
@@ -74,10 +74,17 @@ export default function SearchResults() {
               <TableRow
                 key={order.name_id}
                 className="hover:bg-gray-50"
-                onClick={() =>
-                  router.push(
-                    getCorrectPage(order.production_status ?? "", order.material ?? "", order.order_id.toString() ?? "")
-                  )
+                onClick={
+                  () =>
+                    router.push(
+                      // how do we get the
+                      getCorrectPage(
+                        order.production_status ?? "",
+                        order.material ?? "",
+                        order.name_id ?? ""
+                      )
+                    )
+                  // console.log("Clicked order:", order.name_id)
                 }
               >
                 <TableCell>{order.name_id}</TableCell>

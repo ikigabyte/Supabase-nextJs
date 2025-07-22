@@ -19,6 +19,7 @@ import {
   removeOrderLine,
   removeOrderAll,
   createCustomOrder,
+  addOrderViewer
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -216,6 +217,33 @@ function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = createClientComponentClient();
 
+  async function fetchAllOrders() {
+    const allOrders = [];
+    let from = 0;
+    const chunkSize = 1000;
+    let more = true;
+
+    while (more) {
+      const { data, error, count } = await supabase
+        .from("orders")
+        .select("*", { count: "exact" })
+        .range(from, from + chunkSize - 1);
+
+      if (error) {
+        console.error("Error fetching orders:", error);
+        break;
+      }
+      allOrders.push(...(data ?? []));
+      if (!data || data.length < chunkSize) {
+        more = false;
+      } else {
+        from += chunkSize;
+      }
+    }
+
+    return allOrders;
+  }
+
   if (supabase === null) {
     console.error("Supabase client is null");
     redirect("/login");
@@ -236,6 +264,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [scrollPosition, setScrollPosition] = useState<number>(0); // Temporary
   // Move these hooks above useEffect so they're in scope in subscription handlers
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -245,7 +274,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
   const [hashValue, setHashValue] = useState<string | null>(null);
   const pendingRemovalIds = useRef<Set<string>>(new Set());
-  const [, forceUpdate] = useState(0);
+  const [updateCounter, forceUpdate] = useState(0);
+  // const [updateCounter, forceUpdate] = useState(0);
   const dragSelections = useRef<
     Map<HTMLTableElement, { startRow: number; endRow: number /* , startCol: number; endCol: number */ }>
   >(new Map());
@@ -256,27 +286,25 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const [circlePos, setCirclePos] = useState<{ top: number; right: number; height: number } | null>(null);
 
+  const scrollToOrder = (name_id: string) => {
+    const rowEl = rowRefs.current[name_id];
+    if (rowEl) {
+      rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
   useEffect(() => {
     // Initial load
     setLoading(true);
-    supabase
-      .from("orders")
-      .select()
-      .eq("production_status", orderType) // Ensure we only fetch orders of the current type
-      .order("order_id", { ascending: false })
-      .then(({ data }) => {
-        // Always sort by due_date (ascending)
-        const sorted = (data ?? []).slice();
-        // .sort(sortOrders);
-        setOrders(sorted);
-      });
+    fetchAllOrders().then((allOrders) => {
+      setOrders(allOrders);
+    });
     const channel = supabase
       .channel("orders_all")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
         const newOrder = payload.new as Order;
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(newOrder.name_id)) {
-          console.log(`Removing ${newOrder.name_id} from multiSelectedRows due to INSERT`);
           setMultiSelectedRows((prev) => {
             const next = new Map(prev);
             next.delete(newOrder.name_id);
@@ -317,7 +345,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const updated = payload.new as Order;
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(updated.name_id)) {
-          console.log(`Removing ${updated.name_id} from multiSelectedRows due to UPDATE`);
           setMultiSelectedRows((prev) => {
             const next = new Map(prev);
             next.delete(updated.name_id);
@@ -387,7 +414,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const removed = payload.old as Order;
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(removed.name_id)) {
-          console.log(`Removing ${removed.name_id} from multiSelectedRows due to DELETE`);
           setMultiSelectedRows((prev) => {
             const next = new Map(prev);
             next.delete(removed.name_id);
@@ -425,6 +451,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       supabase.removeChannel(channel);
     };
   }, [orderType, currentRowClicked, isRowHovered]);
+
   useEffect(() => {
     const onCopy = (e: ClipboardEvent) => {
       if (dragSelections.current.size === 0) {
@@ -459,20 +486,22 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, []);
 
   useEffect(() => {
-    const targetNameId = "99889-TESTA-ORDER-2";
-    const rowEl = rowRefs.current[targetNameId];
-    const containerEl = containerRef.current;
-    if (rowEl && containerEl) {
-      const rowRect = rowEl.getBoundingClientRect();
-      const containerRect = containerEl.getBoundingClientRect();
-      setCirclePos({
-        top: rowRect.top - containerRect.top,
-        right: containerRect.right - rowRect.right,
-        height: rowRect.height,
-      });
-    } else {
-      setCirclePos(null);
-    }
+    // Temporarily deactivating the circles
+    if (true) return;
+    // const targetNameId = "99889-TESTA-ORDER-2";
+    // const rowEl = rowRefs.current[targetNameId];
+    // const containerEl = containerRef.current;
+    // if (rowEl && containerEl) {
+    //   const rowRect = rowEl.getBoundingClientRect();
+    //   const containerRect = containerEl.getBoundingClientRect();
+    //   setCirclePos({
+    //     top: rowRect.top - containerRect.top,
+    //     right: containerRect.right - rowRect.right,
+    //     height: rowRect.height,
+    //   });
+    // } else {
+    //   setCirclePos(null);
+    // }
   }, [orders]);
 
   // dragSelections.current.clear();
@@ -573,8 +602,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       } else {
         // dragSelections.current.clear();
         // dragSelections.current = new Map(); // Clear selections on mouse up
-
-        console.log("This was a click, not a drag");
+        // console.log("This was a click, not a drag");
         pendingDragSelections.current.clear();
         dragSelections.current.clear();
         const cell = (e.target as HTMLElement).closest("td");
@@ -595,8 +623,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
         // This is a click (not a drag)
         // You can handle click here if needed
-        // console.log("This was a click, not a drag");
-
+        console.log("This was a click, not a drag");
         let rowIndex = -1;
         const tbody = row.parentElement;
         if (tbody && tbody.nodeName === "TBODY") {
@@ -629,6 +656,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             startRow: rowIndex,
             endRow: rowIndex,
           });
+          // addOrderViewer([])
         }
         forceUpdate((n) => n + 1);
       }
@@ -713,17 +741,54 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     // updateOrderCounts(counts);
   }, [orders]);
 
+  useEffect(() => {
+    // console.log("Drag selections changed:", dragSelections.current);
+    const selectedNameIds: string[] = [];
+    dragSelections.current.forEach((selection, table) => {
+      const tbody = table.querySelector("tbody");
+      if (!tbody) return;
+      const dataRows = Array.from(tbody.children).filter(
+        (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
+      );
+      const rowStart = Math.min(selection.startRow, selection.endRow);
+      const rowEnd = Math.max(selection.startRow, selection.endRow);
+
+      for (let i = rowStart; i <= rowEnd; i++) {
+        const row = dataRows[i];
+        // console.log("Selected row:", row.key);
+        if (!row) continue;
+        const nameId = row.getAttribute("name-id");
+        // console.log("Selected row name_id:", nameId);
+        if (nameId) {
+          selectedNameIds.push(nameId);
+        }
+        
+        // const nameId = rowRefs.current[row.getAttribute("name_id") || ""]?.getAttribute("name_id");
+        // if (nameId) selectedNameIds.push(nameId);
+        // console.log("Selected row name_id:", nameId);
+        // console.log("Selected row columns:", row.getAttribute("name_id"));
+      }
+    });
+    // console.log("Selected name_ids:", selectedNameIds);
+    if (selectedNameIds.length > 0) {
+      // console.log("Selected name_ids:", selectedNameIds);
+      addOrderViewer(selectedNameIds);
+    }
+  }, [updateCounter]);
+
   // Hash values
   useEffect(() => {
     if (typeof window !== "undefined") {
       const search = window.location.search;
       let value = null;
+      // console.log("Current search:", search);
       const eqIndex = search.indexOf("=");
       if (eqIndex !== -1) {
+        // console
         value = decodeURIComponent(search.substring(eqIndex + 1));
       }
       setHashValue(value);
-      console.log("Hash value set to:", value);
+      // console.log("Hash value set to:", value);
     }
   }, []);
 
@@ -755,12 +820,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [headers, setHeaders] = useState<string[]>(() => getMaterialHeaders(orderType, defaultPage));
   // const [scrollAreaName, setScrollAreaName] = useState<string>(orderType);
   const [rowHistory, setRowHistory] = useState<string[] | null>(null);
+  const [clickedTables, setClickedTables] = useState<Set<string>>(new Set());
   const [scrollAreaName, setScrollAreaName] = useState<string>("History");
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  const [hoveredTables, setHoveredTables] = useState<Set<string>>(new Set());
-  const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+  // const [hoveredTables, setHoveredTables] = useState<Set<string>>(new Set());
+  // const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
 
   // useEffect(() => {
   //   // Disables text selection while dragging
@@ -814,6 +879,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleCategoryClick = useCallback(
     (category: string) => {
+      // console.log("Category clicked:", category);
       // console.log(`Category clicked: ${category}`);
       setSelectedCategory(category);
       setHeaders(getMaterialHeaders(orderType, category.toLowerCase()));
@@ -833,10 +899,40 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   );
 
   useEffect(() => {
-    if (defaultPage) {
-      handleCategoryClick(defaultPage);
+    if (typeof window !== "undefined") {
+      const search = window.location.search;
+      let orderNumber: string = "";
+      if (search.startsWith("?")) {
+        const categoryFromUrl = decodeURIComponent(search.slice(1).split("=")[0]);
+        orderNumber = decodeURIComponent(search.slice(1).split("=")[1]);
+        // console.log("Order number from URL:", orderNumber);
+        // console.log("Category from URL:", categoryFromUrl);
+        if (
+          categoryFromUrl &&
+          categoryFromUrl !== selectedCategory &&
+          designatedCategories.some((cat) => cat.toLowerCase() === categoryFromUrl.toLowerCase())
+        ) {
+          handleCategoryClick(categoryFromUrl);
+        }
+        if (orderNumber) {
+          // Wait until the rowRef is available
+            let retries = 0;
+            const maxRetries = 10;
+            const checkAndScroll = () => {
+            const rowEl = rowRefs.current[orderNumber];
+            if (rowEl) {
+              scrollToOrder(orderNumber);
+            } else if (retries < maxRetries) {
+              retries++;
+              setTimeout(checkAndScroll, 500);
+            }
+            };
+            checkAndScroll();
+        }
+      }
     }
-  }, [defaultPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleCategoryClick, designatedCategories]);
 
   const handleCheckboxClick = useCallback(async (order: Order) => {
     // Ignore real-time updates for this order, to prevent flicker
@@ -878,7 +974,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleNewOrderSubmit = useCallback(
     async (values: Record<string, string>) => {
-      console.log("New order submitted with values:", values);
+      // console.log("New order submitted with values:", values);
       const result = await createCustomOrder(values);
       if (result.result == false) {
         // console.error("Error creating custom order:", result.message);
@@ -1024,36 +1120,37 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return null;
   }
 
-  const handleRowClick = useCallback(
-    (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
-      if (!row) {
-        console.warn("Row is null, skipping click handling.");
-        return;
-      }
-      console.log("Row clicked:", row.name_id);
-      // console.log("Row clicked:", row);
-      // Use the provided row element directly
-      if (rowEl) {
-        // console.log("Row element:", rowEl);
-        const rect = rowEl.getBoundingClientRect();
-        setMenuPos({ x: rect.right, y: rect.bottom });
-        // console.log("setting the menu pos", rect.right, rect.bottom);
-      }
-      const safeName = convertToSpaces(row.name_id);
-      if (copiedText) {
-        toast("Copied to clipboard", {
-          description: `Copied ${safeName} to clipboard.`,
-        });
-      }
+    const handleRowClick = useCallback(
+      (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
+        if (!row) {
+          console.warn("Row is null, skipping click handling.");
+          return;
+        }
+        console.log("Row clicked:", row.name_id);
+        // console.log("Row clicked:", row);
+        // Use the provided row element directly
+        if (rowEl) {
+          // console.log("Row element:", rowEl);
+          const rect = rowEl.getBoundingClientRect();
+          setMenuPos({ x: rect.right, y: rect.bottom });
+          // console.log("setting the menu pos", rect.right, rect.bottom);
+        }
+        const safeName = convertToSpaces(row.name_id);
+        if (copiedText) {
+          toast("Copied to clipboard", {
+            description: `Copied ${safeName} to clipboard.`,
+          });
+        }
 
-      if (!isRowClicked) {
-        console.log("setting row clicked");
-        setIsRowClicked(true);
-      }
-      setCurrentRowClicked(row);
-    },
-    [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
-  );
+        if (!isRowClicked) {
+          console.log("setting row clicked");
+          setIsRowClicked(true);
+        }
+        setCurrentRowClicked(row);
+      },
+      [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
+    );
+  
   // console.log(multiSelectedRows);
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];

@@ -196,6 +196,45 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   //   void updateZendeskStatus(order.order_id, newStatus); // don't block
   // }
 }
+export async function addOrderViewer(name_ids: string[]) {
+  const supabase = await createClient();
+
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("User is not logged in");
+
+  // 1. Delete any existing rows for this user
+  const { error: deleteError } = await supabase.from("order_viewers").delete().eq("user_id", user.id);
+
+  // console.log(deleteError?.code);
+  if (deleteError && deleteError.code !== "PGRST116") {
+    // PGRST116 = No rows found (Supabase/PostgREST)
+    // Log or rethrow only if error is not "no rows found"
+    console.error("Error clearing previous order viewers", deleteError);
+    throw new Error("Error clearing previous order viewers: " + deleteError.message);
+  }
+
+  // 2. Insert the new ones (if there are any)
+  if (name_ids.length > 0) {
+    const inserts = name_ids.map((name_id) => ({
+      user_id: user.id,
+      name_id,
+    }));
+
+    const { error: insertError } = await supabase
+      .from("order_viewers")
+      .upsert(inserts, { onConflict: "user_id,name_id" });
+
+    if (insertError) {
+      console.error("Error adding order viewers", insertError);
+      throw new Error("Error adding order viewers: " + insertError.message);
+    }
+    // console.log("Order viewers added successfully");
+  }
+  return true;
+}
 
 export async function updateOrderNotes(order: Order, newNotes: string) {
   // const ignore_zendesk = process.env.IGNORE_ZENDESK || false;
@@ -222,7 +261,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
   const timeStamp = getTimeStamp();
   updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
   // if (!ignore_zendesk || ignore_zendesk == "false") {
-    
+
   // }
   console.log("Order updated successfully");
 }

@@ -324,6 +324,7 @@ export function OrderTableBody({
               ref={getRowRef ? getRowRef(row.name_id) : undefined}
               datatype="data"
               key={row.name_id}
+              name-id={row.name_id}
               className={`
               [&>td]:py-1 align-top border-none ring-black-300 ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all
               ${
