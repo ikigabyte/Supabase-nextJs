@@ -51,11 +51,27 @@ const config = {
 
         gray: {
           301: "rgba(225, 225, 225, 1)", // your custom light gray
-		  302: "rgba(215, 215, 215, 1)", // your custom light gray
-		  303: "rgba(205, 205, 205, 1)", // your custom light gray with transparency
-		  304: "rgba(185, 185, 185, 1)", // your custom light gray with more transparency
-		  305: "rgba(170, 170, 170, 1)", // your custom light gray with even more transparency
+          302: "rgba(215, 215, 215, 1)", // your custom light gray
+          303: "rgba(205, 205, 205, 1)", // your custom light gray with transparency
+          304: "rgba(185, 185, 185, 1)", // your custom light gray with more transparency
+          305: "rgba(170, 170, 170, 1)", // your custom light gray with even more transparency
         },
+        red: {
+          101: "rgba(244, 204, 204, 1)", // your custom red
+        },
+        green: {
+          101: "rgba(217, 234, 211, 1)", //
+        },
+        orange: {
+          101: "rgba(250, 189, 123, 1)", //
+        },
+        yellow: {
+          101: "rgba(255, 242, 204, 1)", //
+        },
+        teal: {
+          101: "rgba(183, 246, 232, 1)", //
+        },
+
         chart: {
           "1": "hsl(var(--chart-1))",
           "2": "hsl(var(--chart-2))",

@@ -1196,6 +1196,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                       <OrderTableHeader tableHeaders={headers} />
                       <OrderTableBody
                         data={group}
+                        productionStatus={orderType}
                         onOrderClick={handleCheckboxClick}
                         onNotesChange={handleNoteChange}
                         setIsRowHovered={setIsRowHovered}
@@ -1243,6 +1244,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           categories={designatedCategories}
           counts={categoryCounts}
           onCategoryClick={handleCategoryClick}
+          categoryViewing ={selectedCategory}
         />
 
         {isRowHovered && (

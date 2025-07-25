@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 
 const getButtonColor = (category: string) => {
   switch (category) {
-    case 'rush':
-      return 'bg-red-800 text-white';
+    case "rush":
+      return "bg-red-800 text-white";
     // case 'white':
     //   return 'bg-gray-800 text-white';
     // case 'glitter':
@@ -30,30 +30,33 @@ const getButtonColor = (category: string) => {
     // case 'roll':
     //   return 'bg-orange-300 text-black';
     default:
-      return 'bg-gray-900 text-white';
+      return "bg-gray-900 text-white";
   }
 };
+
 export function ButtonOrganizer({
   categories = [],
   counts = {},
   onCategoryClick,
+  categoryViewing,
 }: {
   categories?: string[];
   counts?: Record<string, number>;
   onCategoryClick: (category: string) => void;
+  categoryViewing: string;
 }) {
   return (
     <div className="w-full flex justify-center">
       <div className="fixed bottom-0 left-0 pl-5 right-0 w-full flex justify-left bg-gray-500 py-2 z-30 shadow-lg">
         {categories.map((category) => {
+          const isActive = category === categoryViewing;
           const color = getButtonColor(category.toLowerCase());
+
+          // For active: add white border, for inactive: no extra border
+          const buttonClass = `${color} px-3 py-2 mx-1 ${isActive ? "border-2 border-white" : ""}`;
+
           return (
-            <Button
-              key={category}
-              variant="default"
-              className={`${color} px-3 py-2 mx-1`}
-              onClick={() => onCategoryClick(category)}
-            >
+            <Button key={category} variant="default" className={buttonClass} onClick={() => onCategoryClick(category)}>
               {category} ({counts[category] || 0})
             </Button>
           );

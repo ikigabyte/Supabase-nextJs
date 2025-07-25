@@ -140,6 +140,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          color: string | null
           due_date: string
           history: Json | null
           ihd_date: string | null
@@ -158,6 +159,7 @@ export type Database = {
           shipping_method: string
         }
         Insert: {
+          color?: string | null
           due_date: string
           history?: Json | null
           ihd_date?: string | null
@@ -176,6 +178,7 @@ export type Database = {
           shipping_method?: string
         }
         Update: {
+          color?: string | null
           due_date?: string
           history?: Json | null
           ihd_date?: string | null

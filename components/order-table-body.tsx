@@ -11,6 +11,57 @@ import { convertToSpaces } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
 // A controlled input that only commits on Enter
 
+// const allowedColors = [
+//   "bg-red-100",
+//   "bg-teal-100",
+//   "bg-green-100",
+//   "bg-blue-100",
+//   "bg-yellow-100",
+//   "bg-black-100"
+// ];
+
+const convertColorStringToValue = (colorString: string | null): string => {
+  // console.log(colorString)
+  if (!colorString || colorString == null) return ""; // Default color if no color is provided
+  // Convert color string to a value, e.g., "red-100" to "red"
+  switch (colorString.toLowerCase()) {
+    case "red":
+      return "bg-red-101";
+    case "teal":
+      return "bg-teal-101";
+    case "green":
+      return "bg-green-101";
+    case "blue":
+      return "bg-orange-101";
+    case "orange":
+      return "bg-orange-101";
+    case "yellow":
+      return "bg-yellow-101";
+    default:
+      return "bg-green-101"; // Default color if no match
+  }
+}
+
+// const convertToRandomColor = (colorString: string | null): string => {
+//   if (!colorString) return allowedColors[0]; // Default to first color
+//   const color = colorString.toLowerCase();
+//   switch (color) {
+//     case "red":
+//       return "bg-red-100";
+//     case "teal":
+//       return "bg-teal-100";
+//     case "green":
+//       return "bg-green-100";
+//     case "blue":
+//       return "bg-blue-100";
+//     case "yellow":
+//       return "bg-yellow-100";
+//     default:
+//       // Pick a random allowed color if not matched
+//       return allowedColors[Math.floor(Math.random() * allowedColors.length)];
+//   }
+// };
+
 const convertToDayOfTheWeek = (dateString: string | null) => {
   if (!dateString) return null;
   // Parse as local date
@@ -148,6 +199,7 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
 
 export function OrderTableBody({
   data,
+  productionStatus,
   onOrderClick,
   onNotesChange,
   setIsRowHovered,
@@ -165,6 +217,7 @@ export function OrderTableBody({
   getRowRef
 }: {
   data: Array<Order>;
+  productionStatus?: string; // Optional prop to filter by production status
   onOrderClick: (order: Order) => void;
   onNotesChange: (order: Order, newNotes: string) => void;
   setIsRowHovered: (hovered: boolean) => void;
@@ -307,8 +360,8 @@ export function OrderTableBody({
           }
         }
         const prev = data[i - 1];
-        const showSeparator = i > 0 && row.order_id !== prev.order_id;
-
+        const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
+        
         //* Took this out of line 309
         // ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
         // ${String(row.order_id) === hashValue ? "bg-yellow-200 !hover:bg-yellow-300" : ""}
@@ -317,7 +370,7 @@ export function OrderTableBody({
           <React.Fragment key={row.name_id}>
             {showSeparator && (
               <TableRow key={`sep-${row.name_id}`} className="h-full border-none" datatype="seperator">
-                <TableCell colSpan={5} className="h-4 bg-transparent hover:bg-white" />
+                <TableCell colSpan={5} className="h-4 bg-transparent" />
               </TableRow>
             )}
             <TableRow
@@ -326,15 +379,9 @@ export function OrderTableBody({
               key={row.name_id}
               name-id={row.name_id}
               className={`
-              [&>td]:py-1 align-top border-none ring-black-300 ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all
-              ${
-                isHighlighted
-                  ? "bg-blue-100 hover:bg-blue-200"
-                  : currentDay
-                  ? dayOfTheWeekColor[currentDay]
-                  : "bg-blue-300"
-              }
-            `}
+              [&>td]:py-1 align-top border-none  ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all
+                ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-blue-300"}
+                ${isHighlighted ? "bg-blue-300 hover:bg-blue-300" : "ring-gray-100"}`}
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
                 // setMultiSelectedRows((prev) => {
@@ -371,7 +418,15 @@ export function OrderTableBody({
                 // }
                 onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                 onMouseLeave={handleMouseLeave}
+                className={
+                  isHighlighted
+                  ? "bg-blue-300 hover:bg-blue-30 ring-1 ring-gray-100 ring-inset"
+                  : row.production_status === "print"
+                    ? convertColorStringToValue(row.color)
+                    : ""
+                }
                 onClick={(e) => {
+                  // console.log("Clicked on row", row.color);
                   const now = Date.now();
                   if (now - lastClickTime.current < 350) {
                     console.log("Double click detected on", safeName);
