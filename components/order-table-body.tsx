@@ -379,7 +379,7 @@ export function OrderTableBody({
               key={row.name_id}
               name-id={row.name_id}
               className={`
-              [&>td]:py-1 align-top border-none  ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all
+              [&>td]:py-1 align-top border-none  ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-nowrap break-all
                 ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-blue-300"}
                 ${isHighlighted ? "bg-blue-300 hover:bg-blue-300" : "ring-gray-100"}`}
               onClick={(e) => {

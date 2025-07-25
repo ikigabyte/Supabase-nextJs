@@ -29,7 +29,7 @@ export default async function ToPrintPage() {
   // };
   return (
     <div className="w-full overflow-x-auto">
-      <section className="p-1 pt-10 w-[95%] min-w-[1650px] flex flex-col gap-2 mb-40 mx-auto">
+      <section className="p-1 pt-10 w-[95%] flex flex-col gap-2 mb-40 mx-auto">
         <OrderOrganizer orderType="print" defaultPage="rush" />
       </section>
     </div>
