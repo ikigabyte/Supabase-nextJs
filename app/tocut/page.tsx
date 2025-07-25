@@ -25,9 +25,11 @@ export default async function ToPrintPage() {
   // const handleCategoryClick = (category: string) => {
   //   console.log(`Category clicked: ${category}`);
   // };
-  return (
-    <section className="p-2 pt-10 max-w-8xl w-[90%] flex flex-col gap-2 mb-40">
-      <OrderOrganizer orderType="cut" defaultPage="regular"/>
-    </section>
+   return (
+    <div className="w-full overflow-x-auto">
+      <section className="p-1 pt-10 w-[95%] min-w-[1650px] flex flex-col gap-2 mb-40 mx-auto">
+        <OrderOrganizer orderType="cut" defaultPage="regular" />
+      </section>
+    </div>
   );
 }

@@ -28,8 +28,10 @@ export default async function ToPrintPage() {
   //   console.log(`Category clicked: ${category}`);
   // };
   return (
-    <section className="p-1 pt-10 w-[90%] flex flex-col gap-2 mb-40">
-      <OrderOrganizer orderType="print" defaultPage="rush" />
-    </section>
+    <div className="w-full overflow-x-auto">
+      <section className="p-1 pt-10 w-[95%] min-w-[1650px] flex flex-col gap-2 mb-40 mx-auto">
+        <OrderOrganizer orderType="print" defaultPage="rush" />
+      </section>
+    </div>
   );
 }
