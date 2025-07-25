@@ -419,11 +419,14 @@ export function OrderTableBody({
                 onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                 onMouseLeave={handleMouseLeave}
                 className={
+                  "whitespace-normal break-all " +
+                  (
                   isHighlighted
-                  ? "bg-blue-300 hover:bg-blue-30 ring-1 ring-gray-100 ring-inset"
-                  : row.production_status === "print"
+                    ? "bg-blue-300 hover:bg-blue-30 ring-1 ring-gray-100 ring-inset"
+                    : row.production_status === "print"
                     ? convertColorStringToValue(row.color)
                     : ""
+                  )
                 }
                 onClick={(e) => {
                   // console.log("Clicked on row", row.color);
