@@ -53,7 +53,7 @@ export function OrderTableHeader({ tableHeaders }: { tableHeaders: string[] }) {
           <TableHead
             key={index}
             className={
-              `border-r border-gray-200 text-white truncate text-[11px]${
+              `border-r border-gray-200 font-bold text-white truncate text-[11px]${
                 tableHeaders[index]?.toLowerCase() === 'lamination' && laminationColor
                   ? laminationColor
                   : ''
@@ -61,7 +61,7 @@ export function OrderTableHeader({ tableHeaders }: { tableHeaders: string[] }) {
             }
             style={{ width: w }}>
             {tableHeaders[index]
-              ? tableHeaders[index].charAt(0).toUpperCase() + tableHeaders[index].slice(1)
+              ? tableHeaders[index].toUpperCase()
               : ""}
           </TableHead>
         ))}

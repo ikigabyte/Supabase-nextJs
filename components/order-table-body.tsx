@@ -40,7 +40,7 @@ const convertColorStringToValue = (colorString: string | null): string => {
     default:
       return "bg-green-101"; // Default color if no match
   }
-}
+};
 
 // const convertToRandomColor = (colorString: string | null): string => {
 //   if (!colorString) return allowedColors[0]; // Default to first color
@@ -140,6 +140,15 @@ const materialColors: { [key: string]: string } = {
   "clear-roll": "bg-teal-100",
 };
 
+const convertDateToReadableDate = (dateString: string | null): string => {
+  if (!dateString) return "-";
+  // Expecting format "YYYY-MM-DD"
+  const parts = dateString.split("-");
+  if (parts.length !== 3) return dateString;
+  const [_, month, day] = parts;
+  return `${month}-${day}`;
+}
+
 function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
   const [value, setValue] = useState(note);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -214,7 +223,7 @@ export function OrderTableBody({
   hashValue,
   handleDoubleClick,
   dragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map()),
-  getRowRef
+  getRowRef,
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -232,7 +241,7 @@ export function OrderTableBody({
   hashValue?: string | null; // Optional prop to track hash value
   handleDoubleClick: (fileName: string) => void;
   dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
-  getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void
+  getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void;
 }) {
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
@@ -361,7 +370,7 @@ export function OrderTableBody({
         }
         const prev = data[i - 1];
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
-        
+
         //* Took this out of line 309
         // ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
         // ${String(row.order_id) === hashValue ? "bg-yellow-200 !hover:bg-yellow-300" : ""}
@@ -420,13 +429,11 @@ export function OrderTableBody({
                 onMouseLeave={handleMouseLeave}
                 className={
                   "whitespace-normal break-all " +
-                  (
-                  isHighlighted
+                  (isHighlighted
                     ? "bg-blue-300 hover:bg-blue-30 ring-1 ring-gray-100 ring-inset"
                     : row.production_status === "print"
                     ? convertColorStringToValue(row.color)
-                    : ""
-                  )
+                    : "")
                 }
                 onClick={(e) => {
                   // console.log("Clicked on row", row.color);
@@ -500,8 +507,8 @@ export function OrderTableBody({
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
-              <TableCell className="">{row.due_date}</TableCell>
-              <TableCell className="">{row.ihd_date}</TableCell>
+              <TableCell className="">{convertDateToReadableDate(row.due_date)}</TableCell>
+              <TableCell className="">{convertDateToReadableDate(row.ihd_date)}</TableCell>
               <TableCell className={`text-[11px] truncate`}>
                 {capitalizeFirstLetter(row.shipping_method) || ""}
               </TableCell>
