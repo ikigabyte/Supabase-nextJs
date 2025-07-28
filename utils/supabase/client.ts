@@ -9,9 +9,8 @@ let supabase: SupabaseClient | null = null
  */
 export function createClientComponent(): SupabaseClient {
   if (!supabase) {
-    
     supabase = createClientComponentClient()
-    console.log("supabase", supabase)
+    // console.log("supabase", supabase)
   }
   return supabase
 }
