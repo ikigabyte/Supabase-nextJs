@@ -280,6 +280,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     Map<HTMLTableElement, { startRow: number; endRow: number /* , startCol: number; endCol: number */ }>
   >(new Map());
 
+  // console.log(dragSelections.current);
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragStartTime = useRef<number>(0);
   const pendingDragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map());

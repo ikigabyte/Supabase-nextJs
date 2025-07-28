@@ -69,8 +69,8 @@ const convertToDayOfTheWeek = (dateString: string | null) => {
   const date = new Date(year, month - 1, day); // monthIndex is 0-based
   const dayNumber = date.getDay();
   if (dayNumber === 0) {
-    console.log(dateString);
-    console.log("Sunday detected, returning 0");
+    // console.log(dateString);
+    // console.log("Sunday detected, returning 0");
     return 0;
   }
   return dayNumber;
@@ -342,9 +342,7 @@ export function OrderTableBody({
   const tableEl = tableRef.current?.closest("table") as HTMLTableElement | null;
   const dragSelection = dragSelections?.current && tableEl ? dragSelections.current.get(tableEl) : null;
 
-  // const lastSelectedIndexRef = useRef<number | null>(null);
-
-  // let isRowClicked = false;
+  // console.log("Drag selection:", dragSelection);
   return (
     // <div className={isTableClicked ? 'border border-black' : ''} onClick={() => setIsTableClicked(true)}>
     <TableBody ref={tableRef} className="py-5">
@@ -354,13 +352,14 @@ export function OrderTableBody({
         // Move checkbox state out of the map, see below
         const isChecked = checkedRows.has(row.name_id);
         const currentDay = convertToDayOfTheWeek(row.due_date);
+        console.log("Current day:", currentDay, "for row", row.name_id);
         const safeName = convertToSpaces(row.name_id);
         const isSelected = row.name_id === selectedNameId;
         const isHighlighted =
           !!dragSelection &&
           Math.min(dragSelection.startRow, dragSelection.endRow) <= i &&
           i <= Math.max(dragSelection.startRow, dragSelection.endRow);
-
+        // console.log(isHighlighted, "isHighlighted", row.name_id, i, dragSelection);
         differentOrderId = prevOrderId !== row.order_id;
         if (i === 0 && data.length > 1) {
           const nextOrder = data[i + 1];
@@ -389,7 +388,7 @@ export function OrderTableBody({
               name-id={row.name_id}
               className={`
               [&>td]:py-1 align-top border-none  ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-nowrap break-all
-                ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-blue-300"}
+                ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-red-100"}
                 ${isHighlighted ? "bg-blue-300 hover:bg-blue-300" : "ring-gray-100"}`}
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
@@ -436,11 +435,9 @@ export function OrderTableBody({
                     : "")
                 }
                 onClick={(e) => {
-                  // console.log("Clicked on row", row.color);
                   const now = Date.now();
                   if (now - lastClickTime.current < 350) {
                     console.log("Double click detected on", safeName);
-                    // 350ms threshold for double click
                     if (clickTimeout.current) clearTimeout(clickTimeout.current);
                     lastClickTime.current = 0;
                     handleDoubleClick(safeName); // Call your double click handler
