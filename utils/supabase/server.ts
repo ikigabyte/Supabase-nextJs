@@ -15,13 +15,18 @@ export async function createClient() {
         get(name: string) {
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: CookieOptions) {
+        set(name: string, value: string, options: CookieOptions = {}) {
+          const defaultOptions = {
+            path: "/",
+            sameSite: "lax",
+            maxAge: 60 * 60 * 24 * 30, // 30 days
+            secure: true, // uncomment for production HTTPS
+            ...options,
+          };
           try {
-            cookieStore.set({ name, value, ...options });
+            cookieStore.set({ name, value, ...defaultOptions });
           } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            // Ignore server component errors
           }
         },
         remove(name: string, options: CookieOptions) {

@@ -10,9 +10,9 @@ export default async function ToPrintPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  console.log("User data:", user);
+  // console.log("User data:", user);
   if (!user) {
-    console.log("User not found, redirecting to login");
+    // console.log("User not found, redirecting to login");
     return redirect("/login");
   }
 
