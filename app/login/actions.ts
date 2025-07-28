@@ -60,8 +60,8 @@ export async function oAuthSignIn(provider: Provider) {
 
   // console.log("working here so far")
   const supabase = await createClient();
-  console.log("working here so far");
   const redirectUrl = getURL("/auth/callback");
+  console.log("working here so far");
   console.log("redirectUrl", redirectUrl);
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: provider,
