@@ -1,21 +1,22 @@
-'use client'
+"use client";
 // import * as React from "react"
 import React, { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
-import {  redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 // import { OrderTypes } from "@/utils/orderTypes";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+// import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { TimelineOrder } from "@/types/custom";
 // import { OrderTableHeader } from "@/components/order-table-header";
 // import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 
 import Papa from "papaparse";
+import { getBrowserClient } from "@/utils/supabase/client";
 // const supabase = createClientComponentClient();
 
 const STATUS_ORDER = ["to_print", "to_cut", "to_ship", "to_pack"] as const;
-type StatusType = typeof STATUS_ORDER[number];
+type StatusType = (typeof STATUS_ORDER)[number];
 
 function getStatusIndex(status: string): number {
   // Ensure the status is a valid member of STATUS_ORDER
@@ -67,7 +68,7 @@ function isDateBeforeOrEqual(dateA: string | Date, dateB: string | Date) {
 //   return date.toLocaleDateString("en-US", options);
 // };
 
-const supabase = createClientComponentClient();
+const supabase = getBrowserClient();
 
 export function TimelineOrders() {
   const [dueOrders, setDueOrders] = useState<TimelineOrder[]>([]);
@@ -104,14 +105,14 @@ export function TimelineOrders() {
             const orderDate = new Date(order.ship_date + "T00:00:00Z");
             return orderDate <= new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z");
           })
-          .sort((a, b) => new Date(a.ship_date).getTime() - new Date(b.ship_date).getTime());
+          .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
 
         const future = data
           .filter((order) => {
             const orderDate = new Date(order.ship_date + "T00:00:00Z");
             return orderDate > new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z");
           })
-          .sort((a, b) => new Date(a.ship_date).getTime() - new Date(b.ship_date).getTime());
+          .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
 
         setDueOrders(due);
         setFutureOrders(future);
@@ -127,46 +128,46 @@ export function TimelineOrders() {
       .then(({ data }) => {
         if (data) {
           console.log("Time Updated:", data.production_status);
-          setTimeUpdated(formatLastUpdated(data.production_status));
+          setTimeUpdated(formatLastUpdated(data.production_status ?? ""));
           // setTimeUpdated(data.production_status);
         }
       });
     // console.log("Time Updated:", timeUpdated);
   }, []);
 
-const handleDownloadCSV = () => {
-  if (dueOrders.length === 0) {
-    alert("No due orders to export.");
-    return;
-  }
+  const handleDownloadCSV = () => {
+    if (dueOrders.length === 0) {
+      alert("No due orders to export.");
+      return;
+    }
 
-  const csv = Papa.unparse(
-    dueOrders.map((order) => {
-      const currentIdx = getStatusIndex(order.production_status ?? "");
-      // Option 1: Use checkmark (✓) and blank
-      // Option 2: Use TRUE/FALSE
-      return {
-        "Order ID": order.order_id,
-        "Shipping Method": order.shipping_method,
-        "Due Date": order.ship_date,
-        "IHD Date": order.ihd_date,
-        Print: currentIdx >= 0 ? "✓" : "",
-        Cut: currentIdx >= 1 ? "✓" : "",
-        Ship: currentIdx >= 2 ? "✓" : "",
-        Pack: currentIdx >= 3 ? "✓" : "",
-      };
-    })
-  );
+    const csv = Papa.unparse(
+      dueOrders.map((order) => {
+        const currentIdx = getStatusIndex(order.production_status ?? "");
+        // Option 1: Use checkmark (✓) and blank
+        // Option 2: Use TRUE/FALSE
+        return {
+          "Order ID": order.order_id,
+          "Shipping Method": order.shipping_method,
+          "Due Date": order.ship_date,
+          "IHD Date": order.ihd_date,
+          Print: currentIdx >= 0 ? "✓" : "",
+          Cut: currentIdx >= 1 ? "✓" : "",
+          Ship: currentIdx >= 2 ? "✓" : "",
+          Pack: currentIdx >= 3 ? "✓" : "",
+        };
+      })
+    );
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", "due_orders.csv");
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "due_orders.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   // console.log("Timeline Orders:", orders);
 
   // console.log("Due Orders:", dueOrders);
