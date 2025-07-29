@@ -46,9 +46,8 @@ export default async function CompletedPage() {
   const { data: orders, count } = await supabase
     .from("completed")
     .select("*", { count: "exact" })
-    .order("due_date", { ascending: false })
+    .order("inserted_date", { ascending: false })
     .range(from, to);
-
   // console.log(orders);
 
   // console.log("Fetched Completed orders:", orders);
