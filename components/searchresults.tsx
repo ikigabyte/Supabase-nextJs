@@ -1,18 +1,19 @@
 "use client";
 
 import React, { useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+// import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 import { SearchBar } from "./search-bar";
 import { Order } from "@/types/custom";
 import { useRouter } from "next/navigation";
+import { getBrowserClient } from "@/utils/supabase/client";
 
 export default function SearchResults() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [query, setQuery] = useState<string>("");
 
-  const supabase = createClientComponentClient();
+  const supabase = getBrowserClient();
 
   async function handleSearch(newQuery: string) {
     setQuery(newQuery);
