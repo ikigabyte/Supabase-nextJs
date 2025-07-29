@@ -1,48 +1,35 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
-import { type CookieOptions, createServerClient } from "@supabase/ssr";
+import type { Database } from "@/types/supabase";
 
-const THIRTY_DAYS = 60 * 60 * 24 * 30;
-
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  // if "next" is in param, use it as the redirect URL
-  const next = searchParams.get("next") ?? "/toprint";
-
-  if (code) {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({
-              name,
-              value,
-              ...options,
-              maxAge: THIRTY_DAYS,
-              path: "/",
-              sameSite: "lax",
-              secure: process.env.NODE_ENV === "production", // only secure in prod
-            });
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.delete({ name, ...options });
-          },
+export async function GET(request: NextRequest) {
+  const supabase = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        async getAll() {
+          const allCookies = await cookies();
+          return allCookies.getAll().map(c => ({ name: c.name, value: c.value }));
         },
-      }
-    );
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+        async setAll(toSet) {
+          const cookieStore = await cookies();
+          toSet.forEach(({ name, value, options }) =>
+            cookieStore.set({ name, value, ...options })
+          );
+        },
+      },
     }
-  }
+  );
 
-  // return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/login?message=Could not login with provider`);
+  // this reads the code from the URL, exchanges it for tokens, and writes the cookies
+  const { searchParams } = new URL(request.url);
+  const code = searchParams.get("code");
+  if (code) {
+    await supabase.auth.exchangeCodeForSession(code);
+  }
+  console.log("OAuth callback completed");
+  // now the response has Set-Cookie headers; redirect to your app
+  return NextResponse.redirect(new URL("/", request.url));
 }
