@@ -1,4 +1,4 @@
-"use server";
+'use server'
 
 import { Database } from "@/types/supabase";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
