@@ -8,7 +8,7 @@ const THIRTY_DAYS = 60 * 60 * 24 * 30;
 function hasSupabaseAuthCookie(request: NextRequest): boolean {
   // You may need to check both the access and refresh token cookies, depending on your flow
   // Replace <project-ref> with your actual Supabase project ref
-  const token = request.cookies.get("sb-suhckybivbzvlpbdvvnh-auth-token");
+  const token = request.cookies.get("sb-suhckybivbzvlpbdvvnh-auth-token.1");
   return Boolean(token && token.value);
 }
 
@@ -20,6 +20,7 @@ export async function updateSession(request: NextRequest) {
   });
 
   const hasAuth = hasSupabaseAuthCookie(request);
+  console.log("Has Supabase auth cookie:", hasAuth);
   // console.log(request);
   // console.log("hasAuth", hasAuth);
   const supabase = createServerClient(
@@ -80,10 +81,7 @@ export async function updateSession(request: NextRequest) {
   );
   //  console.log("now doing something here")
   const {
-    data: { session },
-    error,
-  } = await supabase.auth.getSession();
-  console.log("Fetched session:", session, "Error:", error);
-  const user = session?.user ?? null;
-  return { response, user, session, error };
+    data: { user },
+  } = await supabase.auth.getUser();
+  return { response, user }; // <-- Return both
 }
