@@ -69,10 +69,15 @@ export async function oAuthSignIn(provider: Provider) {
       redirectTo: redirectUrl,
     },
   });
-
   if (error) {
     return redirect("/login?message=Could not authenticate user");
   }
 
+  console.log("Data from OAuth sign-in:", data);
+  console.log("Data URL from OAuth sign-in:", data.url);
+  if (!data.url) {
+    console.error("No URL returned from OAuth sign-in");
+    return redirect("/login?message=Could not authenticate user");
+  }
   return redirect(data.url);
 }
