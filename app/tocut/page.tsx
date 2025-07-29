@@ -9,13 +9,9 @@ export default async function ToPrintPage() {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    console.log("User not found, redirecting to login");
-    return redirect("/login");
-  }
-
+  console.log("Fetched user:", user, "Error:", error);
   // Fetch orders
   // const { data: orders } = await supabase.from("orders").select().order("due_date", { ascending: false });
 
@@ -25,7 +21,7 @@ export default async function ToPrintPage() {
   // const handleCategoryClick = (category: string) => {
   //   console.log(`Category clicked: ${category}`);
   // };
-   return (
+  return (
     <div className="w-full overflow-x-auto">
       <section className="p-1 pt-10 w-[95%] flex flex-col gap-2 mb-40 mx-auto">
         <OrderOrganizer orderType="cut" defaultPage="regular" />

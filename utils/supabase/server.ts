@@ -15,7 +15,7 @@ const THIRTY_DAYS = 60 * 60 * 24 * 30;
 
 export async function createClient() {
   const cookieStore = await cookies();
-  console.log(cookieStore);
+  // console.log(cookieStore);
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

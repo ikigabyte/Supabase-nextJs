@@ -7,15 +7,12 @@ import { redirect } from "next/navigation";
 export default async function ToPrintPage() {
   const supabase = await createClient();
 
+  // console.log("Creating Supabase client", supabase);
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    console.log("User not found, redirecting to login");
-    return redirect("/login");
-  }
-
+  console.log("Fetched user:", user, "Error:", error);
   // console.log(supabase);
   // console.log("user", user);
   // Fetch orders
