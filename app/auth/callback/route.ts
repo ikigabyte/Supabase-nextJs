@@ -24,11 +24,13 @@ export async function GET(request: NextRequest) {
   // this reads the code from the URL, exchanges it for tokens, and writes the cookies
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  console.log("OAuth callback received code:", code);
   if (!code) {
     // handle missing code…
+    console.error("No code provided in the request");
     return NextResponse.redirect(new URL("/login", request.url));
   }
-
+  console.log("OAuth callback received code:", code);
   // 2. Call the old signature
   await supabase.auth.exchangeCodeForSession(code);
 
