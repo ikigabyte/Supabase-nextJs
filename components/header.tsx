@@ -35,9 +35,7 @@ const getInitals = (name: string) => {
 };
 export default function Header() {
   // const [user, setUser] = useState<any>(null);
-
   const supabase = getBrowserClient();
-
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
@@ -91,12 +89,9 @@ export default function Header() {
         <div className="flex flex-1 items-center justify-end space-x-2">
           {user ? (
             <>
-              {(user?.email?.[0] ?? "").toUpperCase()}
               <Form action={signOut} formMethod="POST" className="flex items-center gap-2">
                 <Button asChild className="h-8 w-8 rounded-full">
-                  <Link href="/user" title={user.email}>
-                    {(user.email?.[0] ?? "").toUpperCase()}
-                  </Link>
+                  <Link href="/user">{(user.email?.[0] ?? "").toUpperCase()}</Link>
                 </Button>
                 <Button type="submit" size="sm">
                   {" "}
