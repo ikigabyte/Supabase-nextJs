@@ -1,7 +1,7 @@
 "use client";
 
 import React, { Fragment, useEffect, useState, useMemo, useCallback, useRef } from "react";
-import type { Session } from "@supabase/supabase-js";
+// import { getbrow, type Session } from "@supabase/supabase-js";
 import { useRouter, usePathname, redirect } from "next/navigation";
 import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
@@ -10,6 +10,8 @@ import { OrderTableBody } from "./order-table-body";
 import { OrderInputter } from "./order-inputter";
 import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
+import { getBrowserClient } from "@/utils/supabase/client";
+import type { Session } from "@supabase/supabase-js";
 // lib/supabase.ts
 
 import { getButtonCategories } from "@/types/buttons";
@@ -19,7 +21,7 @@ import {
   removeOrderLine,
   removeOrderAll,
   createCustomOrder,
-  addOrderViewer
+  addOrderViewer,
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -28,7 +30,7 @@ import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
 import { OrderViewer } from "./order-viewer";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+// import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
@@ -215,7 +217,9 @@ function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
 // console.log("here is the supabase client" , supabase);
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
-  const supabase = createClientComponentClient();
+  const supabase = getBrowserClient();
+  // console
+  // console.log("Supabase client initialized:", supabase.auth.getUser());
 
   async function fetchAllOrders() {
     const allOrders = [];
@@ -762,7 +766,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (nameId) {
           selectedNameIds.push(nameId);
         }
-        
+
         // const nameId = rowRefs.current[row.getAttribute("name_id") || ""]?.getAttribute("name_id");
         // if (nameId) selectedNameIds.push(nameId);
         // console.log("Selected row name_id:", nameId);
@@ -916,9 +920,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
         if (orderNumber) {
           // Wait until the rowRef is available
-            let retries = 0;
-            const maxRetries = 10;
-            const checkAndScroll = () => {
+          let retries = 0;
+          const maxRetries = 10;
+          const checkAndScroll = () => {
             const rowEl = rowRefs.current[orderNumber];
             if (rowEl) {
               scrollToOrder(orderNumber);
@@ -926,8 +930,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               retries++;
               setTimeout(checkAndScroll, 500);
             }
-            };
-            checkAndScroll();
+          };
+          checkAndScroll();
         }
       }
     }
@@ -1120,37 +1124,37 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return null;
   }
 
-    const handleRowClick = useCallback(
-      (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
-        if (!row) {
-          console.warn("Row is null, skipping click handling.");
-          return;
-        }
-        console.log("Row clicked:", row.name_id);
-        // console.log("Row clicked:", row);
-        // Use the provided row element directly
-        if (rowEl) {
-          // console.log("Row element:", rowEl);
-          const rect = rowEl.getBoundingClientRect();
-          setMenuPos({ x: rect.right, y: rect.bottom });
-          // console.log("setting the menu pos", rect.right, rect.bottom);
-        }
-        const safeName = convertToSpaces(row.name_id);
-        if (copiedText) {
-          toast("Copied to clipboard", {
-            description: `Copied ${safeName} to clipboard.`,
-          });
-        }
+  const handleRowClick = useCallback(
+    (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
+      if (!row) {
+        console.warn("Row is null, skipping click handling.");
+        return;
+      }
+      console.log("Row clicked:", row.name_id);
+      // console.log("Row clicked:", row);
+      // Use the provided row element directly
+      if (rowEl) {
+        // console.log("Row element:", rowEl);
+        const rect = rowEl.getBoundingClientRect();
+        setMenuPos({ x: rect.right, y: rect.bottom });
+        // console.log("setting the menu pos", rect.right, rect.bottom);
+      }
+      const safeName = convertToSpaces(row.name_id);
+      if (copiedText) {
+        toast("Copied to clipboard", {
+          description: `Copied ${safeName} to clipboard.`,
+        });
+      }
 
-        if (!isRowClicked) {
-          console.log("setting row clicked");
-          setIsRowClicked(true);
-        }
-        setCurrentRowClicked(row);
-      },
-      [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
-    );
-  
+      if (!isRowClicked) {
+        console.log("setting row clicked");
+        setIsRowClicked(true);
+      }
+      setCurrentRowClicked(row);
+    },
+    [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
+  );
+
   // console.log(multiSelectedRows);
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
@@ -1244,7 +1248,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           categories={designatedCategories}
           counts={categoryCounts}
           onCategoryClick={handleCategoryClick}
-          categoryViewing ={selectedCategory}
+          categoryViewing={selectedCategory}
         />
 
         {isRowHovered && (

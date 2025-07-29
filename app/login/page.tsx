@@ -4,8 +4,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { emailLogin, signup } from "./actions";
 import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import { getServerClient } from "@/utils/supabase/server";
 import { OAuthButtons } from "./oath-signin";
+
+import Form from "next/form";
 
 export default async function Login({
   searchParams,
@@ -15,19 +17,15 @@ export default async function Login({
   // Await and normalize searchParams.message
   const { message: rawMessage } = await searchParams;
   const message: string | undefined =
-    rawMessage === undefined
-      ? undefined
-      : Array.isArray(rawMessage)
-      ? rawMessage[0]
-      : rawMessage;
+    rawMessage === undefined ? undefined : Array.isArray(rawMessage) ? rawMessage[0] : rawMessage;
 
-    const supabase = await createClient();
-     const {
-       data: { user },
-     } = await supabase.auth.getUser();
-    if (user) {
-      redirect("/toprint");
-    };
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    redirect("/toprint");
+  }
   return (
     <section className="h-[calc(100vh-57px)] flex justify-center items-center">
       <Card className="mx-auto max-w-sm">
@@ -36,31 +34,31 @@ export default async function Login({
           <CardDescription>Enter your email below to login to your account</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <form id="login-form" className="grid gap-4">
+          <Form action={emailLogin} formMethod="POST" className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="m@example.com" required />
+              <Input id="email" name="email" type="email" autoComplete="email" required />
             </div>
             <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-              </div>
-              <Input minLength={6} name="password" id="password" type="password" required />
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" name="password" type="password" autoComplete="current-password" required />
             </div>
             {message && <div className="text-sm font-medium text-destructive">{message}</div>}
-            <Button formAction={emailLogin} className="w-full">
+            {/* regular submit button now */}
+            <Button type="submit" className="w-full">
               Sign In
             </Button>
-          </form>
+          </Form>
           <OAuthButtons />
-          <div className="text-center text-sm">
-            Don&apos;t have an account?{" "}
-            <button formAction={signup} form="login-form" className="underline">
-              Sign up
-            </button>
-          </div>
+          {/* <Form action={signup} formMethod="POST" className="flex justify-center">
+            <Button type="submit" className="w-full">
+              Sign Up
+            </Button>
+          </Form> */}
         </CardContent>
+   
       </Card>
     </section>
+   
   );
 }

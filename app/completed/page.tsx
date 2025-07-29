@@ -3,7 +3,7 @@
 // import { ButtonOrganizer } from "@/components/button-organizer";
 import { OrderOrganizer } from "@/components/order-organizer";
 // import { Separator } from "@/components/ui/separator";
-import { createClient } from "@/utils/supabase/server";
+import { getServerClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import {
   Pagination,
@@ -22,15 +22,15 @@ import { Button } from "@/components/ui/button";
 import { CompletedOrganizer } from "@/components/completed-organizer";
 
 export default async function CompletedPage() {
-  const supabase = await createClient();
-  console.log("Creating Supabase client", supabase);
+  const supabase = await getServerClient();
+  // console.log("Creating Supabase client", supabase);
 
   // console.log("Creating Supabase client", supabase);
   const {
     data: { user },
     error,
   } = await supabase.auth.getUser();
-  console.log("Fetched user:", user, "Error:", error);
+  // console.log("Fetched user:", user, "Error:", error);
 
   // if (!user) {
   //   console.log("User not found, redirecting to login");

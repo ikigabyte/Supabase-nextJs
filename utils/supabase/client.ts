@@ -1,17 +1,14 @@
-// utils/supabase/client.ts
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
+import type { Database } from '@/types/supabase'
 
-let supabase: SupabaseClient | null = null
+let supabase: ReturnType<typeof createBrowserClient<Database>> | null = null
 
-/**
- * Returns a Supabase client scoped to the current logged-in user (reads JWT from cookies)
- */
-export function createClientComponent(): SupabaseClient {
+export function getBrowserClient() {
   if (!supabase) {
-    
-    supabase = createClientComponentClient()
-    console.log("supabase", supabase)
+    supabase = createBrowserClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
   }
-  return supabase
+  return supabase 
 }

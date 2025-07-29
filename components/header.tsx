@@ -1,11 +1,15 @@
+"use client";
+
 import { signOut } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/utils/supabase/server";
+// import { getServerClient } from "@/utils/supabase/server";
+
 import Link from "next/link";
 import { Input } from "./ui/input";
 import { count } from "console";
 import { OrderTypes } from "@/utils/orderTypes";
 import { Order } from "@/types/custom";
+import Form from "next/form";
 
 // import {}
 // import { SearchBar } from "./search-bar";
@@ -14,6 +18,8 @@ import { Order } from "@/types/custom";
 // import { redirect } from 'next/navigation'
 import { redirect } from "next/navigation";
 import { NavBarElement } from "./navbar-element";
+import { useEffect, useState } from "react";
+import { getBrowserClient } from "@/utils/supabase/client";
 
 function getProductionCounts(orders: Order[], orderTypes: OrderTypes[]): Record<string, number> {
   return orderTypes.reduce((acc, category) => {
@@ -24,14 +30,40 @@ function getProductionCounts(orders: Order[], orderTypes: OrderTypes[]): Record<
 }
 
 const getInitals = (name: string) => {
-    return name[0].charAt(0).toUpperCase();
-}
+  return name[0].charAt(0).toUpperCase();
+};
+export default function Header() {
+  // const [user, setUser] = useState<any>(null);
 
-export default async function Header() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = getBrowserClient();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchUser() {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    }
+    fetchUser();
+  }, [supabase]);
+
+  console.log("User in Header:", user);
+
+  // useEffect(() => {
+  //   async function fetchUser() {
+  //     const supabase = getBrowserClient();
+  //     const {
+  //       data: { user },
+  //     } = await supabase.auth.getUser();
+  //     if (!user) {
+  //       // redirect("/login");
+  //     } else {
+  //       setUser(user);
+  //     }
+  //   }
+  //   fetchUser();
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
+  // console.log("User in Header:", user);
 
   return (
     <header className="z-10 sticky top-0 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -45,18 +77,21 @@ export default async function Header() {
           </div>
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
-          {user !== null ? (
-            <form action={signOut} className="flex items-center gap-2">
-              <Button
-                asChild
-                size="icon"
-                className="rounded-full w-8 h-8 p-0 flex items-center justify-center text-xs font-bold border border-black"
-                title={user.email}
-              >
-                <Link href="/user">{getInitals(user.email || "User")}</Link>
-              </Button>
-              <Button size="sm">Sign Out</Button>
-            </form>
+          {user ? (
+            <>
+              {(user?.email?.[0] ?? "").toUpperCase()}
+              <Form action={signOut} formMethod="POST" className="flex items-center gap-2">
+                <Button asChild className="h-8 w-8 rounded-full">
+                  <Link href="/user" title={user.email}>
+                    {(user.email?.[0] ?? "").toUpperCase()}
+                  </Link>
+                </Button>
+                <Button type="submit" size="sm">
+                  {" "}
+                  Sign Out
+                </Button>
+              </Form>
+            </>
           ) : (
             <Button asChild>
               <Link href="/login">Sign In</Link>

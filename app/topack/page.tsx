@@ -1,11 +1,11 @@
 // import { ButtonOrganizer } from "@/components/button-organizer";
 import { OrderOrganizer } from "@/components/order-organizer";
 import { Separator } from "@/components/ui/separator";
-import { createClient } from "@/utils/supabase/server";
+import { getServerClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
 export default async function ToPrintPage() {
-  const supabase = await createClient();
+  const supabase = await getServerClient();
 
   const {
     data: { user },

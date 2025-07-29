@@ -1,7 +1,7 @@
-'use server'
+"use server";
 
 import { Order } from "@/types/custom";
-import { createClient } from "@/utils/supabase/server";
+import { getServerClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { OrderTypes } from "./orderTypes";
 
@@ -53,7 +53,7 @@ const getTimeStamp = () => {
 };
 
 async function getSiblingOrders(orderId: number, newStatus: string): Promise<boolean> {
-  const supabase = await createClient();
+  const supabase = await getServerClient();
   const { data, error } = await supabase.from("orders").select("*").eq("order_id", orderId);
   if (error) {
     console.error("Error fetching orders for order_id", orderId, error);
@@ -74,7 +74,7 @@ async function getSiblingOrders(orderId: number, newStatus: string): Promise<boo
 }
 
 async function addHistoryForUser(nameid: string, newStatus: string, previousStatus: string) {
-  const supabase = await createClient();
+  const supabase = await getServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -100,7 +100,7 @@ async function addHistoryForUser(nameid: string, newStatus: string, previousStat
 }
 
 export async function removeOrderLine(order: Order) {
-  const supabase = await createClient();
+  const supabase = await getServerClient();
 
   const {
     data: { user },
@@ -121,7 +121,7 @@ export async function removeOrderLine(order: Order) {
 }
 
 export async function removeOrderAll(orderId: number) {
-  const supabase = await createClient();
+  const supabase = await getServerClient();
 
   const {
     data: { user },
@@ -144,7 +144,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
   if (!order) throw new Error("No order provided");
 
-  const supabase = await createClient();
+  const supabase = await getServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -201,7 +201,7 @@ export async function addOrderViewer(name_ids: string[]) {
     console.warn("No name_ids provided for order viewers");
     return false;
   }
-  const supabase = await createClient();
+  const supabase = await getServerClient();
 
   // Get the current user
   const {
@@ -242,7 +242,7 @@ export async function addOrderViewer(name_ids: string[]) {
 
 export async function updateOrderNotes(order: Order, newNotes: string) {
   // const ignore_zendesk = process.env.IGNORE_ZENDESK || false;
-  const supabase = await createClient();
+  const supabase = await getServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -277,7 +277,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
 
 export async function createCustomOrder(values: Record<string, string>) {
   // console.log("Creating custom order with values:", values);
-  const supabase = await createClient();
+  const supabase = await getServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -292,7 +292,11 @@ export async function createCustomOrder(values: Record<string, string>) {
   // }
 
   // Insert the new order; mapping record keys to database column names
-  const orderData: Record<string, string> & { orderType: string; production_status: string } = { ...values, orderType: "2", production_status: "print" }; // force orderType to "2"
+  const orderData: Record<string, string> & { orderType: string; production_status: string } = {
+    ...values,
+    orderType: "2",
+    production_status: "print",
+  }; // force orderType to "2"
   if (!orderData.due_date || (typeof orderData.due_date === "string" && orderData.due_date.trim() === "")) {
     const today = new Date();
     const yyyy = today.getFullYear();

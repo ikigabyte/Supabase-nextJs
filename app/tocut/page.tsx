@@ -1,17 +1,21 @@
 // import { ButtonOrganizer } from "@/components/button-organizer";
 import { OrderOrganizer } from "@/components/order-organizer";
 import { Separator } from "@/components/ui/separator";
-import { createClient } from "@/utils/supabase/server";
+import { getBrowserClient } from "@/utils/supabase/client";
 import { redirect } from "next/navigation";
 
-export default async function ToPrintPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  console.log("Fetched user:", user, "Error:", error);
+export default async function ToCutPage() {
+  const supabase = getBrowserClient();
+  console.log("INIT:", supabase);
+  
+  // const {
+  //   data: { user },
+  //   error,
+  // } = await supabase.auth.getUser();
+  // if (!user) {
+    // redirect("/login");
+  
+  // console.log("Supabase client", supabase);
   // Fetch orders
   // const { data: orders } = await supabase.from("orders").select().order("due_date", { ascending: false });
 

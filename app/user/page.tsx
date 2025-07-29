@@ -2,14 +2,13 @@
  
 import { Separator } from "@/components/ui/separator";
 import { UserOrders } from "@/components/user-orders";
-import { createClient } from "@/utils/supabase/server";
+import { getServerClient } from "@/utils/supabase/server";
  
  export default async function UserPage() {
-   const supabase = await createClient();
+   const supabase = await getServerClient();
    const {
      data: { user },
    } = await supabase.auth.getUser();
-
    return (
      <>
        <UserOrders/>

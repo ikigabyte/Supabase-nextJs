@@ -3,8 +3,9 @@
 import Link from "next/link";
 
 import React, { useState, useEffect } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+// import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
+import { getBrowserClient } from "@/utils/supabase/client";
 
 import { useRouter } from "next/navigation";
 import type { Session } from '@supabase/supabase-js';
@@ -16,7 +17,6 @@ interface NavBarElementProps {
 
 export function NavBarElement() {
   const router = useRouter();
-
   // const handleSearch = (query: string) => {
   //   console.log("Search query:", query);
   //   router.push(`/search?query=${query}`);
@@ -24,7 +24,8 @@ export function NavBarElement() {
 
   // console.log(supabase)
   const [counts, setCounts] = useState({ print: 0, cut: 0, pack: 0, ship: 0 });
-  const supabase = createClientComponentClient();
+  const supabase = getBrowserClient();
+  console.log("Supabase client initialized:", supabase);
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {

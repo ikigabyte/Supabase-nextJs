@@ -1,20 +1,19 @@
-'use client'
+"use client";
 // import * as React from "react"
 import React, { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { SkipBack, Eye, MailOpen, Trash } from "lucide-react"
+import { SkipBack, Eye, MailOpen, Trash } from "lucide-react";
 import { Separator } from "./ui/separator";
 import { OrderTypes } from "@/utils/orderTypes";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+// import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { History } from "@/types/custom";
 import { OrderTableHeader } from "@/components/order-table-header";
-
+import { getBrowserClient } from "@/utils/supabase/client";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 
-const supabase = createClientComponentClient();
+const supabase = getBrowserClient();
 
 const formatDate = (dateString: string | null) => {
-
   if (!dateString || dateString == null) {
     return "";
   }
@@ -28,8 +27,7 @@ const formatDate = (dateString: string | null) => {
     second: "2-digit",
   };
   return date.toLocaleDateString("en-US", options);
-
-}
+};
 export function UserOrders() {
   const [orders, setOrders] = useState<History[]>([]);
   const [user, setUser] = useState<string>("Guest");
@@ -40,7 +38,7 @@ export function UserOrders() {
       setUser(data.user?.email ?? "Guest");
     });
   }, [user]);
-  
+
   useEffect(() => {
     supabase
       .from("history")

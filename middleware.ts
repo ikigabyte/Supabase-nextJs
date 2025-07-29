@@ -3,11 +3,12 @@ import { updateSession } from "@/utils/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   const { response, user } = await updateSession(request);
-  console.log("Middleware executed, user:", user);
+  // console.log("Middleware executed, user:", user);
   // Redirect if not logged in and not already on login page
+  console.log("Middleware executed, user:", user);
   if (!user && !request.nextUrl.pathname.startsWith("/login")) {
     console.log("User not logged in, redirecting to login page");
-    // return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return response;
