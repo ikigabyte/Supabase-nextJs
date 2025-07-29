@@ -24,10 +24,13 @@ import { CompletedOrganizer } from "@/components/completed-organizer";
 export default async function CompletedPage() {
   const supabase = await createClient();
   console.log("Creating Supabase client", supabase);
-  
+
   // console.log("Creating Supabase client", supabase);
-const { data: { user }, error } = await supabase.auth.getUser();
-console.log("Fetched user:", user, "Error:", error);
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  console.log("Fetched user:", user, "Error:", error);
 
   // if (!user) {
   //   console.log("User not found, redirecting to login");
