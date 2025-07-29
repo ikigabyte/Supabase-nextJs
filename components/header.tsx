@@ -10,6 +10,7 @@ import { count } from "console";
 import { OrderTypes } from "@/utils/orderTypes";
 import { Order } from "@/types/custom";
 import Form from "next/form";
+import type { Session } from "@supabase/supabase-js";
 
 // import {}
 // import { SearchBar } from "./search-bar";
@@ -36,17 +37,28 @@ export default function Header() {
   // const [user, setUser] = useState<any>(null);
 
   const supabase = getBrowserClient();
-  const [user, setUser] = useState<any>(null);
 
+  const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
-    async function fetchUser() {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
-    }
-    fetchUser();
-  }, [supabase]);
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      // console.log("Session:", session, "Error:", error);
+      setSession(session);
+    });
+  }, []);
 
-  console.log("User in Header:", user);
+  const user = session?.user || null;
+  // const
+  // const { user} = supabase.auth.getUser();
+  // const [user, setUser] = useState<any>(null);
+
+  // useEffect(() => {
+  //   async function fetchUser() {
+  //     const supabase = getBrowserClient();
+  //     const { data } = await supabase.auth.getUser();
+  //     setUser(data.user);
+  //   }
+  //   fetchUser();
+  // }, [supabase]);
 
   // useEffect(() => {
   //   async function fetchUser() {
