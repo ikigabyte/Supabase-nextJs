@@ -34,8 +34,10 @@ export default async function Login({
     <section className="h-[calc(100vh-57px)] flex justify-center items-center">
       <Card className="mx-auto max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>Enter your email below to login to your account</CardDescription>
+          <CardTitle className="text-2xl text-center">Login</CardTitle>
+          <CardDescription className="text-center">
+            Enter your Stickerbeat Email below to login to your account
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Form action={emailLogin} formMethod="POST" className="grid gap-4">
@@ -54,9 +56,7 @@ export default async function Login({
             </Button>
           </Form>
           <OAuthButtons />
-          {message && (
-            <div className="text-sm text-destructive text-center">{message}</div>
-          )}
+          {message && <div className="text-sm text-destructive text-center">{message}</div>}
           {/* <Form action={signup} formMethod="POST" className="flex justify-center">
             <Button type="submit" className="w-full">
               Sign Up

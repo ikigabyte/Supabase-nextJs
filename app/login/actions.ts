@@ -19,7 +19,7 @@ export async function emailLogin(formData: FormData) {
     password: formData.get("password") as string,
   };
   const { data, error } = await supabase.auth.signInWithPassword(info);
-  console.log("Data being sent to Supabase:", data);
+  // console.log("Data being sent to Supabase:", data);
   if (error) {
     console.error("Error logging in", error);
     redirect("/login?message=Could not authenticate user");

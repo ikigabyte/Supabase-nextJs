@@ -33,18 +33,25 @@ function getProductionCounts(orders: Order[], orderTypes: OrderTypes[]): Record<
 const getInitals = (name: string) => {
   return name[0].charAt(0).toUpperCase();
 };
+
 export default function Header() {
   // const [user, setUser] = useState<any>(null);
   const supabase = getBrowserClient();
-  const [session, setSession] = useState<Session | null>(null);
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      // console.log("Session:", session, "Error:", error);
-      setSession(session);
-    });
-  }, []);
+  const [user, setUser] = useState<any>(null);
 
-  const user = session?.user || null;
+  useEffect(() => {
+    async function fetchUser() {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    }
+    fetchUser();
+  }, [supabase]);
+
+  console.log("User in Header:", user);
+  const email = user?.email ?? null;
+  // const [session, setSession] = useState<Session | null>(null);
+
+  // const user = session?.user ?? null;
   // const
   // const { user} = supabase.auth.getUser();
   // const [user, setUser] = useState<any>(null);
@@ -91,7 +98,7 @@ export default function Header() {
             <>
               <Form action={signOut} formMethod="POST" className="flex items-center gap-2">
                 <Button asChild className="h-8 w-8 rounded-full">
-                  <Link href="/user">{(user.email?.[0] ?? "").toUpperCase()}</Link>
+                  <Link href="/user">{(email[0] ?? "").toUpperCase()}</Link>
                 </Button>
                 <Button type="submit" size="sm">
                   {" "}

@@ -940,16 +940,22 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleCheckboxClick = useCallback(async (order: Order) => {
     // Ignore real-time updates for this order, to prevent flicker
+    // setMultiSelectedRows((prev) => {
+    //   const next = new Map(prev);
+    //   next.delete(order.name_id);
+    //   return next;
+    // });
+
     setCurrentRowClicked(null);
     setIsRowClicked(false);
+    dragSelections.current.clear();
     ignoreUpdateIds.current.add(order.name_id);
     pendingRemovalIds.current.add(order.name_id);
     // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
     // console.log(`Order clicked: ${order.name_id}`);
+
     setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
     updateOrderStatus(order, false);
-    // setTimeout(() => {
-    // }, 1000);
     toast("Order updated", {
       description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
         order.production_status,
@@ -962,6 +968,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         },
       },
     });
+
+    // setTimeout(() => {
+    // }, 1000);
   }, []);
   // const createNewOrder = useCallback(async (Record<stringify, string) => {
   //   // console.log("Reverting status for order", order.name_id);
@@ -1155,6 +1164,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
   );
 
+  // console.log(dragSelections.current)
   // console.log(multiSelectedRows);
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
