@@ -54,7 +54,6 @@ export default async function Login({
             </Button>
           </Form>
           <OAuthButtons />
-
           {message && (
             <div className="text-sm text-destructive text-center">{message}</div>
           )}

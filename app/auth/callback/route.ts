@@ -3,21 +3,41 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/supabase";
 import { getServerClient } from "@/utils/supabase/server";
+import { createServer } from "http";
 
-export async function GET(req: Request) {
-  const url  = new URL(req.url)
-  const code = url.searchParams.get('code')
-  if (!code) return NextResponse.redirect(new URL('/login', url))
+export async function GET(request: Request) {
+  const url      = new URL(request.url)
+  const code     = url.searchParams.get('code')
+  const nextPath = url.searchParams.get('next') ?? '/toprint'
 
-  // disable Supabase’s auto-redirect so we can pull cookies
-  const supabase = await getServerClient()
-  const { error, ...rest } =
-    await supabase.auth.exchangeCodeForSession(code)
-  if (error) return NextResponse.redirect(new URL('/login?error=oauth', url))
+  if (!code) {
+    return NextResponse.redirect(`${url.origin}/login?message=Missing%20code`)
+  }
 
-  // grab all Set-Cookie headers Supabase just generated
-  const setCookies = (rest as any).response.headers.getSetCookie?.() ?? []
-  const res = NextResponse.redirect(new URL('/', url))
-  setCookies.forEach((c: string) => res.headers.append('Set-Cookie', c))
-  return res
+  // grab Next.js’s cookie store
+  const cookieStore = await cookies()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      // new, batch-based cookie methods
+      cookies: {
+        getAll: () =>
+          cookieStore.getAll().map(({ name, value }) => ({ name, value })),
+        setAll: (newCookies) =>
+          newCookies.forEach(({ name, value, options }) =>
+            cookieStore.set({ name, value, ...options })
+          ),
+      },
+    }
+  )
+
+  const { error } = await supabase.auth.exchangeCodeForSession(code)
+  if (error) {
+    console.error('OAuth exchange failed:', error)
+    return NextResponse.redirect(`${url.origin}/login?error=oauth`)
+  }
+
+  return NextResponse.redirect(`${url.origin}${nextPath}`)
 }
