@@ -5,28 +5,28 @@ import type { Database } from "@/types/supabase";
 import { getServerClient } from "@/utils/supabase/server";
 import { createServer } from "http";
 
-export async function GET(req: Request) {
-  const { searchParams, origin } = new URL(req.url);
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  let next = searchParams.get("next") ?? "/";
-  if (!next.startsWith("/")) next = "/";
+  const nextPath = searchParams.get("next")?.startsWith("/") ? searchParams.get("next") : "/";
 
-  console.log("Next path for redirect:", next);
-  console.log("Code received for OAuth:", code);
-  if (code) {
-    const supabase = createBrowserClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+  if (!code) {
+    console.error("Missing OAuth code");
+    return NextResponse.redirect(`${origin}/login?error=missing_code`);
   }
 
-  console.error("OAuth exchange failed or no code provided");
-  // fall-back – show an error page of your choice
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+  // ← server-side client that reads/writes Supabase cookies
+  const supabase = await getServerClient();
+  // console.log("Supabase client created for OAuth exchange");
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) {
+    console.error("OAuth exchange failed:", error);
+    return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+  }
+  // console.log("OAuth exchange successful, data:", data);
+  // success → redirect to wherever the user came from (or “/”)
+  return NextResponse.redirect(`${origin}${nextPath}`);
 }
-
 // export async function GET(request: Request) {
 //   const url = new URL(request.url);
 //   const code = url.searchParams.get("code");

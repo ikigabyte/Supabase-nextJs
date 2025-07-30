@@ -1,14 +1,23 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from "@/utils/supabase/middleware";
+import { url } from 'inspector';
 
 export async function middleware(request: NextRequest) {
   const { response, user } = await updateSession(request);
   // console.log("Middleware executed, user:", user);
   // Redirect if not logged in and not already on login page
   // console.log("Middleware executed, user:", user);
+  const url = request.nextUrl.pathname;
+
+   if (url.startsWith('/auth/callback') || url === '/login') {
+    // console.log("Skipping middleware for auth/callback or login page");
+    return NextResponse.next();
+  }
+
   if (!user && !request.nextUrl.pathname.startsWith("/login")) {
+    // console.log(new URL(request.url));
     // console.log("User not logged in, redirecting to login page");
-    return NextResponse.redirect(new URL("/login", request.url));
+    // return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return response;
@@ -17,14 +26,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     * 
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // everything except _next, images, favicon, login **and auth/callback**
+    '/((?!_next/static|_next/image|favicon.ico|login|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-}
+};

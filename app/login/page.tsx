@@ -20,7 +20,7 @@ export default async function Login({
     return Array.isArray(v) ? v[0] : v;
   };
   const message = normalize((await searchParams).message);
-  console.log("Login page message:", message);
+  // console.log("Login page message:", message);
   // const error = normalize((await searchParams).error);
   // console.log("Login page error:", error);
   const supabase = await getServerClient();

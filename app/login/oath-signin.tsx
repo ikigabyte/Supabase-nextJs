@@ -46,9 +46,16 @@ export function OAuthButtons() {
     console.log("Signing in with Google");
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${location.origin}/auth/callback` },
+      options: {
+        redirectTo: `${location.origin}/auth/callback`,
+        queryParams: {
+          prompt: "select_account", // force account picker  [oai_citation:0‡Reddit](https://www.reddit.com/r/Supabase/comments/16nkfts/after_logout_when_i_click_on_sign_in_with_google/?utm_source=chatgpt.com)
+          access_type: "offline", // if you need a refresh token
+          include_granted_scopes: "true", // optional: retain previously granted scopes
+        },
+      },
     });
-
+    console.log(supabase.auth);
   };
   return (
     <Button onClick={signIn} className="w-full">

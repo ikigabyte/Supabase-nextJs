@@ -47,9 +47,21 @@ export async function signup(formData: FormData) {
 
 export async function signOut() {
   const supabase = await getServerClient(); // *Very important from the supabase server file
-  await supabase.auth.signOut();
-  console.log("succesfully signed out");
-  redirect("/login");
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.provider_token) {
+    await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(session.provider_token)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+  }
+  const { error } = await supabase.auth.signOut({ scope: "global" });
+  if (error) console.error("Supabase signOut failed:", error.message);
+  redirect("/login?message=You have been signed out");
+
+  // 3️⃣ Redirect back to your login page
+  // window.location.href = "/login";
 }
 
 // export async function oAuthSignIn(provider: Provider) {
