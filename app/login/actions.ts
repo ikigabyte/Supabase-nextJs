@@ -52,39 +52,39 @@ export async function signOut() {
   redirect("/login");
 }
 
-export async function oAuthSignIn(provider: Provider) {
-  console.log("oAuthSignIn called with provider:", provider);
-  if (!provider) {
-    console.log("No provider selected");
-    return redirect("/login?message=No provider selected");
-  }
-  // await supabase.auth.signOut(); // * Sign out the user before signing in with OAuth
-  // console.log("working here so far")
-  const supabase = await getServerClient();
+// export async function oAuthSignIn(provider: Provider) {
+//   console.log("oAuthSignIn called with provider:", provider);
+//   if (!provider) {
+//     console.log("No provider selected");
+//     return redirect("/login?message=No provider selected");
+//   }
+//   // await supabase.auth.signOut(); // * Sign out the user before signing in with OAuth
+//   // console.log("working here so far")
+//   const supabase = await getServerClient();
 
-  const redirectUrl = getURL("/auth/callback");
-  console.log("Redirect URL for OAuth:", redirectUrl);
-  // console.log("working here so far");
-  console.log("redirectUrl", redirectUrl);
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: provider,
-    options: {
-      redirectTo: redirectUrl,
-    },
-  });
-  if (error) {
-    console.error("Error during OAuth sign-in:", error);
-    // return redirect("/login?message=Could not authenticate user");
-  }
-  console.log("Data from OAuth sign-in:", data);
-  console.log("Data URL from OAuth sign-in:", data.url);
-  if (!data.url) {
-    console.error("No URL returned from OAuth sign-in");
-    return;
-    // return redirect("/login?message=Could not authenticate user");
-  }
-  // return NextResponse.json({ code, headers: Object.fromEntries(request.headers) })
+//   const redirectUrl = getURL("/auth/callback");
+//   console.log("Redirect URL for OAuth:", redirectUrl);
+//   // console.log("working here so far");
+//   console.log("redirectUrl", redirectUrl);
+//   const { data, error } = await supabase.auth.signInWithOAuth({
+//     provider: provider,
+//     options: {
+//       redirectTo: redirectUrl,
+//     },
+//   });
+//   if (error) {
+//     console.error("Error during OAuth sign-in:", error);
+//     // return redirect("/login?message=Could not authenticate user");
+//   }
+//   console.log("Data from OAuth sign-in:", data);
+//   console.log("Data URL from OAuth sign-in:", data.url);
+//   if (!data.url) {
+//     console.error("No URL returned from OAuth sign-in");
+//     return;
+//     // return redirect("/login?message=Could not authenticate user");
+//   }
+//   // return NextResponse.json({ code, headers: Object.fromEntries(request.headers) })
 
-  console.log("Redirecting to OAuth URL:", data.url);
-  return redirect(data.url);
-}
+//   console.log("Redirecting to OAuth URL:", data.url);
+//   return redirect(data.url);
+// }

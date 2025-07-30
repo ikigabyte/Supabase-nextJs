@@ -1,16 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createBrowserClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/supabase";
 import { getServerClient } from "@/utils/supabase/server";
 import { createServer } from "http";
 
-export async function GET(request: Request) {
-  const url  = new URL(request.url);
-  const code = url.searchParams.get("code");
-  console.log("↪️ callback hit, code:", code);
-  // instead of redirecting:
-  return NextResponse.json({ hit: true, code });
+export async function GET(req: Request) {
+  const { searchParams, origin } = new URL(req.url);
+  const code = searchParams.get("code");
+  let next = searchParams.get("next") ?? "/";
+  if (!next.startsWith("/")) next = "/";
+
+  console.log("Next path for redirect:", next);
+  console.log("Code received for OAuth:", code);
+  if (code) {
+    const supabase = createBrowserClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) return NextResponse.redirect(`${origin}${next}`);
+  }
+
+  console.error("OAuth exchange failed or no code provided");
+  // fall-back – show an error page of your choice
+  return NextResponse.redirect(`${origin}/auth/auth-code-error`);
 }
 
 // export async function GET(request: Request) {
