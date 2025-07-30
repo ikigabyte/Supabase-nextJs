@@ -5,7 +5,6 @@ import type { Database } from "@/types/supabase";
 import { getServerClient } from "@/utils/supabase/server";
 import { createServer } from "http";
 
-
 export async function GET(request: Request) {
   const url  = new URL(request.url);
   const code = url.searchParams.get("code");
