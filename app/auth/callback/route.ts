@@ -4,22 +4,28 @@ import { cookies } from "next/headers";
 import type { Database } from "@/types/supabase";
 import { getServerClient } from "@/utils/supabase/server";
 
-export async function GET(request: NextRequest) {
-  const supabase = await getServerClient();
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  // optional “next” redirect path
+  let next = searchParams.get('next') ?? '/'
+  if (!next.startsWith('/')) next = '/'
 
-  // this reads the code from the URL, exchanges it for tokens, and writes the cookies
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  console.log("OAuth callback received code:", code);
-  if (!code) {
-    // handle missing code…
-    console.error("No code provided in the request");
-    return NextResponse.redirect(new URL("/login", request.url));
+  if (code) {
+    const supabase = await getServerClient()
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) {
+      // handle local vs. proxied host
+      const isDev = process.env.NODE_ENV === 'development'
+      const host = isDev
+        ? origin
+        : request.headers.get('x-forwarded-host') 
+          ? `https://${request.headers.get('x-forwarded-host')}`
+          : origin
+      return NextResponse.redirect(`${host}${next}`)
+    }
   }
-  console.log("OAuth callback received code:", code);
-  // 2. Call the old signature
-  await supabase.auth.exchangeCodeForSession(code);
-  console.log("OAuth callback completed");
-  // now the response has Set-Cookie headers; redirect to your app
-  return NextResponse.redirect(new URL("/", request.url));
+
+  // fallback on error
+  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
 }

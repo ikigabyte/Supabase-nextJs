@@ -61,7 +61,7 @@ export async function oAuthSignIn(provider: Provider) {
   // console.log("working here so far")
   const supabase = await getServerClient();
   const redirectUrl = getURL("/auth/callback");
-  console.log("working here so far");
+  // console.log("working here so far");
   console.log("redirectUrl", redirectUrl);
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: provider,
@@ -80,6 +80,7 @@ export async function oAuthSignIn(provider: Provider) {
     return
     // return redirect("/login?message=Could not authenticate user");
   }
+  // return NextResponse.json({ code, headers: Object.fromEntries(request.headers) })
 
   console.log("Redirecting to OAuth URL:", data.url);
   return redirect(data.url);

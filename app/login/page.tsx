@@ -15,10 +15,14 @@ export default async function Login({
   searchParams: Promise<{ message?: string | string[] | undefined }>;
 }) {
   // Await and normalize searchParams.message
-  const { message: rawMessage } = await searchParams;
-  const message: string | undefined =
-    rawMessage === undefined ? undefined : Array.isArray(rawMessage) ? rawMessage[0] : rawMessage;
-
+  const normalize = (v?: string | string[] | undefined): string | undefined => {
+    if (v === undefined) return undefined;
+    return Array.isArray(v) ? v[0] : v;
+  };
+  const message = normalize((await searchParams).message);
+  console.log("Login page message:", message);
+  // const error = normalize((await searchParams).error);
+  // console.log("Login page error:", error);
   const supabase = await getServerClient();
   const {
     data: { user },
@@ -43,22 +47,24 @@ export default async function Login({
               <Label htmlFor="password">Password</Label>
               <Input id="password" name="password" type="password" autoComplete="current-password" required />
             </div>
-            {message && <div className="text-sm font-medium text-destructive">{message}</div>}
+            {/* <LoginErrors /> */}
             {/* regular submit button now */}
             <Button type="submit" className="w-full">
               Sign In
             </Button>
           </Form>
           <OAuthButtons />
+
+          {message && (
+            <div className="text-sm text-destructive text-center">{message}</div>
+          )}
           {/* <Form action={signup} formMethod="POST" className="flex justify-center">
             <Button type="submit" className="w-full">
               Sign Up
             </Button>
           </Form> */}
         </CardContent>
-   
       </Card>
     </section>
-   
   );
 }
