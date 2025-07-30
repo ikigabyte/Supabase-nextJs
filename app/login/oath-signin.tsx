@@ -24,11 +24,12 @@ export function OAuthButtons() {
     <>
       {oAuthProviders.map((provider) => (
         <Button
-        key={provider.name}
+          key={provider.name}
           className="w-full flex items-center justify-center gap-2"
           variant="outline"
           onClick={async () => {
-            await oAuthSignIn(provider.name);
+            console.log("Signing in with provider:", provider.name);
+            oAuthSignIn(provider.name);
           }}
         >
           {provider.icon}

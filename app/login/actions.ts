@@ -53,6 +53,7 @@ export async function signOut() {
 }
 
 export async function oAuthSignIn(provider: Provider) {
+  console.log("oAuthSignIn called with provider:", provider);
   if (!provider) {
     console.log("No provider selected");
     return redirect("/login?message=No provider selected");
@@ -60,9 +61,9 @@ export async function oAuthSignIn(provider: Provider) {
   // await supabase.auth.signOut(); // * Sign out the user before signing in with OAuth
   // console.log("working here so far")
   const supabase = await getServerClient();
-    await supabase.auth.signOut();
 
   const redirectUrl = getURL("/auth/callback");
+  console.log("Redirect URL for OAuth:", redirectUrl);
   // console.log("working here so far");
   console.log("redirectUrl", redirectUrl);
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -73,7 +74,7 @@ export async function oAuthSignIn(provider: Provider) {
   });
   if (error) {
     console.error("Error during OAuth sign-in:", error);
-    return redirect("/login?message=Could not authenticate user");
+    // return redirect("/login?message=Could not authenticate user");
   }
   console.log("Data from OAuth sign-in:", data);
   console.log("Data URL from OAuth sign-in:", data.url);
