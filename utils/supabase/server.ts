@@ -1,6 +1,6 @@
-'use server'
+"use server";
 
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function getServerClient() {
@@ -15,6 +15,24 @@ export async function getServerClient() {
       async setAll(cookiesToSet) {
         const cookieStore = await cookies();
         cookiesToSet.forEach(({ name, value, options }) => cookieStore.set({ name, value, ...options }));
+      },
+    },
+  });
+}
+
+export async function getServerRouterClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      // read *all* cookies that came in
+      getAll: () => cookieStore.getAll().map(({ name, value }) => ({ name, value })),
+
+      // write back exactly what Supabase wants to set
+      setAll: (toSet) => {
+        toSet.forEach(({ name, value, options }) => {
+          cookieStore.set({ name, value, ...options });
+        });
       },
     },
   });

@@ -2,30 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/supabase";
-import { getServerClient } from "@/utils/supabase/server";
+import { getServerRouterClient } from "@/utils/supabase/server";
 
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  // optional “next” redirect path
-  let next = searchParams.get('next') ?? '/'
-  if (!next.startsWith('/')) next = '/'
+export async function GET(req: Request) {
+  const url = new URL(req.url)
+  const code = url.searchParams.get('code')
+  if (!code) return NextResponse.redirect(new URL('/login', url))
 
-  if (code) {
-    const supabase = await getServerClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      // handle local vs. proxied host
-      const isDev = process.env.NODE_ENV === 'development'
-      const host = isDev
-        ? origin
-        : request.headers.get('x-forwarded-host') 
-          ? `https://${request.headers.get('x-forwarded-host')}`
-          : origin
-      return NextResponse.redirect(`${host}${next}`)
-    }
+  const supabase = await getServerRouterClient()
+  const { error } = await supabase.auth.exchangeCodeForSession(code)
+  if (error) {
+    console.error('Auth exchange failed', error)
+    return NextResponse.redirect(new URL('/login?error=oauth', url))
   }
 
-  // fallback on error
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+  return NextResponse.redirect(new URL('/', url))
 }
