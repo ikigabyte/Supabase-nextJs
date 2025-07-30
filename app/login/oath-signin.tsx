@@ -23,18 +23,23 @@ export function OAuthButtons() {
   return (
     <>
       {oAuthProviders.map((provider) => (
-        <Button
-          key={provider.name}
-          className="w-full flex items-center justify-center gap-2"
-          variant="outline"
-          onClick={async () => {
-            console.log("Signing in with provider:", provider.name);
-            oAuthSignIn(provider.name);
+        <form
+          key={provider.name}               // ← unique key
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await oAuthSignIn(provider.name);
           }}
         >
-          {provider.icon}
-          Sign in with {provider.displayName}
-        </Button>
+          {/* explicit hidden input so provider.name is passed */}
+          <input
+            type="hidden"
+            name="provider"
+            value={provider.name}
+          />
+          <button type="submit">
+            Sign in with {provider.displayName}
+          </button>
+        </form>
       ))}
     </>
   );
