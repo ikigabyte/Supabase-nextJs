@@ -5,16 +5,16 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 import { SearchBar } from "./search-bar";
 import { Order } from "@/types/custom";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { getBrowserClient } from "@/utils/supabase/client";
 
 export default function SearchResults() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  // const searchParams = useSearchParams();
 
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [query, setQuery] = useState<string>("");
-  const initialQuery = searchParams.get("query") || "";
+  // const initialQuery = searchParams.get("query") || "";
 
   const supabase = getBrowserClient();
 
@@ -54,6 +54,14 @@ export default function SearchResults() {
     [supabase]
   );
 
+  useEffect(() => {
+    const q = new URL(window.location.href).searchParams.get("query") || "";
+    setQuery(q);
+    handleSearch(q);
+    // we only want to run on mount, so we disable exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const getCorrectPage = (productionStatus: string, material: string, orderQuery: string) => {
     // Only allow "regular" or "roll" for cut, pack, ship
     const normalizedMaterial = material === "regular" || material === "roll" ? material : "regular";
@@ -71,11 +79,11 @@ export default function SearchResults() {
         return `search?${orderQuery ? `order=${orderQuery}` : ""}`; // Fallback
     }
   };
-  useEffect(() => {
-    if (initialQuery) {
-      handleSearch(initialQuery);
-    }
-  }, [initialQuery, handleSearch]);
+  // useEffect(() => {
+  //   if (initialQuery) {
+  //     handleSearch(initialQuery);
+  //   }
+  // }, [initialQuery, handleSearch]);
 
   // now change it so that if it's clicked then it can redirect to the page
   return (
