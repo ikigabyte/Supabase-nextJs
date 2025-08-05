@@ -1,36 +1,58 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 // import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 import { SearchBar } from "./search-bar";
 import { Order } from "@/types/custom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getBrowserClient } from "@/utils/supabase/client";
 
 export default function SearchResults() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [query, setQuery] = useState<string>("");
+  const initialQuery = searchParams.get("query") || "";
 
   const supabase = getBrowserClient();
 
-  async function handleSearch(newQuery: string) {
-    setQuery(newQuery);
-    if (!newQuery) {
-      setOrders([]);
-      return;
-    }
+  const handleSearch = useCallback(
+    async (newQuery: string) => {
+      setQuery(newQuery);
+      if (!newQuery) {
+        setOrders([]);
+        return;
+      }
 
-    const { data, error } = await supabase.from("orders").select("*").eq("order_id", parseInt(newQuery, 10));
+      // detect “all digits”
+      const isNumeric = /^\d+$/.test(newQuery);
 
-    if (error) {
-      console.error("Error fetching orders:", error);
-      setOrders([]);
-    } else {
-      setOrders(data);
-    }
-  }
+      // build the right supabase query
+      let builder = supabase.from("orders").select("*");
+
+      if (isNumeric) {
+        // exact match on order_id
+        builder = builder.eq("order_id", parseInt(newQuery, 10));
+      } else {
+        // exact (or you could use ilike for partial) on name_id
+        builder = builder.eq("name_id", newQuery);
+        // or for partial matches:
+        // builder = builder.ilike("name_id", `%${newQuery}%`)
+      }
+
+      const { data, error } = await builder;
+
+      if (error) {
+        console.error("Search error:", error);
+        setOrders([]);
+      } else {
+        setOrders(data ?? []);
+      }
+    },
+    [supabase]
+  );
 
   const getCorrectPage = (productionStatus: string, material: string, orderQuery: string) => {
     // Only allow "regular" or "roll" for cut, pack, ship
@@ -49,6 +71,11 @@ export default function SearchResults() {
         return `search?${orderQuery ? `order=${orderQuery}` : ""}`; // Fallback
     }
   };
+  useEffect(() => {
+    if (initialQuery) {
+      handleSearch(initialQuery);
+    }
+  }, [initialQuery, handleSearch]);
 
   // now change it so that if it's clicked then it can redirect to the page
   return (
@@ -79,11 +106,7 @@ export default function SearchResults() {
                   () =>
                     router.push(
                       // how do we get the
-                      getCorrectPage(
-                        order.production_status ?? "",
-                        order.material ?? "",
-                        order.name_id ?? ""
-                      )
+                      getCorrectPage(order.production_status ?? "", order.material ?? "", order.name_id ?? "")
                     )
                   // console.log("Clicked order:", order.name_id)
                 }

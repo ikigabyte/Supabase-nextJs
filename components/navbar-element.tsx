@@ -7,8 +7,11 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { getBrowserClient } from "@/utils/supabase/client";
 
-import { useRouter } from "next/navigation";
+import { DialogSearch } from "./search-dialog";
+import SearchResults from "@/components/searchresults";
 import type { Session } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
+
 // import { Session } from "inspector";
 
 interface NavBarElementProps {
@@ -16,9 +19,16 @@ interface NavBarElementProps {
 }
 
 export function NavBarElement() {
+  const router = useRouter(); // ← call hook here, once
+
   const [counts, setCounts] = useState({ print: 0, cut: 0, pack: 0, ship: 0 });
   const supabase = getBrowserClient();
   console.log("Supabase client initialized:", supabase);
+
+  function onSearch(searchTerm: string) {
+    router.push(`/search?query=${encodeURIComponent(searchTerm)}`);
+  }
+
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
@@ -79,9 +89,7 @@ export function NavBarElement() {
       <Link id="timeline" href="/timeline">
         Timeline
       </Link>
-      <Link id="search" href="/search">
-        Search
-      </Link>
+      <DialogSearch onSearch={onSearch} />
     </div>
   );
 }
