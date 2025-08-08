@@ -7,14 +7,15 @@ const laminationHeaderColors = {
   "matte" : "bg-purple-500",
   "gloss" : "bg-blue-500",
 }
-export function OrderTableHeader({ tableHeaders, orderType }: { tableHeaders: string[]; orderType: string }) {
+export function OrderTableHeader({ tableHeaders, productionStatus }: { tableHeaders: string[]; productionStatus: string }) {
   var laminationColor = '';
 
-  // Add an extra header if orderType is 'print'
+  console.log("Table Headers:", tableHeaders);
+  // Add an extra header if productionStatus is 'print'
   let headers = tableHeaders;
   let headerWidths = widths;
 
-  if (orderType === "print") {
+  if (productionStatus === "print") {
     headers = [
       ...tableHeaders.slice(0, 9),
       "ASIGNEE",

@@ -1231,7 +1231,7 @@ const handleAsigneeClick = useCallback(
                   <>
                     <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
                     <Table className="mb-5">
-                      <OrderTableHeader tableHeaders={headers} orderType={orderType} />
+                      <OrderTableHeader tableHeaders={headers} productionStatus={orderType} />
                       <OrderTableBody
                         data={group}
                         productionStatus={orderType}
