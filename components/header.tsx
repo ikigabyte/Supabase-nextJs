@@ -22,13 +22,13 @@ import { NavBarElement } from "./navbar-element";
 import { useEffect, useState } from "react";
 import { getBrowserClient } from "@/utils/supabase/client";
 
-function getProductionCounts(orders: Order[], orderTypes: OrderTypes[]): Record<string, number> {
-  return orderTypes.reduce((acc, category) => {
-    const count = orders.filter((order) => order.material?.toLowerCase() === category.toLowerCase()).length;
-    acc[category] = count;
-    return acc;
-  }, {} as Record<string, number>);
-}
+// function getProductionCounts(orders: Order[], orderTypes: OrderTypes[]): Record<string, number> {
+//   return orderTypes.reduce((acc, category) => {
+//     const count = orders.filter((order) => order.material?.toLowerCase() === category.toLowerCase()).length;
+//     acc[category] = count;
+//     return acc;
+//   }, {} as Record<string, number>);
+// }
 
 const getInitals = (name: string) => {
   return name[0].charAt(0).toUpperCase();

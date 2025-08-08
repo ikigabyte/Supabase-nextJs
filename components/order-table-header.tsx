@@ -7,61 +7,49 @@ const laminationHeaderColors = {
   "matte" : "bg-purple-500",
   "gloss" : "bg-blue-500",
 }
-export function OrderTableHeader({ tableHeaders }: { tableHeaders: string[] }) {
-  var laminationColor = ''
+export function OrderTableHeader({ tableHeaders, orderType }: { tableHeaders: string[]; orderType: string }) {
+  var laminationColor = '';
 
-  // console.log("this is the keyName", keyName)
-  // const lowerCase
-  // const split = keyName.split("-");
-  // console.log("this is the split", split)
+  // Add an extra header if orderType is 'print'
+  let headers = tableHeaders;
+  let headerWidths = widths;
 
-  // if (split.includes("matte") || split.includes("gloss")) {
-  //   // console.log("this has the matte or gloss thing hewre")
-  //   const laminationType = split[split.length - 2];
-  //   // console.log("this is the lamination type", laminationType)
-  //   laminationColor = laminationHeaderColors[laminationType as keyof typeof laminationHeaderColors];
-  //   // laminationColor = laminationHeaderColors[split[split.length - 1] as keyof typeof laminationHeaderColors];
-  //   // console.log("this is the lamination color", laminationColor)
-  // }
-  // if (keyName.includes("matte") || keyName.includes("gloss")) {
-  //   console.log("this has the matte or gloss thing hewre")
-    
-  // }
+  if (orderType === "print") {
+    headers = [
+      ...tableHeaders.slice(0, 9),
+      "ASIGNEE",
+      ...tableHeaders.slice(9),
+    ];
 
-  // // const split = keyName.split("-");
-  // // console.log("this is the split", split)
-  // // const laminationType = split[split.length - 1];
-  // // // const hasLamination = laminationType == "matte" || laminationType == "gloss";
-  // // const hasLamination = false
-  // // console.log(laminationType)
-  // var hasLamination = false;
-  // // const hasLamination = laminationType.includes("matte") || tableHeaders.includes("gloss");
-  // // console.log(hasLamination)
-  // if (hasLamination) {
-    
-  //   const split = keyName.split("-");
-  //   // const laminationType = split[split.length - 1];
-  //   laminationColor = laminationHeaderColors[laminationType as keyof typeof laminationHeaderColors];
-  //   // laminationColor = laminationHeaderColors[keyName[0]];
-  // }
-  // console.log(laminationColor);
+    // Find the index of the 25% width and reduce it by 3%
+    const widthsCopy = [...widths];
+    const idx25 = widthsCopy.findIndex(w => w === "25%");
+    if (idx25 !== -1) {
+      widthsCopy[idx25] = "23%";
+    }
+    headerWidths = [
+      ...widthsCopy.slice(0, 5),
+      "2%",
+      ...widthsCopy.slice(5),
+    ];
+  }
+
   return (
     <TableHeader>
       <TableRow className="h-.5 [&>th]:py-0 text-xs bg-gray-500 hover:bg-gray-500">
-        {widths.map((w, index) => (
-          // console.log("this is the key", keyName),
+        {headerWidths.map((w, index) => (
           <TableHead
             key={index}
             className={
               `border-r border-gray-200 font-bold text-white truncate text-[11px]${
-                tableHeaders[index]?.toLowerCase() === 'lamination' && laminationColor
+                headers[index]?.toLowerCase() === 'lamination' && laminationColor
                   ? laminationColor
                   : ''
               }`
             }
             style={{ width: w }}>
-            {tableHeaders[index]
-              ? tableHeaders[index].toUpperCase()
+            {headers[index]
+              ? headers[index].toUpperCase()
               : ""}
           </TableHead>
         ))}

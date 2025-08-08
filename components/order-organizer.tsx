@@ -22,6 +22,7 @@ import {
   removeOrderAll,
   createCustomOrder,
   addOrderViewer,
+  assignOrderToUser
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -38,6 +39,7 @@ import { toast } from "sonner";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
 // import { ScrollBar } from "./ui/scroll-area";
 import { convertToSpaces } from "@/lib/utils";
+import { DropdownAsignee } from "./dropdown";
 
 const databaseVersion = 1.79;
 
@@ -271,6 +273,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [scrollPosition, setScrollPosition] = useState<number>(0); // Temporary
   // Move these hooks above useEffect so they're in scope in subscription handlers
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
+  const [displayDropdown, setDisplayDropdown] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
   const rowRefs = useRef<{ [name_id: string]: HTMLTableRowElement | null }>({});
@@ -825,6 +828,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // const [scrollAreaName, setScrollAreaName] = useState<string>(orderType);
   const [rowHistory, setRowHistory] = useState<string[] | null>(null);
   const [clickedTables, setClickedTables] = useState<Set<string>>(new Set());
+  const [users, setUsers] = useState<Set<string>>(new Set());
   const [scrollAreaName, setScrollAreaName] = useState<string>("History");
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -1133,6 +1137,26 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return null;
   }
 
+const handleAsigneeClick = useCallback(
+  async (row: Order) => {
+    if (!session?.user?.email) return;
+    const me = session.user.email;
+
+    // 1) Optimistically update client‐side:
+    setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: me } : o)));
+
+    // 2) Fire off the real request:
+    try {
+      assignOrderToUser(row);
+    } catch (err) {
+      console.error("assign failed", err);
+      // 3) (optional) roll back if it errored:
+      setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
+      // toast("Couldn’t assign order", { type: "error" });
+    }
+  },
+  [session, setOrders]
+);
   const handleRowClick = useCallback(
     (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
       if (!row) {
@@ -1207,7 +1231,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                   <>
                     <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
                     <Table className="mb-5">
-                      <OrderTableHeader tableHeaders={headers} />
+                      <OrderTableHeader tableHeaders={headers} orderType={orderType} />
                       <OrderTableBody
                         data={group}
                         productionStatus={orderType}
@@ -1227,6 +1251,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         getRowRef={(name_id: string) => (el: HTMLTableRowElement | null) => {
                           rowRefs.current[name_id] = el;
                         }}
+                        onAsigneeClick={handleAsigneeClick}
                       />
                     </Table>
                   </>
@@ -1288,9 +1313,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         )}
         {/* <This is for dialaying the notifications */}
       </div>
+      {/* <DropdownAsignee/> */}
       {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
         1 && <OrderViewer dragSelections={dragSelections} />}
       <Toaster theme={"dark"} richColors={true} />
+
+      {/* <DropdownAsignee asignees={Array.from(users)} /> */}
     </>
   );
 }

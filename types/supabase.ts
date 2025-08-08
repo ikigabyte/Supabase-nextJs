@@ -41,10 +41,13 @@ export type Database = {
     Tables: {
       completed: {
         Row: {
+          asignee: string | null
+          color: string | null
           due_date: string | null
           history: Json | null
           ihd_date: string | null
           ink: string | null
+          inserted_date: string
           lamination: string | null
           material: string | null
           name_id: string
@@ -59,10 +62,13 @@ export type Database = {
           shipping_method: string
         }
         Insert: {
+          asignee?: string | null
+          color?: string | null
           due_date?: string | null
           history?: Json | null
           ihd_date?: string | null
           ink?: string | null
+          inserted_date?: string
           lamination?: string | null
           material?: string | null
           name_id: string
@@ -77,10 +83,13 @@ export type Database = {
           shipping_method?: string
         }
         Update: {
+          asignee?: string | null
+          color?: string | null
           due_date?: string | null
           history?: Json | null
           ihd_date?: string | null
           ink?: string | null
+          inserted_date?: string
           lamination?: string | null
           material?: string | null
           name_id?: string
@@ -140,6 +149,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          asignee: string | null
           color: string | null
           due_date: string
           history: Json | null
@@ -156,9 +166,10 @@ export type Database = {
           quantity: string
           rush: boolean
           shape: string | null
-          shipping_method: string
+          shipping_method: string | null
         }
         Insert: {
+          asignee?: string | null
           color?: string | null
           due_date: string
           history?: Json | null
@@ -175,9 +186,10 @@ export type Database = {
           quantity?: string
           rush?: boolean
           shape?: string | null
-          shipping_method?: string
+          shipping_method?: string | null
         }
         Update: {
+          asignee?: string | null
           color?: string | null
           due_date?: string
           history?: Json | null
@@ -194,7 +206,7 @@ export type Database = {
           quantity?: string
           rush?: boolean
           shape?: string | null
-          shipping_method?: string
+          shipping_method?: string | null
         }
         Relationships: []
       }

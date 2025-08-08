@@ -9,6 +9,23 @@ import { Separator } from "./ui/separator";
 import { headers } from "next/headers";
 import { convertToSpaces } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
+import { Button } from "@/components/ui/button"
+// import {
+//   DropdownMenu,
+//   DropdownMenuContent,
+//   DropdownMenuGroup,
+//   DropdownMenuItem,
+//   DropdownMenuLabel,
+//   DropdownMenuPortal,
+//   DropdownMenuSeparator,
+//   DropdownMenuShortcut,
+//   DropdownMenuSub,
+//   DropdownMenuSubContent,
+//   DropdownMenuSubTrigger,
+//   DropdownMenuTrigger,
+// } from "@/components/ui/dropdown-menu"
+// import { DropdownAsignee } from "./dropdown";
+
 // A controlled input that only commits on Enter
 
 // const allowedColors = [
@@ -224,6 +241,7 @@ export function OrderTableBody({
   handleDoubleClick,
   dragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map()),
   getRowRef,
+  onAsigneeClick
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -242,6 +260,7 @@ export function OrderTableBody({
   handleDoubleClick: (fileName: string) => void;
   dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
   getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void;
+  onAsigneeClick: (row: Order) => void;
 }) {
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
@@ -502,13 +521,33 @@ export function OrderTableBody({
               >
                 {capitalizeFirstLetter(row.material) || "-"}
               </TableCell>
-
               <TableCell className="">{capitalizeFirstLetter(row.ink)}</TableCell>
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
               <TableCell className="">{convertDateToReadableDate(row.due_date)}</TableCell>
               <TableCell className="">{convertDateToReadableDate(row.ihd_date)}</TableCell>
+              {productionStatus == "print" && (
+                <TableCell
+                  className=""
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAsigneeClick(row);
+                  }}
+                >
+                  <Button
+                    className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
+                      row.asignee ? "" : "border border-dotted border-gray-400 bg-transparent text-gray-400"
+                    }`}
+                  >
+                    {row.asignee && row.asignee.length >= 2
+                      ? row.asignee.slice(0, 2).toUpperCase()
+                      : row.asignee && row.asignee.length === 1
+                      ? row.asignee[0].toUpperCase()
+                      : "N/A"}
+                  </Button>
+                </TableCell>
+              )}
               <TableCell className={`text-[11px] truncate`}>
                 {capitalizeFirstLetter(row.shipping_method) || ""}
               </TableCell>

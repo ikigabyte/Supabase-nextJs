@@ -139,6 +139,31 @@ export async function removeOrderAll(orderId: number) {
   console.log(`Orders with order_id ${orderId} deleted successfully`);
   revalidatePath("/toprint");
 }
+
+export async function assignOrderToUser(order: Order) {
+  if (!order) throw new Error("No order provided");
+
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("User is not logged in");
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ ...order, asignee: user.email })
+    .match({ name_id: order.name_id });
+
+  if (error) {
+    console.error("Error assigning order", error);
+    throw new Error("Error assigning order");
+  }
+
+  // Optionally revalidate if needed
+  // revalidatePath("/toprint");
+}
+
 export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {
   // const ignoreZendesk = process.env.IGNORE_ZENDESK === "true"
 
