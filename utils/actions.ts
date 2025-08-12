@@ -300,46 +300,54 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
  * @param values - a Record of header keys to input values
  */
 
-export async function createCustomOrder(values: Record<string, string>) {
-  // console.log("Creating custom order with values:", values);
+export async function createCustomOrder(
+  values: Array<{ name_id: string; lamination: string; material: string; quantity: number }>,
+  order_id: number,
+  due_date: string,
+  ihd_date: string
+) {
   const supabase = await getServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  console.log("User", user);
-  // console.log(values);
-  // const missingFields = Object.entries(values)
-  //   .filter(([key, val]) => val.trim() === "")
-  //   .map(([key]) => key);
-  // if (missingFields.length > 0) {
-  //   console.error("Missing required fields for order:", missingFields);
-  //   throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
-  // }
 
-  // Insert the new order; mapping record keys to database column names
-  const orderData: Record<string, string> & { orderType: string; production_status: string } = {
-    ...values,
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
+
+  // Check for duplicate name_id
+  const nameIds = values.map((val) => val.name_id);
+  const { data: existing, error: checkError } = await supabase
+    .from("orders")
+    .select("name_id")
+    .in("name_id", nameIds);
+
+  if (checkError) {
+    console.error("Error checking for duplicate name_id", checkError);
+    return { result: false, message: checkError.message };
+  }
+  if (existing && existing.length > 0) {
+    return { result: false, message: "duplicate name_id already exists, chose another" };
+  }
+
+  // Prepare all order objects with the same order_id, due_date, ihd_date
+  const ordersToInsert = values.map((val) => ({
+    ...val,
+    order_id,
+    due_date,
+    ihd_date,
     orderType: "2",
     production_status: "print",
-  }; // force orderType to "2"
-  if (!orderData.due_date || (typeof orderData.due_date === "string" && orderData.due_date.trim() === "")) {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    orderData.due_date = `${yyyy}-${mm}-${dd}`;
-  }
+  }));
+  console.log("Orders to insert:", ordersToInsert);
   const { error } = await supabase
     .from("orders")
-    .insert([orderData as unknown as { due_date: string; name_id: string }]);
+    .insert(ordersToInsert);
   if (error) {
-    console.error("Error creating custom order", error);
+    console.error("Error creating custom orders", error);
     return { result: false, message: error.message };
   }
-  return { result: true, message: "Order created successfully" };
-
-  // revalidate pages showing orders if needed
-  // revalidatePath("/toprint");
+  return { result: true, message: "Orders created successfully" };
 }
 
 // export async function createOrder(formData: FormData) {

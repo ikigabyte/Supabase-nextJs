@@ -990,23 +990,46 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // }, []);
 
   const handleNewOrderSubmit = useCallback(
-    async (values: Record<string, string>) => {
-      // console.log("New order submitted with values:", values);
-      const result = await createCustomOrder(values);
-      if (result.result == false) {
-        // console.error("Error creating custom order:", result.message);
+    async (form: Record<string, any>) => {
+      // Accepts either flat fields or an 'entries' array
+      let payload: any = form;
+      if (Array.isArray(form.entries)) {
+        // Check at least one entry
+        if (form.entries.length === 0) {
+          toast("Order failed to insert", {
+            description: "One entry at least needed",
+          });
+          return;
+        }
+        // Check that all entries have non-blank name_id
+        const hasBlankNameId = form.entries.some(
+          (entry: any) => !entry.name_id || entry.name_id.trim() === ""
+        );
+        if (hasBlankNameId) {
+          toast("Order failed to insert", {
+            description: "Each entry must have a non-blank name_id",
+          });
+          return;
+        }
+        payload = form.entries;
+      }
+      // Logging for debug
+      if (form.due_date == "" || form.order_id == "") {
+        toast("Order failed to insert", {
+          description: "Order Id or Due Date was missing",
+        });
+        return;
+      }
+      const result = await createCustomOrder(payload, form.order_id, form.due_date, form.ihd_date);
+      if (result.result === false) {
         toast("Error creating order", {
           description: `${result.message}`,
         });
         return;
       } else {
-        console.log("Order created successfully:", result);
-        toast("Order created", {
-          description: `Order has been created.`,
+        toast("Creation Succesfull! ", {
+          description: `Order has been created with ID: ${form.order_id}`,
         });
-        // Optimistically update local state
-        // setOrders((prev) => [result, ...prev]);
-        // Clear input fields
         setScrollAreaName("History");
       }
     },
@@ -1203,10 +1226,12 @@ const handleAsigneeClick = useCallback(
           </h1>
           <Separator className="w-full mb-10" />
         </div>
-        {selectedCategory.toLowerCase() === "special" && (
-          <OrderInputter tableHeaders={databaseHeaders} onSubmit={handleNewOrderSubmit}></OrderInputter>
-          // <OrderInputter tableHeaders={headers} onSubmit={createNewOrder}></OrderInputter>
-        )}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          {selectedCategory.toLowerCase() === "special" && (
+            <OrderInputter onSubmit={handleNewOrderSubmit}></OrderInputter>
+            // <OrderInputter tableHeaders={headers} onSubmit={createNewOrder}></OrderInputter>
+          )}
+        </div>
         {!loading && orders.length === 0 && (
           <div className="mb-4 text-yellow-700 bg-yellow-100 p-2 rounded">
             ⚠️ Orders are unable to be loaded - Please check your internet connection or contact support.
