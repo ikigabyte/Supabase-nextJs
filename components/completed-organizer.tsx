@@ -2,6 +2,8 @@
 
 import { TableCell, TableBody, TableRow } from "./ui/table";
 import { Eye } from "lucide-react";
+import { convertToSpaces } from "@/lib/utils";
+
 // import { Button } from "./ui/button";
 
 const openZendeskTicket = (orderId: string) => {
@@ -18,8 +20,11 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
     <>
       <TableBody>
         {orders?.map((order) => (
-          <TableRow key={order.name_id} className="hover:bg-gray-50 text-xs">
-            <TableCell>{order.name_id}</TableCell>
+          <TableRow
+            key={order.name_id}
+            className="[&>td]:py-1 align-top border-none  ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all"
+          >
+            <TableCell>{convertToSpaces(order.name_id)}</TableCell>
             <TableCell>{order.shape}</TableCell>
             <TableCell>{order.lamination}</TableCell>
             <TableCell>{order.material}</TableCell>

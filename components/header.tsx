@@ -50,7 +50,6 @@ export default function Header() {
   console.log("User in Header:", user);
   const email = user?.email ?? null;
   // const [session, setSession] = useState<Session | null>(null);
-
   // const user = session?.user ?? null;
   // const
   // const { user} = supabase.auth.getUser();

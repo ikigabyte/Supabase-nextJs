@@ -10,8 +10,6 @@ import { getBrowserClient } from "@/utils/supabase/client";
 
 export default function SearchResults() {
   const router = useRouter();
-  // const searchParams = useSearchParams();
-
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [query, setQuery] = useState<string>("");
   // const initialQuery = searchParams.get("query") || "";
@@ -87,10 +85,10 @@ export default function SearchResults() {
 
   // now change it so that if it's clicked then it can redirect to the page
   return (
-    <section className="p-2 pt-10 max-w-8xl w-[90%] flex flex-col gap-2">
-      <h1 className="font-bold text-3xl">Search Orders</h1>
-      <SearchBar onSearch={handleSearch} />
-
+    <section className="p-2 pt-10 max-w-8xl w-[70%] flex flex-col gap-2">
+      <h1 className="font-bold text-3xl">Order Results</h1>
+      <p>Click on an order to go directly to its page.</p>
+      {/* <SearchBar onSearch={handleSearch} /> */}
       {!query ? (
         <p className="text-gray-500">Please enter an Order ID to search.</p>
       ) : orders && orders.length === 0 ? (
