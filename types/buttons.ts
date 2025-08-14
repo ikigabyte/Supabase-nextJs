@@ -1,4 +1,4 @@
-import { OrderTypes } from "@/utils/orderTypes"
+import { OrderTypes } from "@/utils/orderTypes";
 
 export const getButtonCategories = (OrderType: OrderTypes) => {
   switch (OrderType) {
@@ -26,5 +26,6 @@ export const getButtonCategories = (OrderType: OrderTypes) => {
     case "ship":
       return ["Regular", "Roll"];
     default:
+      return [];
   }
 };

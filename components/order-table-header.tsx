@@ -3,10 +3,10 @@ import { TableHead, TableRow, TableHeader } from "@/components/ui/table";
 
 const widths: string[] = ["18%", "4%", "4%", "5%", "5%", "5%", "5%", "6%", "6%", "6%", "25%", "5%"];
 
-const laminationHeaderColors = {
-  matte: "bg-purple-500",
-  gloss: "bg-blue-500",
-};
+// const laminationHeaderColors = {
+//   matte: "bg-purple-500",
+//   gloss: "bg-blue-500",
+// };
 export function OrderTableHeader({
   tableHeaders,
   productionStatus = "",

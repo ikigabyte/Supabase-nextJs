@@ -1,6 +1,5 @@
-import { MaterialTypes } from "@/utils/materialTypes";
 import { OrderTypes } from "@/utils/orderTypes";
-import { BARREL_OPTIMIZATION_PREFIX } from "next/dist/shared/lib/constants";
+// import { BARREL_OPTIMIZATION_PREFIX } from "next/dist/shared/lib/constants";
 
 export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
   switch (material) {
@@ -13,8 +12,8 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "material",
         "ink",
         "-",
-        "SHIP date",
-        "IHD date",
+        orderType + " date",
+        "ship date",
         "shipping method",
         "notes",
         orderType,
@@ -28,13 +27,13 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "shape",
         "-",
         "-",
-        "SHIP date",
-        "IHD date",
+        orderType + " date",
+        "SHIP DATE",
         "shipping method",
         "notes",
         orderType,
       ];
-        case "roll":
+    case "roll":
       return [
         "file-name",
         "shape",
@@ -43,8 +42,8 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "material",
         "cores",
         "print method",
-        "SHIP date",
-        "IHD date",
+        "-",
+        orderType + " date",
         "shipping method",
         "notes",
         orderType,
@@ -59,8 +58,8 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "product type",
         "print method",
         "-",
-        "SHIP date",
-        "IHD date",
+        orderType + " date",
+        "SHIP DATE",
         "shipping method",
         "notes",
         orderType,
@@ -74,13 +73,11 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "material",
         "ink",
         "print method",
-        "SHIP DATE",
-        "IHD DATE",
+        "-",
+        orderType + " date",
         "shipping method",
         "notes",
         orderType,
       ];
   }
 };
-
-BARREL_OPTIMIZATION_PREFIX;

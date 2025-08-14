@@ -68,7 +68,7 @@ const databaseHeaders = [
 // )
 // import { createClient } from "@/utils/supabase/server";
 
-console.log("Database Version", databaseVersion);
+// console.log("Database Version", databaseVersion);
 const draggingThreshold = 1; // px
 
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
@@ -106,10 +106,10 @@ const laminationHeaderColors = {
   gloss: "text-blue-500",
 };
 
-function extractDashNumber(name: string): number {
-  const match = name.match(/-(\d+)-/);
-  return match ? parseInt(match[1], 10) : Infinity;
-}
+// function extractDashNumber(name: string): number {
+//   const match = name.match(/-(\d+)-/);
+//   return match ? parseInt(match[1], 10) : Infinity;
+// }
 
 // function sortOrders(a: Order, b: Order) {
 //   // 1. Group by order number

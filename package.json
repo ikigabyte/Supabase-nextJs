@@ -21,7 +21,7 @@
     "clsx": "^2.1.0",
     "geist": "^1.2.1",
     "lucide-react": "^0.372.0",
-    "next": "latest",
+    "next": "^15.3.1",
     "next-themes": "^0.4.6",
     "papaparse": "^5.5.3",
     "postcss": "8.4.33",
@@ -31,13 +31,14 @@
     "tailwind-merge": "^2.3.0",
     "tailwindcss": "3.4.1",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "5.3.3",
+    
     "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@types/node": "20.11.5",
     "@types/papaparse": "^5.3.16",
     "@types/react": "18.2.48",
-    "@types/react-dom": "18.2.18"
+    "@types/react-dom": "18.2.18",
+    "typescript": "5.3.3"
   }
 }

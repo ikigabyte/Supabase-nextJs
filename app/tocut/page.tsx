@@ -1,3 +1,5 @@
+'use server'
+
 // import { ButtonOrganizer } from "@/components/button-organizer";
 import { OrderOrganizer } from "@/components/order-organizer";
 import { Separator } from "@/components/ui/separator";
@@ -5,8 +7,8 @@ import { getBrowserClient } from "@/utils/supabase/client";
 import { redirect } from "next/navigation";
 
 export default async function ToCutPage() {
-  const supabase = getBrowserClient();
-  console.log("INIT:", supabase);
+  // const supabase = getBrowserClient();
+  // console.log("INIT:", supabase);
   
   // const {
   //   data: { user },

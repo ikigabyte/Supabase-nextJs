@@ -4,7 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { getServerClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
-export default async function ToPackPage() {
+export default async function ToShipPage() {
   const supabase = await getServerClient();
 
   const {

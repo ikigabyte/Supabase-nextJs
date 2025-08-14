@@ -9,7 +9,7 @@ import { Separator } from "./ui/separator";
 import { headers } from "next/headers";
 import { convertToSpaces } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 
 // import {
 //   DropdownMenu,
@@ -130,6 +130,51 @@ const ignoredSections: { [key: string]: string[] } = {
   holographic: ["print method"],
   mag20pt: ["print method"],
 };
+const subtractBusinessDays = (date: Date, days: number): Date => {
+  let result = new Date(date);
+  let count = 0;
+  while (count < days) {
+    result.setDate(result.getDate() - 1);
+    // 0 = Sunday, 6 = Saturday
+    if (result.getDay() !== 0 && result.getDay() !== 6) {
+      count++;
+    }
+  }
+  return result;
+};
+
+const convertToOrderTypeDate = (date: string | null, orderType: string | undefined): string => {
+  if (!date) return "-";
+  if (!orderType) return "-"; // If no order type, return original date
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) return date;
+
+  let businessDays = 0;
+  switch (orderType) {
+    case "print":
+      businessDays = 3;
+      break;
+    case "cut":
+      businessDays = 2;
+      break;
+    case "pack":
+      businessDays = 1;
+      break;
+    default:
+      return date;
+  }
+
+  const originalDate = new Date(year, month - 1, day);
+  const newDate = subtractBusinessDays(originalDate, businessDays);
+
+  // Format as YYYY-MM-DD
+  const formatted = [
+    newDate.getFullYear(),
+    String(newDate.getMonth() + 1).padStart(2, "0"),
+    String(newDate.getDate()).padStart(2, "0"),
+  ].join("-");
+  return formatted;
+};
 
 const isSectionIgnored = (material: string | null, section: string): boolean => {
   if (!material || material == null) return false;
@@ -165,7 +210,7 @@ const convertDateToReadableDate = (dateString: string | null): string => {
   if (parts.length !== 3) return dateString;
   const [_, month, day] = parts;
   return `${month}-${day}`;
-}
+};
 
 function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
   const [value, setValue] = useState(note);
@@ -242,7 +287,7 @@ export function OrderTableBody({
   handleDoubleClick,
   dragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map()),
   getRowRef,
-  onAsigneeClick
+  onAsigneeClick,
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -398,7 +443,7 @@ export function OrderTableBody({
         return (
           <React.Fragment key={row.name_id}>
             {showSeparator && (
-              <TableRow key={`sep-${row.name_id}`} className="h-full border-none" datatype="seperator">
+              <TableRow key={`sep-${row.name_id}`} className="h-full" datatype="seperator">
                 <TableCell colSpan={5} className="h-4 bg-transparent" />
               </TableRow>
             )}
@@ -408,9 +453,9 @@ export function OrderTableBody({
               key={row.name_id}
               name-id={row.name_id}
               className={`
-              [&>td]:py-1 align-top border-none  ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-nowrap break-all
-                ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-blue-300"}
-                ${isHighlighted ? "bg-blue-300 hover:bg-blue-300" : "ring-gray-100"}`}
+              [&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white
+              ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-blue-300"}
+                ${isHighlighted ? "bg-blue-300 hover:bg-blue-300" : ""}`}
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
                 // setMultiSelectedRows((prev) => {
@@ -450,7 +495,7 @@ export function OrderTableBody({
                 className={
                   "whitespace-normal break-all " +
                   (isHighlighted
-                    ? "bg-blue-300 hover:bg-blue-30 ring-1 ring-gray-100 ring-inset"
+                    ? "bg-blue-300 hover:bg-blue-300"
                     : row.production_status === "print"
                     ? convertColorStringToValue(row.color)
                     : "")
@@ -526,8 +571,10 @@ export function OrderTableBody({
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
+              <TableCell className="">
+                {convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
+              </TableCell>
               <TableCell className="">{convertDateToReadableDate(row.due_date)}</TableCell>
-              <TableCell className="">{convertDateToReadableDate(row.ihd_date)}</TableCell>
               {productionStatus == "print" && (
                 <TableCell
                   className=""

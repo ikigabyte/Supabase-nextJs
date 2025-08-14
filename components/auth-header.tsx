@@ -1,8 +1,4 @@
 'use server'
-
-import { useEffect, useState } from "react";
-import { getBrowserClient } from "@/utils/supabase/client";
-import type { Session } from "@supabase/supabase-js";
 import Header from "./header";
 import { getServerClient } from "@/utils/supabase/server";
 
