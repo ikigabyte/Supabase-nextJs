@@ -328,7 +328,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // Store as a Map<string, string | null>
         const userColorMap = new Map<string, string>();
         (data ?? []).forEach((row) => {
-          userColorMap.set(row.identifier || "", row.color || "");
+          userColorMap.set(row.identifier ?? "", row.color ?? "");
         });
         setUserRows(userColorMap);
       }
