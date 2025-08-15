@@ -143,6 +143,12 @@ const subtractBusinessDays = (date: Date, days: number): Date => {
   return result;
 };
 
+// const getUserColor = (email: string | null): string => {
+//   if (!email) return "bg-gray-100"; // Default color
+//   const user = userRows.find((row) => row.email === email);
+//   return user?.color ?? "bg-gray-100"; // Fallback to default color
+// };
+
 const convertToOrderTypeDate = (date: string | null, orderType: string | undefined): string => {
   if (!date) return "-";
   if (!orderType) return "-"; // If no order type, return original date
@@ -288,6 +294,7 @@ export function OrderTableBody({
   dragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map()),
   getRowRef,
   onAsigneeClick,
+  userColors,
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -307,7 +314,15 @@ export function OrderTableBody({
   dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
   getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void;
   onAsigneeClick: (row: Order) => void;
+  userColors: Map<string, string>;
 }) {
+  // Example usage for setting userRows from data:
+  // const simplifiedRows = (data ?? []).map((row) => ({
+  //   email: row.identifier,
+  //   color: row.color,
+  // }));
+  // console.log("Users with colors:", simplifiedRows);
+  // setUserRows(simplifiedRows);
   // Ensure multiSelectedRows is never nullish
   if (!multiSelectedRows) {
     console.warn("multiSelectedRows was null or undefined, defaulting to empty Map");
@@ -345,7 +360,7 @@ export function OrderTableBody({
       console.log(row.quantity);
     });
   };
-
+  // console.log("user colors" , userColors);
   const handleMouseEnter = (event: React.MouseEvent<HTMLTableCellElement>, row: Order, type: string) => {
     if (lastHoveredIdRef.current !== row.name_id) {
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -407,6 +422,13 @@ export function OrderTableBody({
   const tableEl = tableRef.current?.closest("table") as HTMLTableElement | null;
   const dragSelection = dragSelections?.current && tableEl ? dragSelections.current.get(tableEl) : null;
 
+  const getCorrectUserColor = (asignee: string | undefined) => {
+    if (!asignee) return "bg-black";
+    const color = userColors.get(asignee);
+    if (!color) return "bg-black";
+    // Map color names to Tailwind classes
+    return `bg-${color}`;
+  };
   // const lastSelectedIndexRef = useRef<number | null>(null);
 
   // let isRowClicked = false;
@@ -585,7 +607,9 @@ export function OrderTableBody({
                 >
                   <Button
                     className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
-                      row.asignee ? "" : "border border-dotted border-gray-400 bg-transparent text-gray-400"
+                      row.asignee
+                        ? getCorrectUserColor(row.asignee ?? "")
+                        : "border bg-transparent border-dotted border-gray-400 text-gray-400"
                     }`}
                   >
                     {row.asignee && row.asignee.length >= 2

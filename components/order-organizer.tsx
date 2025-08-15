@@ -3,6 +3,7 @@
 import React, { Fragment, useEffect, useState, useMemo, useCallback, useRef } from "react";
 // import { getbrow, type Session } from "@supabase/supabase-js";
 import { useRouter, usePathname, redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
 import { OrderTableHeader } from "./order-table-header";
@@ -22,7 +23,7 @@ import {
   removeOrderAll,
   createCustomOrder,
   addOrderViewer,
-  assignOrderToUser
+  assignOrderToUser,
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -41,34 +42,10 @@ import { toast } from "sonner";
 import { convertToSpaces } from "@/lib/utils";
 import { DropdownAsignee } from "./dropdown";
 
-const databaseVersion = 1.79;
+type Counts = Record<OrderTypes, number>;
+type UserProfileRow = { id: string; role: string; color: string | null };
 
-const databaseHeaders = [
-  "order_id",
-  "name_id",
-  "due_date",
-  "shape",
-  "material",
-  "quantity",
-  "lamination",
-  "print_method",
-  "due_date",
-  "ihd_date",
-];
-// import { flightRouterStateSchema } from "next/dist/server/app-render/types";
-
-// import { filterOutOrderCounts } from "./order-organizer";
-// import { updateOrderCounts } from "./order-organizer";
-
-// import { useArticles } from "@/hooks/useArticles";
-
-// export const supabase = createClient(
-//   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-//   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-// )
-// import { createClient } from "@/utils/supabase/server";
-
-// console.log("Database Version", databaseVersion);
+const STATUSES: readonly OrderTypes[] = ["print", "cut", "pack", "ship"] as const;
 const draggingThreshold = 1; // px
 
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
@@ -172,29 +149,67 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
 
 // function convertDateStringtoTime(dateString : string) : Date{
 // }
-
-function filterOutOrderCounts(orders: Order[]): Record<OrderTypes, number> {
-  // Initialize counts for each status
-  const initial: Record<OrderTypes, number> = {
-    print: 0,
-    ship: 0,
-    cut: 0,
-    pack: 0,
-  };
-
-  return orders.reduce((acc, order) => {
-    if (order.production_status !== order.production_status) {
-      return acc; // Skip this order if the production_status doesn't match the orderType
+export async function filterOutOrderCounts(source?: { orders?: Order[]; supabase?: SupabaseClient }): Promise<Counts> {
+  // 1) Local path (fastest)
+  if (source?.orders && Array.isArray(source.orders)) {
+    const counts: Counts = { print: 0, cut: 0, pack: 0, ship: 0 };
+    for (const o of source.orders) {
+      const s = o.production_status as OrderTypes;
+      if (STATUSES.includes(s)) counts[s] += 1;
     }
-    const status = order.production_status as OrderTypes;
-    // console.log("this is the status", status);
-    if (status in acc) {
-      acc[status]++;
-    }
-    return acc;
-  }, initial);
+    return counts;
+  }
+
+  // 2) Remote path (head counts)
+  const sb = source?.supabase ?? getBrowserClient();
+  const results = await Promise.all(
+    STATUSES.map((status) =>
+      sb.from("orders").select("id", { count: "exact", head: true }).eq("production_status", status)
+    )
+  );
+
+  const counts: Counts = { print: 0, cut: 0, pack: 0, ship: 0 };
+  results.forEach(({ count, error }, i) => {
+    if (error) console.error(`Count failed for ${STATUSES[i]}`, error);
+    counts[STATUSES[i]] = count ?? 0;
+  });
+  return counts;
 }
 
+export function updateOrderCountersDom(counts: Counts, attempt = 0) {
+  if (typeof document === "undefined") return;
+
+  const labels: Record<OrderTypes, string> = {
+    print: `To Print (${counts.print})`,
+    cut: `To Cut (${counts.cut})`,
+    pack: `To Pack (${counts.pack})`,
+    ship: `To Ship (${counts.ship})`,
+  };
+
+  const idMap: Record<OrderTypes, string[]> = {
+    print: ["to-print-counter", "to-print"],
+    cut: ["to-cut-counter", "to-cut"],
+    pack: ["to-pack-counter", "to-pack"],
+    ship: ["to-ship-counter", "to-ship"],
+  };
+
+  let updatedAny = false;
+  (Object.keys(labels) as OrderTypes[]).forEach((k) => {
+    for (const id of idMap[k]) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = labels[k];
+        updatedAny = true;
+        break;
+      }
+    }
+  });
+
+  // If navbar not mounted yet, retry a few times.
+  if (!updatedAny && attempt < 20) {
+    setTimeout(() => updateOrderCountersDom(counts, attempt + 1), 100);
+  }
+}
 // function updateOrderCounts(orderCounts: Record<string, number>) {
 //   console.log("this is the order counts", orderCounts);
 //   Object.entries(orderCounts).forEach(([orderType, count]) => {
@@ -281,6 +296,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
   const [hashValue, setHashValue] = useState<string | null>(null);
   const pendingRemovalIds = useRef<Set<string>>(new Set());
+  const [userRows, setUserRows] = useState<Map<string, string>>(new Map());
   const [updateCounter, forceUpdate] = useState(0);
   // const [updateCounter, forceUpdate] = useState(0);
   const dragSelections = useRef<
@@ -290,8 +306,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragStartTime = useRef<number>(0);
   const pendingDragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map());
-
   const [circlePos, setCirclePos] = useState<{ top: number; right: number; height: number } | null>(null);
+  // const [counts, setCounts] = useState<Counts>({ print: 0, cut: 0, pack: 0, ship: 0 });
 
   const scrollToOrder = (name_id: string) => {
     const rowEl = rowRefs.current[name_id];
@@ -299,6 +315,28 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from("profiles").select("identifier, color"); // email & color only
+
+      if (error) {
+        console.error("Failed to load profiles:", error);
+        return;
+      }
+      if (!cancelled) {
+        // Store as a Map<string, string | null>
+        const userColorMap = new Map<string, string>();
+        (data ?? []).forEach((row) => {
+          userColorMap.set(row.identifier, row.color);
+        });
+        setUserRows(userColorMap);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     // Initial load
@@ -310,6 +348,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .channel("orders_all")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
         const newOrder = payload.new as Order;
+        const ns = newOrder.production_status as OrderTypes;
+
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(newOrder.name_id)) {
           setMultiSelectedRows((prev) => {
@@ -349,7 +389,27 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+        // const oldStatus = (payload.old as Order).production_status as OrderTypes | null;
+        const oldRow = payload.old as Order;
         const updated = payload.new as Order;
+
+        // 1) COUNTS + DOM: bump/decrement only if status actually changed
+        const oldStatus = oldRow.production_status as OrderTypes | null;
+        const newStatus = updated.production_status as OrderTypes | null;
+        // if (oldStatus !== newStatus) {
+        //   const oldTracked = !!oldStatus && STATUSES.includes(oldStatus);
+        //   const newTracked = !!newStatus && STATUSES.includes(newStatus);
+
+        //   if (oldTracked || newTracked) {
+        //     setCounts((prev) => {
+        //       const next = { ...prev };
+        //       if (oldTracked) next[oldStatus!] = Math.max(0, (next[oldStatus!] ?? 0) - 1);
+        //       if (newTracked) next[newStatus!] = (next[newStatus!] ?? 0) + 1;
+        //       updateOrderCountersDom(next);
+        //       return next;
+        //     });
+        //   }
+        // }
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(updated.name_id)) {
           setMultiSelectedRows((prev) => {
@@ -373,7 +433,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
         // console.log("UPDATE event payload.old:", payload.old);
         // console.log("UPDATE event payload.new:", payload.new);
-        const oldRow = payload.old as Order;
         // If only notes changed, update that field
         if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes) {
           // console.log("Notes changed for order", updated.name_id);
@@ -419,6 +478,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
         const removed = payload.old as Order;
+        const os = removed.production_status as OrderTypes;
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(removed.name_id)) {
           setMultiSelectedRows((prev) => {
@@ -492,24 +552,24 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => document.removeEventListener("copy", onCopy);
   }, []);
 
-  useEffect(() => {
-    // Temporarily deactivating the circles
-    if (true) return;
-    // const targetNameId = "99889-TESTA-ORDER-2";
-    // const rowEl = rowRefs.current[targetNameId];
-    // const containerEl = containerRef.current;
-    // if (rowEl && containerEl) {
-    //   const rowRect = rowEl.getBoundingClientRect();
-    //   const containerRect = containerEl.getBoundingClientRect();
-    //   setCirclePos({
-    //     top: rowRect.top - containerRect.top,
-    //     right: containerRect.right - rowRect.right,
-    //     height: rowRect.height,
-    //   });
-    // } else {
-    //   setCirclePos(null);
-    // }
-  }, [orders]);
+  // useEffect(() => {
+  //   // Temporarily deactivating the circles
+  //   if (true) return;
+  //   // const targetNameId = "99889-TESTA-ORDER-2";
+  //   // const rowEl = rowRefs.current[targetNameId];
+  //   // const containerEl = containerRef.current;
+  //   // if (rowEl && containerEl) {
+  //   //   const rowRect = rowEl.getBoundingClientRect();
+  //   //   const containerRect = containerEl.getBoundingClientRect();
+  //   //   setCirclePos({
+  //   //     top: rowRect.top - containerRect.top,
+  //   //     right: containerRect.right - rowRect.right,
+  //   //     height: rowRect.height,
+  //   //   });
+  //   // } else {
+  //   //   setCirclePos(null);
+  //   // }
+  // }, [orders]);
 
   // dragSelections.current.clear();
   useEffect(() => {
@@ -594,7 +654,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         return;
       }
       if (!target.closest("table")) {
-        console.log("Clicked outside of table, resetting selections");
+        // console.log("Clicked outside of table, resetting selections");
         setIsRowClicked(false);
         setCurrentRowClicked(null);
       }
@@ -743,10 +803,20 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [dragging]);
 
-  useEffect(() => {
-    const counts = filterOutOrderCounts(orders);
-    // updateOrderCounts(counts);
-  }, [orders]);
+  //   useEffect(() => {
+  //   (async () => {
+  //     const counts = await filterOutOrderCounts({ orders, supabase });
+  //     console.log("Fetched initial order counts:", counts);
+  //     updateOrderCountersDom(counts)
+  //     // updateOrderCountersDom(counts);
+  //   })();
+  // }, [orders]);
+
+  // useEffect(() => {
+  //   const counts = filterOutOrderCounts(orders);
+  //   console.log("Fetched initial order counts:", counts);
+  //   // updateOrderCounts(counts);
+  // }, [orders]);
 
   useEffect(() => {
     // console.log("Drag selections changed:", dragSelections.current);
@@ -799,15 +869,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }, []);
 
-  // * Disabled the handle click outside instead now it's just a click
-  // useEffect(() => {
-  //   const handleClickOutside = (e: MouseEvent) => {
-
-  //   };
-  //   document.addEventListener("click", handleClickOutside);
-  //   return () => document.removeEventListener("click", handleClickOutside);
-  // }, []);
-
   const grouped = useMemo(() => groupOrdersByOrderType(orderType, orders), [orderType, orders]);
   const designatedCategories = useMemo(() => getButtonCategories(orderType)!, [orderType]);
   // const designatedColors = useMemo(() => getButtonColors(orderType)!, [orderType]);
@@ -828,42 +889,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // const [scrollAreaName, setScrollAreaName] = useState<string>(orderType);
   const [rowHistory, setRowHistory] = useState<string[] | null>(null);
   const [clickedTables, setClickedTables] = useState<Set<string>>(new Set());
-  const [users, setUsers] = useState<Set<string>>(new Set());
+  // const [users, setUsers] = useState<Set<string>>(new Set());
   const [scrollAreaName, setScrollAreaName] = useState<string>("History");
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  // const [hoveredTables, setHoveredTables] = useState<Set<string>>(new Set());
-  // const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
-
-  // useEffect(() => {
-  //   // Disables text selection while dragging
-  //   if (dragging) {
-
-  //   } else {
-  //     document.body.style.removeProperty("user-select");
-  //   }
-  //   return () => {
-  //     document.body.style.removeProperty("user-select");
-  //   };
-  // }, [dragging]);
-
-  // useEffect(() => {
-  //   const handleMouseUp = () => {
-  //     if (dragging) {
-  //       setDragging(false);
-  //       setSelectedTables(new Set(hoveredTables));
-  //       // Optionally reset hoveredTables if needed
-  //     }
-  //   };
-  //   document.addEventListener("mouseup", handleMouseUp);
-  //   return () => document.removeEventListener("mouseup", handleMouseUp);
-  // }, [dragging, hoveredTables]);
-
-  // console.log("this is the headers", headers);
-  // setHeaders(getMaterialHeaders(orderType, defaultPage));
-
-  // const getAssignedHeaders = get(orderType, defaultPage);
-  // console.log("this is the headers", getAssignedHeaders);
 
   useEffect(() => {
     const groupKeys = Object.keys(grouped);
@@ -1002,9 +1031,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           return;
         }
         // Check that all entries have non-blank name_id
-        const hasBlankNameId = form.entries.some(
-          (entry: any) => !entry.name_id || entry.name_id.trim() === ""
-        );
+        const hasBlankNameId = form.entries.some((entry: any) => !entry.name_id || entry.name_id.trim() === "");
         if (hasBlankNameId) {
           toast("Order failed to insert", {
             description: "Each entry must have a non-blank name_id",
@@ -1160,26 +1187,26 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return null;
   }
 
-const handleAsigneeClick = useCallback(
-  async (row: Order) => {
-    if (!session?.user?.email) return;
-    const me = session.user.email;
+  const handleAsigneeClick = useCallback(
+    async (row: Order) => {
+      if (!session?.user?.email) return;
+      const me = session.user.email;
 
-    // 1) Optimistically update client‐side:
-    setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: me } : o)));
+      // 1) Optimistically update client‐side:
+      setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: me } : o)));
 
-    // 2) Fire off the real request:
-    try {
-      assignOrderToUser(row);
-    } catch (err) {
-      console.error("assign failed", err);
-      // 3) (optional) roll back if it errored:
-      setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
-      // toast("Couldn’t assign order", { type: "error" });
-    }
-  },
-  [session, setOrders]
-);
+      // 2) Fire off the real request:
+      try {
+        assignOrderToUser(row);
+      } catch (err) {
+        console.error("assign failed", err);
+        // 3) (optional) roll back if it errored:
+        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
+        // toast("Couldn’t assign order", { type: "error" });
+      }
+    },
+    [session, setOrders]
+  );
   const handleRowClick = useCallback(
     (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
       if (!row) {
@@ -1277,6 +1304,7 @@ const handleAsigneeClick = useCallback(
                           rowRefs.current[name_id] = el;
                         }}
                         onAsigneeClick={handleAsigneeClick}
+                        userColors={userRows}
                       />
                     </Table>
                   </>

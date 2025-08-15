@@ -47,39 +47,7 @@ export default function Header() {
     fetchUser();
   }, [supabase]);
 
-  console.log("User in Header:", user);
   const email = user?.email ?? null;
-  // const [session, setSession] = useState<Session | null>(null);
-  // const user = session?.user ?? null;
-  // const
-  // const { user} = supabase.auth.getUser();
-  // const [user, setUser] = useState<any>(null);
-
-  // useEffect(() => {
-  //   async function fetchUser() {
-  //     const supabase = getBrowserClient();
-  //     const { data } = await supabase.auth.getUser();
-  //     setUser(data.user);
-  //   }
-  //   fetchUser();
-  // }, [supabase]);
-
-  // useEffect(() => {
-  //   async function fetchUser() {
-  //     const supabase = getBrowserClient();
-  //     const {
-  //       data: { user },
-  //     } = await supabase.auth.getUser();
-  //     if (!user) {
-  //       // redirect("/login");
-  //     } else {
-  //       setUser(user);
-  //     }
-  //   }
-  //   fetchUser();
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, []);
-  // console.log("User in Header:", user);
 
   return (
     <header className="z-10 sticky top-0 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

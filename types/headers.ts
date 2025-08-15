@@ -73,7 +73,6 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "material",
         "ink",
         "print method",
-        "-",
         orderType + " date",
         "shipping method",
         "notes",
