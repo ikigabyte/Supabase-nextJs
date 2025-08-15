@@ -26,30 +26,30 @@ export function DialogSearch({ onSearch }: { onSearch: (searchTerm: string) => v
   return (
     <div className="relative">
       <Input
-        placeholder="Search Orders"
-        className="pl-10 rounded-md"
-        value={orderId}
-        onChange={(e) => setOrderId(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            handleSearch(orderId);
-          }
-        }}
+      placeholder="Search Orders"
+      className="pl-10 rounded-md text-xs"
+      value={orderId}
+      onChange={(e) => setOrderId(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+        handleSearch(orderId);
+        }
+      }}
       />
       <div
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer"
-        onClick={() => handleSearch(orderId)}
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer"
+      onClick={() => handleSearch(orderId)}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-          <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+        <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
       </div>
     </div>
   );
