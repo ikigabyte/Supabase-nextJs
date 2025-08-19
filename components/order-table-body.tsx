@@ -634,7 +634,7 @@ export function OrderTableBody({
                   }}
                 >
                   <Button
-                    className="h-5 w-8 rounded-full px-0 py-0 text-xs"
+                    className={`h-5 w-8 rounded-full px-0 py-0 text-xs bg-transparent ${!row.asignee ? "opacity-70" : ""}`}
                     style={row.asignee ? getCorrectUserColor(row.asignee) : undefined}
                   >
                     {row.asignee && row.asignee.length >= 2

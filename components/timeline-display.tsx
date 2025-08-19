@@ -100,17 +100,31 @@ export function TimelineOrders() {
         if (!data) return;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
+        // Helper to check if order is within 30 days from today
+        const isWithin30Days = (orderDate: Date) => {
+          const diffTime = today.getTime() - orderDate.getTime();
+          const diffDays = diffTime / (1000 * 60 * 60 * 24);
+          return diffDays <= 30 && diffDays >= 0;
+        };
+
         const due = data
           .filter((order) => {
             const orderDate = new Date(order.ship_date + "T00:00:00Z");
-            return orderDate <= new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z");
+            return (
+              orderDate <= new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z") &&
+              isWithin30Days(orderDate)
+            );
           })
           .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
 
         const future = data
           .filter((order) => {
             const orderDate = new Date(order.ship_date + "T00:00:00Z");
-            return orderDate > new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z");
+            return (
+              orderDate > new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z") &&
+              isWithin30Days(orderDate)
+            );
           })
           .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
 
