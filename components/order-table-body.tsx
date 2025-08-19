@@ -610,7 +610,7 @@ export function OrderTableBody({
                     // Remove time part for comparison
                     today.setHours(0, 0, 0, 0);
                     dueDate.setHours(0, 0, 0, 0);
-                    if (dueDate <= today) {
+                    if (dueDate < today) {
                     return "bg-yellow-200";
                     }
                   }
