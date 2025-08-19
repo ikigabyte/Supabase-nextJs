@@ -423,11 +423,17 @@ export function OrderTableBody({
   const dragSelection = dragSelections?.current && tableEl ? dragSelections.current.get(tableEl) : null;
 
   const getCorrectUserColor = (asignee: string | undefined) => {
-    if (!asignee) return "bg-black";
+    if (!asignee) return { backgroundColor: "#000000" }; // black as default
     const color = userColors.get(asignee);
-    if (!color) return "bg-black";
-    // Map color names to Tailwind classes
-    return `bg-${color}`;
+    if (!color) return { backgroundColor: "#d22b2bff" };
+    // If color is in "R/G/B" format, convert to rgb()
+    const rgbMatch = color.match(/^(\d{1,3})\/(\d{1,3})\/(\d{1,3})$/);
+    if (rgbMatch) {
+      const [, r, g, b] = rgbMatch;
+      return { backgroundColor: `rgb(${r},${g},${b})` };
+    }
+    // Otherwise, assume it's a valid CSS color (hex, named, etc.)
+    return { backgroundColor: color };
   };
   // const lastSelectedIndexRef = useRef<number | null>(null);
 
@@ -593,10 +599,32 @@ export function OrderTableBody({
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
-              <TableCell className="">
+                <TableCell
+                className={
+                  (() => {
+                  const convertedOrderTypeDate = convertToOrderTypeDate(row.due_date, productionStatus);
+                  if (convertedOrderTypeDate && convertedOrderTypeDate !== "-") {
+                    const today = new Date();
+                    const [year, month, day] = convertedOrderTypeDate.split("-").map(Number);
+                    const dueDate = new Date(year, month - 1, day);
+                    // Remove time part for comparison
+                    today.setHours(0, 0, 0, 0);
+                    dueDate.setHours(0, 0, 0, 0);
+                    if (dueDate <= today) {
+                    return "bg-yellow-200";
+                    }
+                  }
+                  return "";
+                  })()
+                }
+                >
                 {convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
-              </TableCell>
-              <TableCell className="">{convertDateToReadableDate(row.due_date)}</TableCell>
+                </TableCell>
+                <TableCell className="">
+                {productionStatus === "ship"
+                  ? convertDateToReadableDate(row.ihd_date)
+                  : convertDateToReadableDate(row.due_date)}
+                </TableCell>
               {productionStatus == "print" && (
                 <TableCell
                   className=""
@@ -606,11 +634,8 @@ export function OrderTableBody({
                   }}
                 >
                   <Button
-                    className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
-                      row.asignee
-                        ? getCorrectUserColor(row.asignee ?? "")
-                        : "border bg-transparent border-dotted border-gray-400 text-gray-400"
-                    }`}
+                    className="h-5 w-8 rounded-full px-0 py-0 text-xs"
+                    style={row.asignee ? getCorrectUserColor(row.asignee) : undefined}
                   >
                     {row.asignee && row.asignee.length >= 2
                       ? row.asignee.slice(0, 2).toUpperCase()

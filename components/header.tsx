@@ -50,25 +50,25 @@ export default function Header() {
   const email = user?.email ?? null;
 
   return (
-    <header className="z-10 sticky top-0 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 max-w-screen-2xl items-center">
+    <header className="z-50 w-full border-b border-border bg-white supports-[backdrop-filter]:bg-background/60">
+        <div className="flex h-14 w-full items-center justify-between px-4 md:px-14">
         <nav className="flex items-center space-x-4 lg:space-x-3">
           <a className="mr-5 flex items-center space-x-2" href="/">
             <img src="/stickerbeat-logo.png" alt="Stickerbeat Logo" className="h-8 w-8" />
           </a>
-          <div className="flex flex-1 items-center justify-end space-x-12">
+          <div className="flex items-center justify-end space-x-12">
             {user !== null ? <NavBarElement /> : <Link href="/login"></Link>}
           </div>
         </nav>
-        <div className="flex flex-1 items-center justify-end space-x-2">
+        {/* Move user/sign out to the right */}
+        <div className="flex items-center space-x-2 ml-auto">
           {user ? (
             <>
+              <Button asChild className="h-8 w-8 rounded-full">
+                <Link href="/user">{(email[0] ?? "").toUpperCase()}</Link>
+              </Button>
               <Form action={signOut} formMethod="POST" className="flex items-center gap-2">
-                <Button asChild className="h-8 w-8 rounded-full">
-                  <Link href="/user">{(email[0] ?? "").toUpperCase()}</Link>
-                </Button>
                 <Button type="submit" size="sm">
-                  {" "}
                   Sign Out
                 </Button>
               </Form>

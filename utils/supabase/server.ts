@@ -3,21 +3,26 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function getServerClient() {
-  // in a Route Handler, cookies() returns a writable store
-  const cookieStore = await cookies()
+  const cookieStore = await cookies(); // read-only in RSC, writable in actions/route handlers
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      // new, non-deprecated signature ⚠️
       cookies: {
-        getAll: () =>
-          cookieStore.getAll().map(({ name, value }) => ({ name, value })),
-        setAll: (toSet) =>
-          toSet.forEach(({ name, value, options }) =>
-            cookieStore.set({ name, value, ...options })
-          ),
+        getAll: () => cookieStore.getAll().map(({ name, value }) => ({ name, value })),
+        setAll: (toSet) => {
+          // In Server Components this will throw; swallow it there.
+          try {
+            toSet.forEach(({ name, value, options }) => {
+              // Next.js API: cookies().set(name, value, options)
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // no-op in RSC; cookies can only be modified in Server Actions/Route Handlers
+          }
+        },
       },
     }
-  )
+  );
 }

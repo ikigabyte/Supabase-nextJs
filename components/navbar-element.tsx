@@ -13,7 +13,17 @@ const DELAY_BETWEEN_UPDATES = 1500; // 1.5 seconds
 
 export function NavBarElement() {
   const router = useRouter();
-  const [counts, setCounts] = useState({ print: 0, cut: 0, pack: 0, ship: 0 });
+  const [counts, setCounts] = useState<{
+    print: number | string;
+    cut: number | string;
+    pack: number | string;
+    ship: number | string;
+  }>({
+    print: "...",
+    cut: "...",
+    pack: "...",
+    ship: "...",
+  });
   const [isAdmin, setIsAdmin] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
 

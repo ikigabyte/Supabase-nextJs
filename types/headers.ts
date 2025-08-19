@@ -1,7 +1,24 @@
 import { OrderTypes } from "@/utils/orderTypes";
-// import { BARREL_OPTIMIZATION_PREFIX } from "next/dist/shared/lib/constants";
 
 export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
+  // Example: if orderType is "pack", return special headers
+  if (orderType === "ship") {
+    return [
+      "file-name",
+      "shape",
+      "quantity",
+      "lamination",
+      "material",
+      "ink",
+      "print method",
+      "ship date",
+      "ihd date",
+      "shipping method",
+      "notes",
+      orderType,
+    ];
+  }
+
   switch (material) {
     case "white":
       return [
@@ -42,8 +59,8 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "material",
         "cores",
         "print method",
-        "-",
         orderType + " date",
+        "SHIP DATE",
         "shipping method",
         "notes",
         orderType,
@@ -57,7 +74,6 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "product",
         "product type",
         "print method",
-        "-",
         orderType + " date",
         "SHIP DATE",
         "shipping method",
@@ -74,6 +90,7 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "ink",
         "print method",
         orderType + " date",
+        "SHIP DATE",
         "shipping method",
         "notes",
         orderType,

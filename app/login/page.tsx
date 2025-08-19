@@ -32,7 +32,7 @@ export default async function Login({
   }
   return (
     <section className="h-[calc(100vh-57px)] flex justify-center items-center">
-      <Card className="mx-auto max-w-sm">
+      <Card className="mx-auto max-w-sm pb-3">
         <CardHeader>
           <CardTitle className="text-2xl text-center">Login</CardTitle>
           <CardDescription className="text-center">
@@ -63,7 +63,11 @@ export default async function Login({
             </Button>
           </Form> */}
         </CardContent>
+        <div className="flex justify-center">
+          <p className="text-muted-foreground">Version 1.0.1</p>
+        </div>
       </Card>
+
     </section>
   );
 }

@@ -1065,10 +1065,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleDoubleClick = useCallback(
     async (fileName: string) => {
-      if (orderType === "print") {
-        return;
-      }
-
+      // if (orderType === "print") {
+      //   return;
+      // }
       // Read clipboard text (requires permissions in some browsers)
       // const clipboardText = await navigator.clipboard.readText();
       // if (clipboardText === String(fileName)) {
@@ -1237,6 +1236,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     },
     [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
   );
+
+  // if (!loading) {
+  //   return <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+  // }
 
   // console.log(dragSelections.current)
   // console.log(multiSelectedRows);
