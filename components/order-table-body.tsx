@@ -633,8 +633,9 @@ export function OrderTableBody({
                     onAsigneeClick(row);
                   }}
                 >
+
                   <Button
-                    className={`h-5 w-8 rounded-full px-0 py-0 text-xs bg-transparent ${!row.asignee ? "opacity-70" : ""}`}
+                    className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${!row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""}`}
                     style={row.asignee ? getCorrectUserColor(row.asignee) : undefined}
                   >
                     {row.asignee && row.asignee.length >= 2
@@ -685,3 +686,10 @@ export function OrderTableBody({
     </TableBody>
   );
 }
+
+            {/* className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
+                      row.asignee
+                        ? getCorrectUserColor(row.asignee ?? "")
+                        : "border bg-transparent border-dotted border-gray-400 text-gray-400"
+                    }`} */}
+                    
