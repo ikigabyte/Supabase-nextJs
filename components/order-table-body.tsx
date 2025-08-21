@@ -390,7 +390,8 @@ export function OrderTableBody({
         const multiplication = parseInt(quantityPart) * parseInt(sizePart);
         // console.log("Size part", sizePart);
         // const testPart = splitPart[2] || "";
-        const combinedString = `${quantityPart} x ${sizePart} = ${multiplication} "`;
+        const multiplicationInFeet = multiplication * 12;
+        const combinedString = `${quantityPart} x ${sizePart}" H = ${multiplication}" or ${multiplicationInFeet}" ft`;
         setRowHistory([combinedString]);
         // setRowHistory(["Tile: " + row.quantity]);
         setScrollAreaName("Tile Size");
@@ -599,11 +600,14 @@ export function OrderTableBody({
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
-                <TableCell
-                className={
-                  (() => {
+              <TableCell
+                className={(() => {
                   const convertedOrderTypeDate = convertToOrderTypeDate(row.due_date, productionStatus);
-                  if (convertedOrderTypeDate && convertedOrderTypeDate !== "-") {
+                  if (
+                    convertedOrderTypeDate &&
+                    convertedOrderTypeDate !== "-" &&
+                    !isHighlighted // Don't highlight if row is highlighted
+                  ) {
                     const today = new Date();
                     const [year, month, day] = convertedOrderTypeDate.split("-").map(Number);
                     const dueDate = new Date(year, month - 1, day);
@@ -611,20 +615,19 @@ export function OrderTableBody({
                     today.setHours(0, 0, 0, 0);
                     dueDate.setHours(0, 0, 0, 0);
                     if (dueDate < today) {
-                    return "bg-yellow-200";
+                      return "bg-yellow-200";
                     }
                   }
                   return "";
-                  })()
-                }
-                >
+                })()}
+              >
                 {convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
-                </TableCell>
-                <TableCell className="">
+              </TableCell>
+              <TableCell className="">
                 {productionStatus === "ship"
                   ? convertDateToReadableDate(row.ihd_date)
                   : convertDateToReadableDate(row.due_date)}
-                </TableCell>
+              </TableCell>
               {productionStatus == "print" && (
                 <TableCell
                   className=""
@@ -633,9 +636,10 @@ export function OrderTableBody({
                     onAsigneeClick(row);
                   }}
                 >
-
                   <Button
-                    className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${!row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""}`}
+                    className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
+                      !row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
+                    }`}
                     style={row.asignee ? getCorrectUserColor(row.asignee) : undefined}
                   >
                     {row.asignee && row.asignee.length >= 2
