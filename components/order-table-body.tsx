@@ -390,7 +390,7 @@ export function OrderTableBody({
         const multiplication = parseInt(quantityPart) * parseInt(sizePart);
         // console.log("Size part", sizePart);
         // const testPart = splitPart[2] || "";
-        const multiplicationInFeet = multiplication * 12;
+        const multiplicationInFeet = multiplication / 12;
         const combinedString = `${quantityPart} x ${sizePart}" H = ${multiplication}" or ${multiplicationInFeet}" ft`;
         setRowHistory([combinedString]);
         // setRowHistory(["Tile: " + row.quantity]);
