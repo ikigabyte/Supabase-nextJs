@@ -33,17 +33,6 @@ import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
 import { OrderViewer } from "./order-viewer";
 import { ViewersDropdown } from "./viewers";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-// import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
@@ -51,7 +40,6 @@ import { toast } from "sonner";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
 // import { ScrollBar } from "./ui/scroll-area";
 import { convertToSpaces } from "@/lib/utils";
-import { DropdownAsignee } from "./dropdown";
 
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
@@ -59,8 +47,8 @@ type UserProfileRow = { id: string; role: string; color: string | null };
 const STATUSES: readonly OrderTypes[] = ["print", "cut", "pack", "ship"] as const;
 const draggingThreshold = 1; // px
 
-const ACTIVE_THRESHOLD = 30 * 60 * 1000; // 30 minutes
-const IDLE_THRESHOLD = 3 * 60 * 60 * 1000; // 2 hours
+const ACTIVE_MS = 30 * 60 * 1000 // 30 minutes
+const IDLE_MS   = 3 * 60 * 60 * 1000 // 2 hours
 
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   if (reverse) {
@@ -161,7 +149,8 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
   }, {} as Record<string, number>);
 }
 
-function parsePgTs(ts: string): Date {
+function parsePgTs(ts: string | undefined): Date {
+  if (!ts) return new Date(NaN);
   // "2025-08-14 15:07:44.897299+00" -> ISO-like
   const [d, t] = ts.split(" ");
   if (!t) return new Date(ts);
@@ -339,6 +328,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const [viewersByUser, setViewersByUser] = useState<Map<string, Date>>(new Map());
 
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    console.log("Now tick updated:", nowTick);
+    const id = setInterval(() => setNowTick(Date.now()), 60_000); // every 1 min
+    return () => clearInterval(id);
+  }, []);
+
   // 3) ----- replace your existing profiles fetch effect to enrich profiles -----
   // BEFORE: select("identifier, color")
   // AFTER:
@@ -369,7 +365,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       cancelled = true;
     };
   }, [supabase]);
+
   // 4) ----- subscribe to order_viewers + initial load -----
+  // ---- 3) subscribe to INSERT + UPDATE (replace your current order_viewers channel) ----
   useEffect(() => {
     let cancelled = false;
 
@@ -377,33 +375,40 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       setViewersByUser((prev) => {
         const next = new Map(prev);
         const d = parsePgTs(row.last_updated);
-        const cur = next.get(row.user_id);
-        if (!cur || d > cur) next.set(row.user_id, d);
+        // KEY: use the same key you use in profilesById (prefer user_id)
+        const key = row.user_id; // <- if your profilesById is keyed by profile id
+        const cur = next.get(key);
+        if (!cur || d > cur) next.set(key, d);
         return next;
       });
     };
 
     (async () => {
-      const { data, error } = await supabase.from("order_viewers").select("user_id, last_updated, name_id, user_email");
-      if (error) {
-        console.error("order_viewers init error:", error);
-      } else if (!cancelled) {
+      const { data, error } = await supabase.from("order_viewers").select("user_id, last_updated, name_id");
+      if (!error && !cancelled) {
         const map = new Map<string, Date>();
         (data as OrderViewerRow[]).forEach((r) => {
           const d = parsePgTs(r.last_updated);
-          const prev = map.get(r.user_id);
-          if (!prev || d > prev) map.set(r.user_id, d);
+          const key = r.user_id; // keep keys consistent
+          const prev = map.get(key);
+          if (!prev || d > prev) map.set(key, d);
         });
         setViewersByUser(map);
+      } else if (error) {
+        console.error("order_viewers init error:", error);
       }
     })();
 
     const ch = supabase
       .channel("order_viewers_rt")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_viewers" }, (payload) => {
-        console.log("order_viewers INSERT:", payload.new);
-        upsert(payload.new as OrderViewerRow);
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "order_viewers" }, // INSERT + UPDATE (+ DELETE if you ever need)
+        (payload) => {
+          console.log("order_viewers change:", payload.eventType, payload.new || payload.old);
+          if (payload.new) upsert(payload.new as OrderViewerRow);
+        }
+      )
       .subscribe();
 
     return () => {
@@ -417,19 +422,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // Viewer activity thresholds (in ms)
 
   const { activeViewers, idleViewers } = useMemo(() => {
-    const now = Date.now();
+    const now = nowTick;
     const active: { user_id: string; last: Date }[] = [];
     const idle: { user_id: string; last: Date }[] = [];
+
     viewersByUser.forEach((last, user_id) => {
       const delta = now - last.getTime();
-      if (delta <= ACTIVE_THRESHOLD) active.push({ user_id, last });
-      else if (delta <= IDLE_THRESHOLD) idle.push({ user_id, last });
-      // else offline -> not shown
+      if (delta <= ACTIVE_MS) active.push({ user_id, last });
+      else if (delta <= IDLE_MS) idle.push({ user_id, last });
+      // else offline -> hidden
     });
+
     active.sort((a, b) => b.last.getTime() - a.last.getTime());
     idle.sort((a, b) => b.last.getTime() - a.last.getTime());
     return { activeViewers: active, idleViewers: idle };
-  }, [viewersByUser]);
+  }, [viewersByUser, nowTick]);
 
   const totalRecentViewers = activeViewers.length + idleViewers.length;
 

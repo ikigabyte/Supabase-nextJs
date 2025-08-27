@@ -2,17 +2,15 @@
 
 import Link from "next/link";
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Button } from "@/components/ui/button";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { DialogSearch } from "./search-dialog";
-import SearchResults from "@/components/searchresults";
+// import SearchResults from "@/components/searchresults";
 import type { Session } from "@supabase/supabase-js";
-import { useRouter } from "next/navigation";
 
 const DELAY_BETWEEN_UPDATES = 1500; // 1.5 seconds
 
 export function NavBarElement() {
-  const router = useRouter();
+  // const router = useRouter();
   const [counts, setCounts] = useState<{
     print: number | string;
     cut: number | string;
@@ -30,9 +28,9 @@ export function NavBarElement() {
 
   const supabase = getBrowserClient();
 
-  function onSearch(searchTerm: string) {
-    router.push(`/search?query=${encodeURIComponent(searchTerm)}`);
-  }
+  // function onSearch(searchTerm: string) {
+  //   router.push(`/search?query=${encodeURIComponent(searchTerm)}`);
+  // }
 
   // Populate session before the counts/channel effect triggers
   useEffect(() => {
@@ -65,11 +63,7 @@ export function NavBarElement() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userRes.user.id)
-        .single();
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", userRes.user.id).single();
 
       if (!cancelled) setIsAdmin(profile?.role === "admin");
     })();
@@ -116,11 +110,7 @@ export function NavBarElement() {
     // single wildcard listener for all events on orders
     const channel = supabase
       .channel("orders_counts")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        fetchCounts
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, fetchCounts)
       .subscribe();
 
     return () => {
@@ -166,14 +156,10 @@ export function NavBarElement() {
           Admin
         </Link>
       )}
-      <Link id="search" href="#" onClick={() => setDialogOpen(true)}>
+      <Link href="#" onClick={() => setDialogOpen(true)}>
         Search
       </Link>
-      <DialogSearch
-        onSearch={onSearch}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-      />
+      <DialogSearch open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }
