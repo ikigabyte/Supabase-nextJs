@@ -26,6 +26,7 @@ export function NavBarElement() {
   });
   const [isAdmin, setIsAdmin] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const supabase = getBrowserClient();
 
@@ -128,6 +129,18 @@ export function NavBarElement() {
     };
   }, [supabase, session]); // memoized fetchCounts uses supabase; session gate prevents early run
 
+  // Open DialogSearch on Ctrl+F or Cmd+F
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setDialogOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
     <div className="flex items-center gap-5 text-xs font-medium">
       <Link id="to-print" href="/toprint?rush">
@@ -153,7 +166,11 @@ export function NavBarElement() {
           Admin
         </Link>
       )}
-      <DialogSearch onSearch={onSearch} />
+      <DialogSearch
+        onSearch={onSearch}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </div>
   );
 }

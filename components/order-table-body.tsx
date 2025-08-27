@@ -10,6 +10,7 @@ import { headers } from "next/headers";
 import { convertToSpaces } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
 import { Button } from "@/components/ui/button";
+import { getCorrectUserColor } from "@/lib/utils";
 
 // import {
 //   DropdownMenu,
@@ -142,12 +143,6 @@ const subtractBusinessDays = (date: Date, days: number): Date => {
   }
   return result;
 };
-
-// const getUserColor = (email: string | null): string => {
-//   if (!email) return "bg-gray-100"; // Default color
-//   const user = userRows.find((row) => row.email === email);
-//   return user?.color ?? "bg-gray-100"; // Fallback to default color
-// };
 
 const convertToOrderTypeDate = (date: string | null, orderType: string | undefined): string => {
   if (!date) return "-";
@@ -423,19 +418,6 @@ export function OrderTableBody({
   const tableEl = tableRef.current?.closest("table") as HTMLTableElement | null;
   const dragSelection = dragSelections?.current && tableEl ? dragSelections.current.get(tableEl) : null;
 
-  const getCorrectUserColor = (asignee: string | undefined) => {
-    if (!asignee) return { backgroundColor: "#000000" }; // black as default
-    const color = userColors.get(asignee);
-    if (!color) return { backgroundColor: "#d22b2bff" };
-    // If color is in "R/G/B" format, convert to rgb()
-    const rgbMatch = color.match(/^(\d{1,3})\/(\d{1,3})\/(\d{1,3})$/);
-    if (rgbMatch) {
-      const [, r, g, b] = rgbMatch;
-      return { backgroundColor: `rgb(${r},${g},${b})` };
-    }
-    // Otherwise, assume it's a valid CSS color (hex, named, etc.)
-    return { backgroundColor: color };
-  };
   // const lastSelectedIndexRef = useRef<number | null>(null);
 
   // let isRowClicked = false;
@@ -640,7 +622,7 @@ export function OrderTableBody({
                     className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
                       !row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
                     }`}
-                    style={row.asignee ? getCorrectUserColor(row.asignee) : undefined}
+                    style={row.asignee ? getCorrectUserColor(userColors, row.asignee) : undefined}
                   >
                     {row.asignee && row.asignee.length >= 2
                       ? row.asignee.slice(0, 2).toUpperCase()

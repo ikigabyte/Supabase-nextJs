@@ -249,6 +249,7 @@ export async function addOrderViewer(name_ids: string[]) {
   if (name_ids.length > 0) {
     const inserts = name_ids.map((name_id) => ({
       user_id: user.id,
+      user_email: user.email || "",
       name_id,
     }));
 

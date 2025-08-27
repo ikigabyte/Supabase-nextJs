@@ -32,6 +32,17 @@ import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { ContextMenu } from "./context-menu";
 import { OrderViewer } from "./order-viewer";
+import { ViewersDropdown } from "./viewers";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 // import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -47,6 +58,9 @@ type UserProfileRow = { id: string; role: string; color: string | null };
 
 const STATUSES: readonly OrderTypes[] = ["print", "cut", "pack", "ship"] as const;
 const draggingThreshold = 1; // px
+
+const ACTIVE_THRESHOLD = 30 * 60 * 1000; // 30 minutes
+const IDLE_THRESHOLD = 3 * 60 * 60 * 1000; // 2 hours
 
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   if (reverse) {
@@ -147,6 +161,19 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
   }, {} as Record<string, number>);
 }
 
+function parsePgTs(ts: string): Date {
+  // "2025-08-14 15:07:44.897299+00" -> ISO-like
+  const [d, t] = ts.split(" ");
+  if (!t) return new Date(ts);
+  // match time + offset like +00 or +03 or +0330
+  const m = t.match(/^(\d{2}:\d{2}:\d{2}(?:\.\d+)?)([+-]\d{2})(\d{2})?$/);
+  if (m) {
+    const [, time, hh, mm] = m;
+    return new Date(`${d}T${time}${hh}:${mm ?? "00"}`);
+  }
+  return new Date(`${d}T${t}`);
+}
+
 // function convertDateStringtoTime(dateString : string) : Date{
 // }
 export async function filterOutOrderCounts(source?: { orders?: Order[]; supabase?: SupabaseClient }): Promise<Counts> {
@@ -233,6 +260,8 @@ export function updateOrderCountersDom(counts: Counts, attempt = 0) {
 // });
 // console.log("here is the supabase client" , supabase);
 
+type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; user_email: string };
+
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = getBrowserClient();
   // console
@@ -302,6 +331,109 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const dragSelections = useRef<
     Map<HTMLTableElement, { startRow: number; endRow: number /* , startCol: number; endCol: number */ }>
   >(new Map());
+
+  // 2) ----- inside OrderOrganizer component state block -----
+  const [profilesById, setProfilesById] = useState<
+    Map<string, { name: string; color?: string | null; identifier?: string | null }>
+  >(new Map());
+
+  const [viewersByUser, setViewersByUser] = useState<Map<string, Date>>(new Map());
+
+  // 3) ----- replace your existing profiles fetch effect to enrich profiles -----
+  // BEFORE: select("identifier, color")
+  // AFTER:
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from("profiles").select("id, identifier, color");
+      if (error) {
+        console.error("Failed to load profiles:", error);
+        return;
+      }
+      if (!cancelled) {
+        const idMap = new Map<string, { name: string; color?: string | null; identifier?: string | null }>();
+        const userColorMap = new Map<string, string>();
+        (data ?? []).forEach((row: any) => {
+          idMap.set(row.id, {
+            name: row.identifier ?? row.id,
+            color: row.color ?? null,
+            identifier: row.identifier ?? null,
+          });
+          userColorMap.set(row.identifier ?? "", row.color ?? "");
+        });
+        setProfilesById(idMap);
+        setUserRows(userColorMap);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+  // 4) ----- subscribe to order_viewers + initial load -----
+  useEffect(() => {
+    let cancelled = false;
+
+    const upsert = (row: OrderViewerRow) => {
+      setViewersByUser((prev) => {
+        const next = new Map(prev);
+        const d = parsePgTs(row.last_updated);
+        const cur = next.get(row.user_id);
+        if (!cur || d > cur) next.set(row.user_id, d);
+        return next;
+      });
+    };
+
+    (async () => {
+      const { data, error } = await supabase.from("order_viewers").select("user_id, last_updated, name_id, user_email");
+      if (error) {
+        console.error("order_viewers init error:", error);
+      } else if (!cancelled) {
+        const map = new Map<string, Date>();
+        (data as OrderViewerRow[]).forEach((r) => {
+          const d = parsePgTs(r.last_updated);
+          const prev = map.get(r.user_id);
+          if (!prev || d > prev) map.set(r.user_id, d);
+        });
+        setViewersByUser(map);
+      }
+    })();
+
+    const ch = supabase
+      .channel("order_viewers_rt")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_viewers" }, (payload) => {
+        console.log("order_viewers INSERT:", payload.new);
+        upsert(payload.new as OrderViewerRow);
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(ch);
+    };
+  }, [supabase]);
+
+  // console.log(userRows)
+  // 5) ----- derive active/idle lists -----
+  // Viewer activity thresholds (in ms)
+
+  const { activeViewers, idleViewers } = useMemo(() => {
+    const now = Date.now();
+    const active: { user_id: string; last: Date }[] = [];
+    const idle: { user_id: string; last: Date }[] = [];
+    viewersByUser.forEach((last, user_id) => {
+      const delta = now - last.getTime();
+      if (delta <= ACTIVE_THRESHOLD) active.push({ user_id, last });
+      else if (delta <= IDLE_THRESHOLD) idle.push({ user_id, last });
+      // else offline -> not shown
+    });
+    active.sort((a, b) => b.last.getTime() - a.last.getTime());
+    idle.sort((a, b) => b.last.getTime() - a.last.getTime());
+    return { activeViewers: active, idleViewers: idle };
+  }, [viewersByUser]);
+
+  const totalRecentViewers = activeViewers.length + idleViewers.length;
+
+  // 6) ----- small renderer for an item -----
 
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragStartTime = useRef<number>(0);
@@ -1245,17 +1377,75 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // console.log(multiSelectedRows);
   // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
+  // console.log(activeViewers);
+
+  // const ViewerRow = useCallback(
+  //   ({ user_id, faded }: { user_id: string; faded?: boolean }) => {
+  //     // console.log(profilesById)
+  //     const p = profilesById.get(user_id);
+  //     // console.log(p)
+  //     const name = p?.name ?? p?.identifier ?? user_id;
+  //     let color = p?.color ?? "#e5e7eb";
+  //     console.log("this is the color", color, " for ", user_id);
+  //     // Convert "rgb 102/255/102" to "rgb(102,255,102)"
+  //     if (typeof color === "string" && color.startsWith("rgb ")) {
+  //       color = "rgb(" + color.slice(4).split("/").join(",") + ")";
+  //     }
+
+  //     // faded = false
+  //     const initials = name
+  //       .split(/\s+/)
+  //       .map((w) => w[0])
+  //       .join("")
+  //       .slice(0, 2)
+  //       .toUpperCase();
+  //     return (
+  //       <div
+  //         className={`flex items-center space-x-2 px-2 py-1 ${faded ? "opacity-50" : ""}`}
+  //         data-testid={`viewer-${user_id}`}
+  //       >
+  //         {p?.avatar ? (
+  //           <img src={p.avatar} className="w-6 h-6 rounded-full object-cover" alt={name} />
+  //         ) : (
+  //           <div
+  //             className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-black/70"
+  //             style={{ backgroundColor: String(color) }}
+  //           >
+  //             {initials}
+  //           </div>
+  //         )}
+  //         <span className="text-sm">{name}</span>
+  //       </div>
+  //     );
+  //   },
+  //   [profilesById]
+  // );
+
+  // console.log('active viewers:', activeViewers);
+  // console.log('idle viewers:', idleViewers);
+  // const viewers = [];
   // console.log(grouped);
   return (
     <>
       <div className="relative" ref={containerRef}>
-        <div>
-          <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-            {"To " + orderType.charAt(0).toUpperCase() + orderType.slice(1)} -{" "}
-            {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
-          </h1>
-          <Separator className="w-full mb-10" />
+        <div className="flex flex-row items-start justify-between w-full">
+          <div className="flex-shrink-0">
+            <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+              {"To " + orderType.charAt(0).toUpperCase() + orderType.slice(1)} -{" "}
+              {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
+            </h1>
+          </div>
+          <div className="flex justify-end max-w-xs w-full">
+            <ViewersDropdown
+              activeViewers={activeViewers}
+              idleViewers={idleViewers}
+              totalRecentViewers={totalRecentViewers}
+              profilesById={profilesById}
+            />
+          </div>
         </div>
+
+        <Separator className="w-full mb-10" />
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           {selectedCategory.toLowerCase() === "special" && (
             <OrderInputter onSubmit={handleNewOrderSubmit}></OrderInputter>
