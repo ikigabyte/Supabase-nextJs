@@ -50,6 +50,7 @@ const draggingThreshold = 1; // px
 const ACTIVE_MS = 30 * 60 * 1000 // 30 minutes
 const IDLE_MS   = 3 * 60 * 60 * 1000 // 2 hours
 
+const MAX_RETRIES_FOR_SCROLL = 10;
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   if (reverse) {
     switch (status) {
@@ -1093,14 +1094,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (orderNumber) {
           // Wait until the rowRef is available
           let retries = 0;
-          const maxRetries = 10;
+          
           const checkAndScroll = () => {
             const rowEl = rowRefs.current[orderNumber];
             if (rowEl) {
               scrollToOrder(orderNumber);
-            } else if (retries < maxRetries) {
+            } else if (retries < MAX_RETRIES_FOR_SCROLL) {
               retries++;
-              setTimeout(checkAndScroll, 500);
+              setTimeout(checkAndScroll, 1000);
             }
           };
           checkAndScroll();
