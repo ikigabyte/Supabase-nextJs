@@ -166,6 +166,9 @@ export function NavBarElement() {
           Admin
         </Link>
       )}
+      <Link id="search" href="#" onClick={() => setDialogOpen(true)}>
+        Search
+      </Link>
       <DialogSearch
         onSearch={onSearch}
         open={dialogOpen}

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 // import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
-import { SearchBar } from "./search-bar";
+// import { SearchBar } from "./search-bar";
 import { Order } from "@/types/custom";
 import { useRouter } from "next/navigation";
 import { getBrowserClient } from "@/utils/supabase/client";
