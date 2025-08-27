@@ -81,7 +81,6 @@ export function DialogSearch({
       setLoading(true);
       const isNumeric = /^\d+$/.test(q);
       let builder = supabase.from("orders").select("*");
-
       if (isNumeric) {
         builder = builder.eq("order_id", parseInt(q, 10));
       } else {
@@ -139,10 +138,7 @@ export function DialogSearch({
           </button>
         </div>
 
-        <Button
-          onClick={() => handleSearch(orderId)}
-          disabled={!orderId.trim() || loading}
-        >
+        <Button onClick={() => handleSearch(orderId)} disabled={!orderId.trim() || loading}>
           {loading ? "Searching..." : "Search"}
         </Button>
 
@@ -151,37 +147,34 @@ export function DialogSearch({
           {!hasSearched ? null : loading ? (
             <p className="text-sm text-gray-500">Searching...</p>
           ) : !orders || orders.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              No orders found for "{orderId.trim()}".
-            </p>
+            <p className="text-sm text-gray-500">No orders found for "{orderId.trim()}".</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="h-.5 [&>th]:py-0 text-xs">
-                  <TableHead className="border-r border-gray-200">File ID</TableHead>
-                  <TableHead className="border-r border-gray-200">Production Status</TableHead>
-                  <TableHead className="border-r border-gray-200">Material</TableHead>
+                  <TableHead className="w-[60%] border-r border-gray-200">File ID</TableHead>
+                  <TableHead className="w-[20%] border-r border-gray-200">Production Status</TableHead>
+                  <TableHead className="w-[20%]">Material</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders.map((order) => (
-                  <TableRow
+                    <TableRow
                     key={order.name_id}
                     className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() =>
+                    onClick={() => {
                       router.push(
-                        getCorrectPage(
-                          order.production_status ?? "",
-                          order.material ?? "",
-                          order.name_id ?? ""
-                        )
-                      )
-                    }
-                  >
-                    <TableCell>{order.name_id}</TableCell>
-                    <TableCell>{order.production_status}</TableCell>
-                    <TableCell>{order.material}</TableCell>
-                  </TableRow>
+                      getCorrectPage(order.production_status ?? "", order.material ?? "", order.name_id ?? "")
+                      );
+                      if (onOpenChange) onOpenChange(false);
+                    }}
+                    >
+                    <TableCell className="w-[60%] break-words break-all whitespace-pre-wrap text-xs">
+                      {order.name_id}
+                    </TableCell>
+                    <TableCell className="w-[20%] text-xs">{order.production_status}</TableCell>
+                    <TableCell className="w-[20%] text-xs">{order.material}</TableCell>
+                    </TableRow>
                 ))}
               </TableBody>
             </Table>

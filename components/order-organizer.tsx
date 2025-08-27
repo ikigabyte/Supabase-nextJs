@@ -330,7 +330,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
-    console.log("Now tick updated:", nowTick);
+    // console.log("Now tick updated:", nowTick);
     const id = setInterval(() => setNowTick(Date.now()), 60_000); // every 1 min
     return () => clearInterval(id);
   }, []);
@@ -405,7 +405,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         "postgres_changes",
         { event: "*", schema: "public", table: "order_viewers" }, // INSERT + UPDATE (+ DELETE if you ever need)
         (payload) => {
-          console.log("order_viewers change:", payload.eventType, payload.new || payload.old);
+          // console.log("order_viewers change:", payload.eventType, payload.new || payload.old);
           if (payload.new) upsert(payload.new as OrderViewerRow);
         }
       )
