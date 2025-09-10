@@ -1,21 +1,25 @@
 // import { ButtonOrganizer } from "@/components/button-organizer";
 import { OrderOrganizer } from "@/components/order-organizer";
 import { Separator } from "@/components/ui/separator";
-import { getBrowserClient } from "@/utils/supabase/client";
+// import { getBrowserClient } from "@/utils/supabase/client";
+import { getServerClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
 export default async function ToCutPage() {
-  // const supabase = getBrowserClient();
-  // console.log("INIT:", supabase);
-  
-  // const {
-  //   data: { user },
-  //   error,
-  // } = await supabase.auth.getUser();
+  const supabase = await getServerClient();
+  // console.log("Supabase client initialized:", supabase);
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  // console.log("Fetched user:", user, "Error:", error);
   // if (!user) {
-    // redirect("/login");
-  
-  // console.log("Supabase client", supabase);
+  //   // redirect("/login");
+  // }
+  // console.log("Fetched user:", user, "Error:", error);
+  // console.log("Fetched user:", user, "Error:", error);
+  // console.log(supabase);
+  // console.log("user", user);
   // Fetch orders
   // const { data: orders } = await supabase.from("orders").select().order("due_date", { ascending: false });
 
