@@ -13,7 +13,6 @@ import Form from "next/form";
 import type { Session } from "@supabase/supabase-js";
 
 // import {}
-// import { SearchBar } from "./search-bar";
 // import { redirect } from "next/dist/server/api-utils";
 
 // import { redirect } from 'next/navigation'

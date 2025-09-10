@@ -16,6 +16,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
     if (e.key === "Enter") {
       e.preventDefault();
       onSearch(query);
+      console.log("Searching for:", query);
       // onSearch(query);
     }
   };

@@ -22,6 +22,8 @@ import {
   TableHeader,
 } from "@/components/ui/table";
 
+import {convertToSpaces} from "@/lib/utils";
+
 export function DialogSearch({
   open,
   onOpenChange,
@@ -51,16 +53,15 @@ export function DialogSearch({
     (productionStatus: string, material: string, orderQuery: string) => {
       const normalizedMaterial =
         material === "regular" || material === "roll" ? material : "regular";
-
       switch (productionStatus) {
         case "print":
-          return `toprint?${encodeURIComponent(material)}` + (orderQuery ? `=${orderQuery}` : "");
+          return `toprint?${encodeURIComponent(material)}=${encodeURIComponent(orderQuery)}`;
         case "cut":
-          return `tocut?${encodeURIComponent(normalizedMaterial)}` + (orderQuery ? `=${orderQuery}` : "");
+          return `tocut?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
         case "pack":
-          return `topack?${encodeURIComponent(normalizedMaterial)}` + (orderQuery ? `=${orderQuery}` : "");
+          return `topack?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
         case "ship":
-          return `toship?${encodeURIComponent(normalizedMaterial)}` + (orderQuery ? `=${orderQuery}` : "");
+          return `toship?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
         default:
           return `search?${orderQuery ? `order=${orderQuery}` : ""}`;
       }
@@ -103,7 +104,7 @@ export function DialogSearch({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent aria-description={undefined} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Search Orders</DialogTitle>
         </DialogHeader>
@@ -166,11 +167,12 @@ export function DialogSearch({
                       router.push(
                       getCorrectPage(order.production_status ?? "", order.material ?? "", order.name_id ?? "")
                       );
+                      // console.log("Navigating to order:", order.name_id);
                       if (onOpenChange) onOpenChange(false);
                     }}
                     >
                     <TableCell className="w-[60%] break-words break-all whitespace-pre-wrap text-xs">
-                      {order.name_id}
+                      {convertToSpaces(order.name_id)}
                     </TableCell>
                     <TableCell className="w-[20%] text-xs">{order.production_status}</TableCell>
                     <TableCell className="w-[20%] text-xs">{order.material}</TableCell>

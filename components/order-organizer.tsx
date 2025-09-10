@@ -2,8 +2,8 @@
 
 import React, { Fragment, useEffect, useState, useMemo, useCallback, useRef } from "react";
 // import { getbrow, type Session } from "@supabase/supabase-js";
-import { useRouter, usePathname, redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { useRouter, usePathname, redirect, useSearchParams } from "next/navigation";
+import { type SupabaseClient } from "@supabase/supabase-js";
 import { Table } from "@/components/ui/table";
 import { Order } from "@/types/custom";
 import { OrderTableHeader } from "./order-table-header";
@@ -13,6 +13,7 @@ import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 import { getBrowserClient } from "@/utils/supabase/client";
 import type { Session } from "@supabase/supabase-js";
+
 // lib/supabase.ts
 
 import { getButtonCategories } from "@/types/buttons";
@@ -40,6 +41,7 @@ import { toast } from "sonner";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
 // import { ScrollBar } from "./ui/scroll-area";
 import { convertToSpaces } from "@/lib/utils";
+import { UserSearchIcon } from "lucide-react";
 
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
@@ -317,6 +319,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const pendingRemovalIds = useRef<Set<string>>(new Set());
   const [userRows, setUserRows] = useState<Map<string, string>>(new Map());
   const [updateCounter, forceUpdate] = useState(0);
+  const searchParams = useSearchParams();
   // const [updateCounter, forceUpdate] = useState(0);
   const dragSelections = useRef<
     Map<HTMLTableElement, { startRow: number; endRow: number /* , startCol: number; endCol: number */ }>
@@ -1055,12 +1058,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   };
 
   const handleCategoryClick = useCallback(
-    (category: string) => {
-      // console.log("Category clicked:", category);
-      // console.log(`Category clicked: ${category}`);
+    (category: string, ignoreRefresh?: boolean) => {
       setSelectedCategory(category);
       setHeaders(getMaterialHeaders(orderType, category.toLowerCase()));
-      router.push(`${pathname}?${category.toLowerCase()}`);
+      if (!ignoreRefresh) {
+        router.push(`${pathname}?${category.toLowerCase()}`);
+      }
       const lowerCategory = category.toLowerCase();
       setVisibleGroups((prev) => {
         const newVisibility = {} as Record<string, boolean>;
@@ -1074,77 +1077,75 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     },
     [pathname, orderType, designatedCategories]
   );
+useEffect(() => {
+  const first = Array.from(searchParams.entries())[0] ?? [];
+  const [key, rawVal] = first as [string | undefined, string | undefined];
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const search = window.location.search;
-      let orderNumber: string = "";
-      if (search.startsWith("?")) {
-        const categoryFromUrl = decodeURIComponent(search.slice(1).split("=")[0]);
-        orderNumber = decodeURIComponent(search.slice(1).split("=")[1]);
-        // console.log("Order number from URL:", orderNumber);
-        // console.log("Category from URL:", categoryFromUrl);
-        if (
-          categoryFromUrl &&
-          categoryFromUrl !== selectedCategory &&
-          designatedCategories.some((cat) => cat.toLowerCase() === categoryFromUrl.toLowerCase())
-        ) {
-          handleCategoryClick(categoryFromUrl);
-        }
-        if (orderNumber) {
-          // Wait until the rowRef is available
-          let retries = 0;
-          
-          const checkAndScroll = () => {
-            const rowEl = rowRefs.current[orderNumber];
-            if (rowEl) {
-              scrollToOrder(orderNumber);
-            } else if (retries < MAX_RETRIES_FOR_SCROLL) {
-              retries++;
-              setTimeout(checkAndScroll, 1000);
-            }
-          };
-          checkAndScroll();
-        }
-      }
+  // If first key is a real category, hydrate state without navigating.
+  if (
+    key &&
+    designatedCategories.some((c) => c.toLowerCase() === key.toLowerCase()) &&
+    key !== selectedCategory
+  ) {
+    handleCategoryClick(key, true);
+    return;
+  }
+
+  // Non-category param (e.g., clear=...)
+  if (key) {
+    // URLSearchParams already decodes %23 → '#', but guard anyway.
+    const decoded = decodeURIComponent(rawVal ?? "");
+    const withHash = decoded.replace(/%23/gi, "#");
+    // Final name: only convert literal "u00A0" → real NBSP. Do NOT trim. Do NOT turn NBSP into space.
+    console.log("Raw value from URLSearchParams:", withHash);
+    const finalName = withHash
+    console.log("Scrolling to order:", finalName);
+    if (finalName) {
+      let tries = 0;
+      const find = () => {
+        const el = rowRefs.current[finalName];
+        if (el) scrollToOrder(finalName);
+        else if (tries++ < MAX_RETRIES_FOR_SCROLL) setTimeout(find, 300);
+      };
+      find();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleCategoryClick, designatedCategories]);
+  }
+}, [pathname, searchParams, handleCategoryClick, designatedCategories, selectedCategory]);
 
-  const handleCheckboxClick = useCallback(async (order: Order) => {
-    // Ignore real-time updates for this order, to prevent flicker
-    // setMultiSelectedRows((prev) => {
-    //   const next = new Map(prev);
-    //   next.delete(order.name_id);
-    //   return next;
-    // });
+const handleCheckboxClick = useCallback(async (order: Order) => {
+  // Ignore real-time updates for this order, to prevent flicker
+  // setMultiSelectedRows((prev) => {
+  //   const next = new Map(prev);
+  //   next.delete(order.name_id);
+  //   return next;
+  // });
 
-    setCurrentRowClicked(null);
-    setIsRowClicked(false);
-    dragSelections.current.clear();
-    ignoreUpdateIds.current.add(order.name_id);
-    pendingRemovalIds.current.add(order.name_id);
-    // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
-    // console.log(`Order clicked: ${order.name_id}`);
+  setCurrentRowClicked(null);
+  setIsRowClicked(false);
+  dragSelections.current.clear();
+  ignoreUpdateIds.current.add(order.name_id);
+  pendingRemovalIds.current.add(order.name_id);
+  // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
+  // console.log(`Order clicked: ${order.name_id}`);
 
-    setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
-    updateOrderStatus(order, false);
-    toast("Order updated", {
-      description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
-        order.production_status,
-        false
-      )}`,
-      action: {
-        label: "Undo",
-        onClick: () => {
-          revertStatus(order);
-        },
+  setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+  updateOrderStatus(order, false);
+  toast("Order updated", {
+    description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
+      order.production_status,
+      false
+    )}`,
+    action: {
+      label: "Undo",
+      onClick: () => {
+        revertStatus(order);
       },
-    });
+    },
+  });
 
-    // setTimeout(() => {
-    // }, 1000);
-  }, []);
+  // setTimeout(() => {
+  // }, 1000);
+}, []);
   // const createNewOrder = useCallback(async (Record<stringify, string) => {
   //   // console.log("Reverting status for order", order.name_id);
   //   // Optimistically update local state

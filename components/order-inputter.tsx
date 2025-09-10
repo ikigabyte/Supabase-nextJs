@@ -158,7 +158,7 @@ export function OrderInputter(props: { onSubmit: (data: any) => void }) {
       <DialogTrigger asChild>
         <Button variant="form">Create Order</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent aria-description={undefined} className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Create Order</DialogTitle>
           <DialogDescription>
