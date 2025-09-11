@@ -69,9 +69,24 @@ export function DialogSearch({
     []
   );
 
+  const getOrderNumberOutput = useCallback((orderIdStr: string) => {
+    const trimmed = orderIdStr.trim();
+    if (!trimmed) return "Search Orders";
+    if (/^\d+$/.test(trimmed)) {
+      return `Search Orders for ID: ${trimmed}`;
+    }
+    return `Search Orders for Name ID: ${trimmed}`;
+  }, []);
+
   const handleSearch = useCallback(
     async (searchTerm: string) => {
-      const q = searchTerm.trim();
+      // Extract number before first dash if present
+      let q = searchTerm.trim();
+      const dashIndex = q.indexOf("-");
+      if (dashIndex > 0 && /^\d+$/.test(q.slice(0, dashIndex))) {
+        q = q.slice(0, dashIndex);
+      }
+      console.log(q)
       setHasSearched(true);
       // if (onSearch) onSearch(q);
       if (!q) {

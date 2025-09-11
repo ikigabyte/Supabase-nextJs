@@ -13,6 +13,9 @@ import {
   Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
 } from "@/components/ui/table";
 
+import {
+  deleteAllOrders,
+} from "@/utils/actions";
 type Role = "user" | "admin";
 
 type ProfileRow = {
@@ -260,6 +263,18 @@ export default function AdminPage() {
           )}
         </div>
       </div>
-    </div>
+      <Button
+        variant="destructive"
+        disabled={loadingHistory}
+        onClick={async () => {
+          // Disable button while deleting
+          setLoadingHistory(true);
+          await deleteAllOrders();
+          setLoadingHistory(false);
+        }}
+      >
+        Reset Log
+      </Button>
+        </div>
   );
 }

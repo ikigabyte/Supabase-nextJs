@@ -7,9 +7,7 @@ import { OrderTypes } from "./orderTypes";
 
 import { updateZendeskNotes, updateZendeskStatus } from "@/utils/google-functions";
 
-// import projectSettings from "../project-settings.json";
-
-// console.log("Project settings", projectSettings.developer);
+type AdminRow = { role: "admin" | string };
 const getNewStatus = (currentStatus: string, revert: boolean) => {
   if (revert) {
     switch (currentStatus) {
@@ -39,6 +37,26 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
     }
   }
 };
+
+async function requireAdmin() {
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("User is not logged in");
+
+  const { data, error } = await supabase
+    .from("admin")
+    .select<"role", AdminRow>("role")
+    .eq("uuid", user.id)       // column must store auth user id
+    .eq("role", "admin")
+    .limit(1)
+    .maybeSingle();
+
+  if (error && error.code !== "PGRST116") throw new Error("Admin check failed");
+  if (!data) throw new Error("Not authorized");
+  return supabase;
+}
 
 const getTimeStamp = () => {
   const timestamp = new Date().toLocaleString("en-US", {
@@ -296,6 +314,17 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
   console.log("Order updated successfully");
 }
 
+export async function deleteAllOrders() {
+  console.log("Deleting all orders");
+  // if (true) return
+  const supabase = await requireAdmin();
+  const { error } = await supabase.from("orders").delete().neq("name_id", 0);
+  if (error) {
+    console.error("Error deleting all orders:", error.message);
+    return false;
+  }
+  return true;
+}
 /**
  * Create a custom order using the values submitted from the OrderInputter.
  * @param values - a Record of header keys to input values

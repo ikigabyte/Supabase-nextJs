@@ -10,9 +10,11 @@ import { TimelineOrder } from "@/types/custom";
 // import { OrderTableHeader } from "@/components/order-table-header";
 // import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Order } from "@/types/custom";
 import Papa from "papaparse";
 import { getBrowserClient } from "@/utils/supabase/client";
+
 // const supabase = createClientComponentClient();
 
 const STATUS_ORDER = ["to_print", "to_cut", "to_ship", "to_pack"] as const;
@@ -75,6 +77,26 @@ export function TimelineOrders() {
   const [futureOrders, setFutureOrders] = useState<TimelineOrder[]>([]);
 
   const [timeUpdated, setTimeUpdated] = useState<string>("");
+
+  const [ordersModalOpen, setOrdersModalOpen] = useState(false);
+  const [ordersForId, setOrdersForId] = useState<Order[] | null>(null);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+
+  const openOrdersFor = async (id: number) => {
+    setSelectedOrderId(id);
+    setOrdersModalOpen(true);
+    setOrdersLoading(true);
+    const { data, error } = await supabase.from("orders").select("*").eq("order_id", id);
+    if (error) {
+      console.error(error);
+      setOrdersForId([]);
+    } else {
+      setOrdersForId(data ?? []);
+    }
+    setOrdersLoading(false);
+  };
+
   // const [user, setUser] = useState<string>("Guest");
   // const clientUser = supabase.auth.getUser();
 
@@ -112,8 +134,7 @@ export function TimelineOrders() {
           .filter((order) => {
             const orderDate = new Date(order.ship_date + "T00:00:00Z");
             return (
-              orderDate <= new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z") &&
-              isWithin30Days(orderDate)
+              orderDate <= new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z") && isWithin30Days(orderDate)
             );
           })
           .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
@@ -122,8 +143,7 @@ export function TimelineOrders() {
           .filter((order) => {
             const orderDate = new Date(order.ship_date + "T00:00:00Z");
             return (
-              orderDate > new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z") &&
-              isWithin30Days(orderDate)
+              orderDate > new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z") && isWithin30Days(orderDate)
             );
           })
           .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
@@ -228,9 +248,15 @@ export function TimelineOrders() {
               // console.log("orderDate", orderDate);
               // const isPastDue = orderDate < new Date();
               // console.log("isPastDue", isPastDue);
+              const orderIdNum = Number(order.order_id);
+
               return (
-                <TableRow key={`due-${order.order_id}`} className={isPastDue ? "bg-red-100" : ""}>
-                  <TableCell className="text-left">{order.order_id}</TableCell>
+                <TableRow
+                  onClick={() => Number.isFinite(orderIdNum) && openOrdersFor(orderIdNum)}
+                  key={`due-${orderIdNum}`}
+                  className={isPastDue ? "bg-red-100" : ""}
+                >
+                  <TableCell className="text-left">{orderIdNum}</TableCell>
                   <TableCell className="text-left">{order.shipping_method}</TableCell>
                   <TableCell className="text-left">{order.ship_date}</TableCell>
                   <TableCell className="text-left">{order.ihd_date}</TableCell>
@@ -261,6 +287,40 @@ export function TimelineOrders() {
           {/* <CompletedOrganizer orders={orders} /> */}
         </Table>
       </section>
+      <Dialog open={ordersModalOpen} onOpenChange={setOrdersModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Orders for #{selectedOrderId ?? ""}</DialogTitle>
+          </DialogHeader>
+
+          {ordersLoading ? (
+            <p className="text-sm text-gray-500">Loading…</p>
+          ) : !ordersForId || ordersForId.length === 0 ? (
+            <p className="text-sm">No orders found in this log - check old print log</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="h-.5 [&>th]:py-0 text-xs">
+                  <TableHead className="w-[60%] border-r border-gray-200">File ID</TableHead>
+                  <TableHead className="w-[20%] border-r border-gray-200">Production Status</TableHead>
+                  <TableHead className="w-[20%]">Material</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ordersForId.map((o) => (
+                  <TableRow key={o.name_id}>
+                    <TableCell className="w-[60%] break-words break-all whitespace-pre-wrap text-xs">
+                      {o.name_id}
+                    </TableCell>
+                    <TableCell className="w-[20%] text-xs">{o.production_status}</TableCell>
+                    <TableCell className="w-[20%] text-xs">{o.material}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
