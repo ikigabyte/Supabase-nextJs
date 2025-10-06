@@ -172,6 +172,80 @@ function parsePgTs(ts: string | undefined): Date {
   return new Date(`${d}T${t}`);
 }
 
+async function fetchOrdersByStatus(
+  supabase: SupabaseClient,
+  status: OrderTypes,
+  chunkSize = 1000
+): Promise<Array<Pick<Order, "order_id" | "name_id">>> {
+  const collected: Array<Pick<Order, "order_id" | "name_id">> = [];
+  let from = 0;
+  let more = true;
+
+  while (more) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("order_id, name_id")
+      .eq("production_status", status)
+      .range(from, from + chunkSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const page = (data as Array<Pick<Order, "order_id" | "name_id">>) ?? [];
+    collected.push(...page);
+
+    if (page.length < chunkSize) {
+      more = false;
+    } else {
+      from += chunkSize;
+    }
+  }
+
+  return collected;
+}
+
+async function ensureOrdersInLog(params: {
+  supabase: SupabaseClient;
+  orderType: OrderTypes;
+  localOrders: Order[];
+}): Promise<{
+  missingInClient: Array<Pick<Order, "order_id" | "name_id">>;
+  missingInSupabase: Array<Pick<Order, "order_id" | "name_id">>;
+}> {
+  const { supabase, orderType, localOrders } = params;
+  const remoteOrders = await fetchOrdersByStatus(supabase, orderType);
+  const localOrdersForStatus = localOrders.filter((o) => o.production_status === orderType);
+
+  const localNameIds = new Set(localOrdersForStatus.map((o) => o.name_id));
+  const remoteNameIds = new Set(remoteOrders.map((o) => o.name_id));
+
+  const missingInClient = remoteOrders.filter((row) => !localNameIds.has(row.name_id));
+  const missingInSupabase = localOrdersForStatus
+    .filter((order) => !remoteNameIds.has(order.name_id))
+    .map((order) => ({ order_id: order.order_id, name_id: order.name_id }));
+
+  if (missingInClient.length > 0) {
+    console.warn(
+      `[ensureOrdersInLog] ${missingInClient.length} orders exist in Supabase but are missing from the client state for ${orderType}:`,
+      missingInClient.map((row) => ({ order_id: row.order_id, name_id: row.name_id }))
+    );
+  } else {
+    console.warn(`[ensureOrdersInLog] No Supabase orders missing from client state for ${orderType}.`);
+  }
+
+  if (missingInSupabase.length > 0) {
+    console.warn(
+      `[ensureOrdersInLog] ${missingInSupabase.length} orders exist in client state but not in Supabase for ${orderType}:`,
+      missingInSupabase
+    );
+  } else {
+    console.warn(`[ensureOrdersInLog] No client orders missing from Supabase for ${orderType}.`);
+  }
+
+  return { missingInClient, missingInSupabase };
+}
+
 // function convertDateStringtoTime(dateString : string) : Date{
 // }
 
@@ -421,7 +495,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       console.log("Total count of all categories:", totalCount);
       const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
       if (totalCount !== totalProductionCount) {
-        console.log("There is a mismatch in counts, refreshing orders...");
+        console.warn(
+          `[checkMatchingCounts] Mismatch detected for ${orderType}: categories total ${totalCount}, Supabase total ${totalProductionCount}. Investigating...`
+        );
+        try {
+          await ensureOrdersInLog({ supabase, orderType, localOrders: orders });
+        } catch (err) {
+          console.error("[checkMatchingCounts] Failed to ensure orders are present in the log:", err);
+        }
       }
       console.log(rowRefs.current)
       console.log(`Category total: ${totalCount}, Production status total: ${totalProductionCount}`);
