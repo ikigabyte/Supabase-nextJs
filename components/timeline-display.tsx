@@ -273,17 +273,17 @@ export function TimelineOrders() {
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
                               <div className="flex items-center">
                                 <span className="mr-2">{openIds.has(orderIdNum) ? "▾" : "▸"}</span>
-                                <span>Order ID: {orderIdNum}</span>
+                                <span>{orderIdNum}</span>
                               </div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>Shipping Method: {order.shipping_method || "-"}</div>
+                              <div>{order.shipping_method || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>Due Date: {order.ship_date || "-"}</div>
+                              <div> {order.ship_date || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>IHD Date: {order.ihd_date || "-"}</div>
+                              <div> {order.ihd_date || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
                               <div>{isPastDue ? "Status: Due" : "Status: Incoming"}</div>
@@ -324,17 +324,17 @@ export function TimelineOrders() {
                       <Table className="w-full table-fixed">
                         <TableBody>
                           <TableRow>
-                              <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                                <span>Order ID: {orderIdNum} </span>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <span>{orderIdNum} </span>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>Shipping Method: {order.shipping_method || "-"}</div>
+                              <div> {order.shipping_method || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>Due Date: {order.ship_date || "-"}</div>
+                              <div> {order.ship_date || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>IHD Date: {order.ihd_date || "-"}</div>
+                              <div> {order.ihd_date || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
                               <div>{isPastDue ? "Status: Due" : "Status: Incoming"}</div>

@@ -56,8 +56,8 @@ const ACTIVE_MS = 30 * 60 * 1000 // 30 minutes
 const IDLE_MS   = 3 * 60 * 60 * 1000 // 2 hours
 
 const MAX_RETRIES_FOR_SCROLL = 10;
-// const TIME_BETWEEN_FORCED_REFRESHES = 5 * 60 * 1000; // 5 minutes
-const TIME_BETWEEN_FORCED_REFRESHES = 15 * 1000; // 5 minutes
+const TIME_BETWEEN_FORCED_REFRESHES = 5 * 60 * 1000; // 5 minutes
+// const TIME_BETWEEN_FORCED_REFRESHES = 15 * 1000; // 5 minutes
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   if (reverse) {
     switch (status) {
@@ -490,22 +490,17 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         console.log("Orders are not loaded yet, waiting...");
         return;
       }
-      const counts = categoryCounts;
+      const counts = { ...categoryCounts };
+      // Ignore the "sheets" category
+      delete counts["sheets"];
       const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
-      console.log("Total count of all categories:", totalCount);
+      console.log("Total count of all categories (excluding 'sheets'):", totalCount);
       const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
       if (totalCount !== totalProductionCount) {
-        console.warn(
-          `[checkMatchingCounts] Mismatch detected for ${orderType}: categories total ${totalCount}, Supabase total ${totalProductionCount}. Investigating...`
-        );
-        try {
-          await ensureOrdersInLog({ supabase, orderType, localOrders: orders });
-        } catch (err) {
-          console.error("[checkMatchingCounts] Failed to ensure orders are present in the log:", err);
-        }
+        console.log("There is a mismatch in counts, refreshing orders...");
       }
-      console.log(rowRefs.current)
-      console.log(`Category total: ${totalCount}, Production status total: ${totalProductionCount}`);
+      console.log(rowRefs.current);
+      console.log(`Category total (excluding 'sheets'): ${totalCount}, Production status total: ${totalProductionCount}`);
     }
 
     // Run immediately, then every 5 minutes
