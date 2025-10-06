@@ -36,12 +36,15 @@ import { OrderViewer } from "./order-viewer";
 import { ViewersDropdown } from "./viewers";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import { Button } from "./ui/button";
+import { RefreshCcw } from "lucide-react"
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 // import { Description } from "@radix-ui/react-toast";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
 // import { ScrollBar } from "./ui/scroll-area";
 import { convertToSpaces } from "@/lib/utils";
 import { UserSearchIcon } from "lucide-react";
+import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
 
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
@@ -53,6 +56,8 @@ const ACTIVE_MS = 30 * 60 * 1000 // 30 minutes
 const IDLE_MS   = 3 * 60 * 60 * 1000 // 2 hours
 
 const MAX_RETRIES_FOR_SCROLL = 10;
+// const TIME_BETWEEN_FORCED_REFRESHES = 5 * 60 * 1000; // 5 minutes
+const TIME_BETWEEN_FORCED_REFRESHES = 15 * 1000; // 5 minutes
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   if (reverse) {
     switch (status) {
@@ -106,6 +111,7 @@ const laminationHeaderColors = {
 //   const bNum = extractDashNumber(b.name_id);
 //   return aNum - bNum;
 // }
+
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -168,6 +174,37 @@ function parsePgTs(ts: string | undefined): Date {
 
 // function convertDateStringtoTime(dateString : string) : Date{
 // }
+
+
+export async function checkTotalCountsForStatus(
+  source?: { orders?: Order[]; supabase?: SupabaseClient },
+  productionStatus?: OrderTypes
+): Promise<number> {
+  if (!productionStatus || !STATUSES.includes(productionStatus)) {
+    console.error("Invalid or missing productionStatus");
+    return 0;
+  }
+
+  // 1) Local path (fastest)
+  if (source?.orders && Array.isArray(source.orders)) {
+    return source.orders.filter((o) => o.production_status === productionStatus).length;
+  }
+
+  // 2) Remote path (head counts)
+  const sb = source?.supabase ?? getBrowserClient();
+  const { count, error } = await sb
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("production_status", productionStatus);
+
+  if (error) {
+    console.error(`Count failed for ${productionStatus}`, error);
+    return 0;
+  }
+
+  return count ?? 0;
+}
+
 export async function filterOutOrderCounts(source?: { orders?: Order[]; supabase?: SupabaseClient }): Promise<Counts> {
   // 1) Local path (fastest)
   if (source?.orders && Array.isArray(source.orders)) {
@@ -257,6 +294,9 @@ type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = getBrowserClient();
   // console
+
+
+
   // console.log("Supabase client initialized:", supabase.auth.getUser());
 
   async function fetchAllOrders() {
@@ -370,6 +410,30 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [supabase]);
 
+  useEffect(() => {
+    async function checkMatchingCounts() {
+      if (!orders || orders.length === 0) {
+        console.log("Orders are not loaded yet, waiting...");
+        return;
+      }
+      const counts = categoryCounts;
+      const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
+      console.log("Total count of all categories:", totalCount);
+      const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
+      if (totalCount !== totalProductionCount) {
+        console.log("There is a mismatch in counts, refreshing orders...");
+      }
+      console.log(rowRefs.current)
+      console.log(`Category total: ${totalCount}, Production status total: ${totalProductionCount}`);
+    }
+
+    // Run immediately, then every 5 minutes
+    checkMatchingCounts();
+    const interval = setInterval(checkMatchingCounts, TIME_BETWEEN_FORCED_REFRESHES);
+
+    return () => clearInterval(interval);
+  }, [orders, supabase, orderType]);
+
   // 4) ----- subscribe to order_viewers + initial load -----
   // ---- 3) subscribe to INSERT + UPDATE (replace your current order_viewers channel) ----
   useEffect(() => {
@@ -481,12 +545,32 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [supabase]);
 
+  const refreshOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      toast("Orders refreshed", {
+        description: "The orders have been successfully refreshed.",
+      });
+      // console.log("Manual refresh triggered");
+      const all = await fetchAllOrders();
+      console.log(`Fetched ${all.length} orders from server`);
+      setOrders(all);
+      // optional: keep navbar counters in sync
+      // const counts = await filterOutOrderCounts({ supabase });
+      // updateOrderCountersDom(counts);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     // Initial load
     setLoading(true);
     fetchAllOrders().then((allOrders) => {
+      // const takeOutOrderIds = allOrders.filter(order => order.production_status === "to_take_out").map(order => order.id);
       setOrders(allOrders);
     });
+    
     const channel = supabase
       .channel("orders_all")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
@@ -1077,75 +1161,71 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     },
     [pathname, orderType, designatedCategories]
   );
-useEffect(() => {
-  const first = Array.from(searchParams.entries())[0] ?? [];
-  const [key, rawVal] = first as [string | undefined, string | undefined];
+  useEffect(() => {
+    const first = Array.from(searchParams.entries())[0] ?? [];
+    const [key, rawVal] = first as [string | undefined, string | undefined];
 
-  // If first key is a real category, hydrate state without navigating.
-  if (
-    key &&
-    designatedCategories.some((c) => c.toLowerCase() === key.toLowerCase()) &&
-    key !== selectedCategory
-  ) {
-    handleCategoryClick(key, true);
-    return;
-  }
-
-  // Non-category param (e.g., clear=...)
-  if (key) {
-    // URLSearchParams already decodes %23 → '#', but guard anyway.
-    const decoded = decodeURIComponent(rawVal ?? "");
-    const withHash = decoded.replace(/%23/gi, "#");
-    // Final name: only convert literal "u00A0" → real NBSP. Do NOT trim. Do NOT turn NBSP into space.
-    console.log("Raw value from URLSearchParams:", withHash);
-    const finalName = withHash
-    console.log("Scrolling to order:", finalName);
-    if (finalName) {
-      let tries = 0;
-      const find = () => {
-        const el = rowRefs.current[finalName];
-        if (el) scrollToOrder(finalName);
-        else if (tries++ < MAX_RETRIES_FOR_SCROLL) setTimeout(find, 300);
-      };
-      find();
+    // If first key is a real category, hydrate state without navigating.
+    if (key && designatedCategories.some((c) => c.toLowerCase() === key.toLowerCase()) && key !== selectedCategory) {
+      handleCategoryClick(key, true);
+      return;
     }
-  }
-}, [pathname, searchParams, handleCategoryClick, designatedCategories, selectedCategory]);
 
-const handleCheckboxClick = useCallback(async (order: Order) => {
-  // Ignore real-time updates for this order, to prevent flicker
-  // setMultiSelectedRows((prev) => {
-  //   const next = new Map(prev);
-  //   next.delete(order.name_id);
-  //   return next;
-  // });
+    // Non-category param (e.g., clear=...)
+    if (key) {
+      // URLSearchParams already decodes %23 → '#', but guard anyway.
+      const decoded = decodeURIComponent(rawVal ?? "");
+      const withHash = decoded.replace(/%23/gi, "#");
+      // Final name: only convert literal "u00A0" → real NBSP. Do NOT trim. Do NOT turn NBSP into space.
+      console.log("Raw value from URLSearchParams:", withHash);
+      const finalName = withHash;
+      console.log("Scrolling to order:", finalName);
+      if (finalName) {
+        let tries = 0;
+        const find = () => {
+          const el = rowRefs.current[finalName];
+          if (el) scrollToOrder(finalName);
+          else if (tries++ < MAX_RETRIES_FOR_SCROLL) setTimeout(find, 300);
+        };
+        find();
+      }
+    }
+  }, [pathname, searchParams, handleCategoryClick, designatedCategories, selectedCategory]);
 
-  setCurrentRowClicked(null);
-  setIsRowClicked(false);
-  dragSelections.current.clear();
-  ignoreUpdateIds.current.add(order.name_id);
-  pendingRemovalIds.current.add(order.name_id);
-  // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
-  // console.log(`Order clicked: ${order.name_id}`);
+  const handleCheckboxClick = useCallback(async (order: Order) => {
+    // Ignore real-time updates for this order, to prevent flicker
+    // setMultiSelectedRows((prev) => {
+    //   const next = new Map(prev);
+    //   next.delete(order.name_id);
+    //   return next;
+    // });
 
-  setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
-  updateOrderStatus(order, false);
-  toast("Order updated", {
-    description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
-      order.production_status,
-      false
-    )}`,
-    action: {
-      label: "Undo",
-      onClick: () => {
-        revertStatus(order);
+    setCurrentRowClicked(null);
+    setIsRowClicked(false);
+    dragSelections.current.clear();
+    ignoreUpdateIds.current.add(order.name_id);
+    pendingRemovalIds.current.add(order.name_id);
+    // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
+    // console.log(`Order clicked: ${order.name_id}`);
+
+    setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+    updateOrderStatus(order, false);
+    toast("Order updated", {
+      description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
+        order.production_status,
+        false
+      )}`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          revertStatus(order);
+        },
       },
-    },
-  });
+    });
 
-  // setTimeout(() => {
-  // }, 1000);
-}, []);
+    // setTimeout(() => {
+    // }, 1000);
+  }, []);
   // const createNewOrder = useCallback(async (Record<stringify, string) => {
   //   // console.log("Reverting status for order", order.name_id);
   //   // Optimistically update local state
@@ -1444,13 +1524,19 @@ const handleCheckboxClick = useCallback(async (order: Order) => {
               {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
             </h1>
           </div>
-          <div className="flex justify-end max-w-xs w-full">
-            <ViewersDropdown
-              activeViewers={activeViewers}
-              idleViewers={idleViewers}
-              totalRecentViewers={totalRecentViewers}
-              profilesById={profilesById}
-            />
+          <div className="ml-auto flex items-center gap-2">
+            <div className="max-w-xs">
+              <ViewersDropdown
+                activeViewers={activeViewers}
+                idleViewers={idleViewers}
+                totalRecentViewers={totalRecentViewers}
+                profilesById={profilesById}
+              />
+            </div>
+
+            <Button onClick={refreshOrders} disabled={false}>
+              <RefreshCcw className="w-full h-full" />
+            </Button>
           </div>
         </div>
 

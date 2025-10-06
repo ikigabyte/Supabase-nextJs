@@ -10,10 +10,12 @@ import { TimelineOrder } from "@/types/custom";
 // import { OrderTableHeader } from "@/components/order-table-header";
 // import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+// Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
 import Papa from "papaparse";
 import { getBrowserClient } from "@/utils/supabase/client";
+import { Download } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 // const supabase = createClientComponentClient();
 
@@ -73,29 +75,62 @@ function isDateBeforeOrEqual(dateA: string | Date, dateB: string | Date) {
 const supabase = getBrowserClient();
 
 export function TimelineOrders() {
-  const [dueOrders, setDueOrders] = useState<TimelineOrder[]>([]);
-  const [futureOrders, setFutureOrders] = useState<TimelineOrder[]>([]);
+  const [combinedOrders, setCombinedOrders] = useState<TimelineOrder[]>([]);
+  // const [futureOrders, setFutureOrders] = useState<TimelineOrder[]>([]);
 
   const [timeUpdated, setTimeUpdated] = useState<string>("");
 
-  const [ordersModalOpen, setOrdersModalOpen] = useState(false);
-  const [ordersForId, setOrdersForId] = useState<Order[] | null>(null);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  // at top of component state
+  const [openIds, setOpenIds] = useState<Set<number>>(new Set());
+  const toggleOpen = (id: number, open: boolean) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      open ? next.add(id) : next.delete(id);
+      return next;
+    });
 
-  const openOrdersFor = async (id: number) => {
-    setSelectedOrderId(id);
-    setOrdersModalOpen(true);
-    setOrdersLoading(true);
-    const { data, error } = await supabase.from("orders").select("*").eq("order_id", id);
-    if (error) {
-      console.error(error);
-      setOrdersForId([]);
-    } else {
-      setOrdersForId(data ?? []);
+  // Inline orders rendering state: map order_id -> array of orders
+  const [ordersById, setOrdersById] = useState<Record<number, Order[]>>({});
+  const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
+
+  // Fetch all orders for the visible timeline (due + future) in bulk and group by order_id
+  useEffect(() => {
+    const allIds = Array.from(
+      new Set([...combinedOrders].map((o) => Number(o.order_id)).filter((id) => Number.isFinite(id)) as number[])
+    );
+    if (allIds.length === 0) {
+      setOrdersById({});
+      return;
     }
-    setOrdersLoading(false);
-  };
+
+    setOrdersLoading(true);
+    // Initialize base map so ids with no rows still render a message
+    const base: Record<number, Order[]> = {};
+    for (const id of allIds) base[id] = [];
+
+    supabase
+      .from("orders")
+      .select("name_id, production_status, material, order_id")
+      .in("order_id", allIds)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching orders for timeline:", error);
+          setOrdersById(base);
+          setOrdersLoading(false);
+          return;
+        }
+
+        const grouped: Record<number, Order[]> = { ...base };
+        (data ?? []).forEach((row: any) => {
+          const id = Number(row.order_id);
+          if (!Number.isFinite(id)) return;
+          if (!grouped[id]) grouped[id] = [];
+          grouped[id].push(row as Order);
+        });
+        setOrdersById(grouped);
+        setOrdersLoading(false);
+      });
+  }, [combinedOrders]);
 
   // const [user, setUser] = useState<string>("Guest");
   // const clientUser = supabase.auth.getUser();
@@ -111,7 +146,7 @@ export function TimelineOrders() {
     redirect("/login");
     return null; // or handle the error as needed
   }
-  console.log("Supabase client initialized:", supabase);
+  // console.log("Supabase client initialized:", supabase);
 
   useEffect(() => {
     supabase
@@ -130,26 +165,14 @@ export function TimelineOrders() {
           return diffDays <= 30 && diffDays >= 0;
         };
 
-        const due = data
+        const combinedOrders = data
           .filter((order) => {
-            const orderDate = new Date(order.ship_date + "T00:00:00Z");
-            return (
-              orderDate <= new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z") && isWithin30Days(orderDate)
-            );
+            const orderDate = new Date(order.ship_date ?? "");
+            return !isNaN(orderDate.getTime()) && (orderDate >= today || isWithin30Days(orderDate));
           })
           .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
 
-        const future = data
-          .filter((order) => {
-            const orderDate = new Date(order.ship_date + "T00:00:00Z");
-            return (
-              orderDate > new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z") && isWithin30Days(orderDate)
-            );
-          })
-          .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
-
-        setDueOrders(due);
-        setFutureOrders(future);
+        setCombinedOrders(combinedOrders);
       });
   }, []);
 
@@ -161,22 +184,21 @@ export function TimelineOrders() {
       .single()
       .then(({ data }) => {
         if (data) {
-          console.log("Time Updated:", data.production_status);
           setTimeUpdated(formatLastUpdated(data.production_status ?? ""));
-          // setTimeUpdated(data.production_status);
         }
       });
-    // console.log("Time Updated:", timeUpdated);
   }, []);
 
+  const HEADER_COLS = 4;
+
   const handleDownloadCSV = () => {
-    if (dueOrders.length === 0) {
+    if (combinedOrders.length === 0) {
       alert("No due orders to export.");
       return;
     }
 
     const csv = Papa.unparse(
-      dueOrders.map((order) => {
+      combinedOrders.map((order) => {
         const currentIdx = getStatusIndex(order.production_status ?? "");
         // Option 1: Use checkmark (✓) and blank
         // Option 2: Use TRUE/FALSE
@@ -221,106 +243,113 @@ export function TimelineOrders() {
     <>
       <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
         <h1 className="font-bold text-3xl "> Timeline Orders </h1>
-        <p className="text-left font-regular text-md">Last Updated: {timeUpdated} </p>
-        <h1 className="text-center font-bold text-lg">Orders Due</h1>
-        <Button onClick={handleDownloadCSV}>Download CSV</Button>
-        <Table>
-          {/* Use the same headers styling */}
-          <TableHeader>
-            <TableRow className="h-.5 [&>th]:py-0 text-xs">
-              <TableHead>Order Id</TableHead>
-              <TableHead>Shipping Method</TableHead>
-              <TableHead>Due Date</TableHead>
-              <TableHead>IHD Date</TableHead>
-              <TableHead>Production Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {dueOrders.map((order) => {
-              const orderDate = new Date(order.ship_date + "T00:00:00");
-              // const orderDate = order.ship_date ? new Date(order.ship_date + 'T00:00:00Z') : new Date(new Date().toISOString().split('T')[0] + 'T00:00:00Z');
-
-              const isPastDue = isDateBeforeOrEqual(
-                orderDate,
-                new Date(new Date().toISOString().split("T")[0] + "T00:00:00Z")
-              );
-              // console.log(orderDate, isPastDue);
-              // console.log("orderDate", orderDate);
-              // const isPastDue = orderDate < new Date();
-              // console.log("isPastDue", isPastDue);
-              const orderIdNum = Number(order.order_id);
-
-              return (
-                <TableRow
-                  onClick={() => Number.isFinite(orderIdNum) && openOrdersFor(orderIdNum)}
-                  key={`due-${orderIdNum}`}
-                  className={isPastDue ? "bg-red-100" : ""}
-                >
-                  <TableCell className="text-left">{orderIdNum}</TableCell>
-                  <TableCell className="text-left">{order.shipping_method}</TableCell>
-                  <TableCell className="text-left">{order.ship_date}</TableCell>
-                  <TableCell className="text-left">{order.ihd_date}</TableCell>
-                  <TableCell className="text-left">{order.production_status}</TableCell>
-                </TableRow>
-              );
-            })}
-
-            {/* Separator and Future Orders Label */}
-            <TableRow>
-              <TableCell colSpan={5}>
-                <Separator className="my-4" />
-                <h1 className="text-center font-bold text-lg">Future Orders</h1>
-              </TableCell>
-            </TableRow>
-
-            {futureOrders.map((order) => (
-              <TableRow key={`future-${order.order_id}`}>
-                <TableCell className="text-left">{order.order_id}</TableCell>
-                <TableCell className="text-left">{order.shipping_method}</TableCell>
-                <TableCell className="text-left">{order.ship_date}</TableCell>
-                <TableCell className="text-left">{order.ihd_date}</TableCell>
-                <TableCell className="text-left">{order.production_status}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-
-          {/* <CompletedOrganizer orders={orders} /> */}
-        </Table>
-      </section>
-      <Dialog open={ordersModalOpen} onOpenChange={setOrdersModalOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Orders for #{selectedOrderId ?? ""}</DialogTitle>
-          </DialogHeader>
-
-          {ordersLoading ? (
-            <p className="text-sm text-gray-500">Loading…</p>
-          ) : !ordersForId || ordersForId.length === 0 ? (
-            <p className="text-sm">No orders found in this log - check old print log</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="h-.5 [&>th]:py-0 text-xs">
-                  <TableHead className="w-[60%] border-r border-gray-200">File ID</TableHead>
-                  <TableHead className="w-[20%] border-r border-gray-200">Production Status</TableHead>
-                  <TableHead className="w-[20%]">Material</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ordersForId.map((o) => (
-                  <TableRow key={o.name_id}>
-                    <TableCell className="w-[60%] break-words break-all whitespace-pre-wrap text-xs">
-                      {o.name_id}
+        <p className="text-left font-regular text-sm">Last Updated: {timeUpdated} </p>
+        <div className="w-full flex justify-end">
+          <Button onClick={handleDownloadCSV}>
+            <Download className="mr-2" />
+            Download CSV
+          </Button>
+        </div>
+        {/* Orders Due */}
+        {/* Orders Due */}
+        {combinedOrders.map((order) => {
+          const orderIdNum = Number(order.order_id);
+          const rows = ordersById[orderIdNum] ?? [];
+          const hasRows = !ordersLoading && rows.length > 0;
+          const isPastDue = order.ship_date ? isDateBeforeOrEqual(order.ship_date, new Date()) : false;
+          return (
+            <React.Fragment key={`due-group-${orderIdNum}`}>
+              {hasRows ? (
+                <>
+                  {/* TRIGGER ROW: spans full table */}
+                  <TableRow
+                    className={`cursor-pointer ${isPastDue ? "bg-red-200" : "bg-gray-200"}`}
+                    onClick={() => toggleOpen(orderIdNum, !openIds.has(orderIdNum))}
+                  >
+                    <TableCell colSpan={HEADER_COLS} className="p-0">
+                      <Table className="w-full table-fixed">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div className="flex items-center">
+                                <span className="mr-2">{openIds.has(orderIdNum) ? "▾" : "▸"}</span>
+                                <span>Order ID: {orderIdNum}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div>Shipping Method: {order.shipping_method || "-"}</div>
+                            </TableCell>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div>Due Date: {order.ship_date || "-"}</div>
+                            </TableCell>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div>IHD Date: {order.ihd_date || "-"}</div>
+                            </TableCell>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div>{isPastDue ? "Status: Due" : "Status: Incoming"}</div>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
                     </TableCell>
-                    <TableCell className="w-[20%] text-xs">{o.production_status}</TableCell>
-                    <TableCell className="w-[20%] text-xs">{o.material}</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </DialogContent>
-      </Dialog>
+                  {/* DETAILS ROW */}
+                  {openIds.has(orderIdNum) && (
+                    <TableRow className="bg-gray-50">
+                      <TableCell colSpan={HEADER_COLS} className="p-0">
+                        <Table className="w-full table-fixed">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[75%]">File ID</TableHead>
+                              <TableHead className="w-[25%]">Production Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {rows.map((o) => (
+                              <TableRow key={`${orderIdNum}-${o.name_id}`}>
+                                <TableCell className="text-xs truncate">{o.name_id}</TableCell>
+                                <TableCell className="text-xs">{o.production_status}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              ) : (
+                <>
+                  <TableRow className={`${isPastDue ? "bg-red-200" : "bg-gray-200"}`}>
+                    <TableCell colSpan={HEADER_COLS} className="p-0">
+                      <Table className="w-full table-fixed">
+                        <TableBody>
+                          <TableRow>
+                              <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                                <span>Order ID: {orderIdNum} </span>
+                            </TableCell>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div>Shipping Method: {order.shipping_method || "-"}</div>
+                            </TableCell>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div>Due Date: {order.ship_date || "-"}</div>
+                            </TableCell>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div>IHD Date: {order.ihd_date || "-"}</div>
+                            </TableCell>
+                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                              <div>{isPastDue ? "Status: Due" : "Status: Incoming"}</div>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableCell>
+                  </TableRow>
+                </>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </section>
     </>
   );
 }

@@ -37,7 +37,6 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
     }
   }
 };
-
 async function requireAdmin() {
   const supabase = await getServerClient();
   const {
@@ -46,12 +45,13 @@ async function requireAdmin() {
   if (!user) throw new Error("User is not logged in");
 
   const { data, error } = await supabase
-    .from("admin")
+    .from("profiles")
     .select<"role", AdminRow>("role")
-    .eq("uuid", user.id)       // column must store auth user id
+    .eq("id", user.id)       // column must store auth user id
     .eq("role", "admin")
-    .limit(1)
-    .maybeSingle();
+    .single();
+  
+  console.log("Admin check data:", data, "error:", error);
 
   if (error && error.code !== "PGRST116") throw new Error("Admin check failed");
   if (!data) throw new Error("Not authorized");
@@ -315,7 +315,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
 }
 
 export async function deleteAllOrders() {
-  console.log("Deleting all orders");
+  // console.log("Deleting all orders");
   // if (true) return
   const supabase = await requireAdmin();
   const { error } = await supabase.from("orders").delete().neq("name_id", 0);
@@ -323,7 +323,9 @@ export async function deleteAllOrders() {
     console.error("Error deleting all orders:", error.message);
     return false;
   }
+  console.log("All orders deleted successfully");
   return true;
+  
 }
 /**
  * Create a custom order using the values submitted from the OrderInputter.
