@@ -12,7 +12,7 @@ export const convertToSpaces = (str: string) => {
       .replace(/\u00A0/g, " ")
       // Replace literal 'u00A0' sequences
       .replace(/u00A0/g, " ")
-      // Replace escaped '\u00A0' sequences
+      // Replace es ed '\u00A0' sequences
       .replace(/\\u00A0/g, " ")
   );
 };

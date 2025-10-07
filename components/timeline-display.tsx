@@ -16,8 +16,16 @@ import Papa from "papaparse";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { Download } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-
+import { Info } from "lucide-react";
+import {capitalizeFirstLetter} from "@/utils/stringfunctions";
 // const supabase = createClientComponentClient();
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle, DialogDescription
+} from "@/components/ui/dialog";
 
 const STATUS_ORDER = ["to_print", "to_cut", "to_ship", "to_pack"] as const;
 type StatusType = (typeof STATUS_ORDER)[number];
@@ -92,6 +100,7 @@ export function TimelineOrders() {
   // Inline orders rendering state: map order_id -> array of orders
   const [ordersById, setOrdersById] = useState<Record<number, Order[]>>({});
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
+  const [open, setOpen] = useState(false);
 
   // Fetch all orders for the visible timeline (due + future) in bulk and group by order_id
   useEffect(() => {
@@ -159,18 +168,46 @@ export function TimelineOrders() {
         today.setHours(0, 0, 0, 0);
 
         // Helper to check if order is within 30 days from today
-        const isWithin30Days = (orderDate: Date) => {
+        const isWithin7Days = (orderDate: Date) => {
           const diffTime = today.getTime() - orderDate.getTime();
           const diffDays = diffTime / (1000 * 60 * 60 * 24);
-          return diffDays <= 30 && diffDays >= 0;
+          return diffDays <= 7 && diffDays >= 0;
         };
 
-        const combinedOrders = data
-          .filter((order) => {
-            const orderDate = new Date(order.ship_date ?? "");
-            return !isNaN(orderDate.getTime()) && (orderDate >= today || isWithin30Days(orderDate));
-          })
-          .sort((a, b) => new Date(a.ship_date ?? "").getTime() - new Date(b.ship_date ?? "").getTime());
+        const sortAllOrders = (orders: TimelineOrder[]) => {
+          return orders.sort((a, b) => {
+            const shipDateA = new Date(a.ship_date ?? "").getTime();
+            const shipDateB = new Date(b.ship_date ?? "").getTime();
+
+            if (shipDateA !== shipDateB) {
+              return shipDateA - shipDateB;
+            }
+
+            const ihdDateA = new Date(a.ihd_date ?? "").getTime();
+            const ihdDateB = new Date(b.ihd_date ?? "").getTime();
+
+            if (ihdDateA !== ihdDateB) {
+              return ihdDateA - ihdDateB;
+            }
+
+            const shippingMethodOrder = (method: string) => {
+              if (method.toLowerCase() === "express") return 0;
+              if (method.toLowerCase() === "rush_shipping") return 1;
+              if (method.toLowerCase() === "standard") return 2;
+              return 3; // fallback for other methods
+            };
+
+            return shippingMethodOrder(a.shipping_method ?? "") - shippingMethodOrder(b.shipping_method ?? "");
+          });
+        };
+
+        const combinedOrders = sortAllOrders(
+          data
+            .filter((order) => {
+              const orderDate = new Date(order.ship_date ?? "");
+              return !isNaN(orderDate.getTime()) && (orderDate >= today || isWithin7Days(orderDate));
+            })
+        );
 
         setCombinedOrders(combinedOrders);
       });
@@ -191,6 +228,34 @@ export function TimelineOrders() {
 
   const HEADER_COLS = 4;
 
+
+  const getStatus = (orders: Order[]): string => {
+    if (orders.length === 0) return "No Data Found";
+
+    const statusCounts: Record<StatusType, number> = {
+      to_ship: 0,
+      to_pack: 0,
+      to_cut: 0,
+      to_print: 0,
+    };
+
+    for (const order of orders) {
+      const status = order.production_status ?? "";
+      if (STATUS_ORDER.includes(status as StatusType)) {
+        statusCounts[status as StatusType]++;
+      }
+    }
+
+    for (const status of STATUS_ORDER) {
+      if (statusCounts[status] > 0) {
+        return status;
+      }
+    }
+
+    return "No Data Found";
+  };
+
+  
   const handleDownloadCSV = () => {
     if (combinedOrders.length === 0) {
       alert("No due orders to export.");
@@ -243,20 +308,35 @@ export function TimelineOrders() {
     <>
       <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
         <h1 className="font-bold text-3xl "> Timeline Orders </h1>
-        <p className="text-left font-regular text-sm">Last Updated: {timeUpdated} </p>
-        <div className="w-full flex justify-end">
+        <p className="text-left font-regular text-sm">Last Scanned Zendesk: {timeUpdated} </p>
+        <div className="w-full flex justify-end gap-2">
+          <Button onClick={() => setOpen(true)}>
+            <Info />
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Timeline</DialogTitle>
+                <DialogDescription className="text-sm">
+                  This scans Zendesk categories: To Print, To Cut, To Pack and To Ship every hour on Zendesk.
+                  It organizes all the orders by due date and displays them here. Orders with ship dates longer then 30 days are not shown here
+                  
+                </DialogDescription>
+              </DialogHeader>
+            </DialogContent>
+          </Dialog>
           <Button onClick={handleDownloadCSV}>
             <Download className="mr-2" />
             Download CSV
           </Button>
         </div>
         {/* Orders Due */}
-        {/* Orders Due */}
         {combinedOrders.map((order) => {
           const orderIdNum = Number(order.order_id);
           const rows = ordersById[orderIdNum] ?? [];
           const hasRows = !ordersLoading && rows.length > 0;
           const isPastDue = order.ship_date ? isDateBeforeOrEqual(order.ship_date, new Date()) : false;
+          const latestStatus = getStatus(rows)
           return (
             <React.Fragment key={`due-group-${orderIdNum}`}>
               {hasRows ? (
@@ -277,7 +357,7 @@ export function TimelineOrders() {
                               </div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>{order.shipping_method || "-"}</div>
+                              <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
                               <div> {order.ship_date || "-"}</div>
@@ -286,7 +366,7 @@ export function TimelineOrders() {
                               <div> {order.ihd_date || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>{isPastDue ? "Status: Due" : "Status: Incoming"}</div>
+                              <div>Status: {capitalizeFirstLetter(latestStatus)}</div>
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -298,18 +378,13 @@ export function TimelineOrders() {
                     <TableRow className="bg-gray-50">
                       <TableCell colSpan={HEADER_COLS} className="p-0">
                         <Table className="w-full table-fixed">
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[75%]">File ID</TableHead>
-                              <TableHead className="w-[25%]">Production Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
                           <TableBody>
                             {rows.map((o) => (
-                              <TableRow key={`${orderIdNum}-${o.name_id}`}>
-                                <TableCell className="text-xs truncate">{o.name_id}</TableCell>
-                                <TableCell className="text-xs">{o.production_status}</TableCell>
-                              </TableRow>
+                              console.log("Rendering order row:", o.production_status),
+                                <TableRow key={`${orderIdNum}-${o.name_id}`}>
+                                  <TableCell className="text-xs truncate">{o.name_id}</TableCell>
+                                  <TableCell className="text-xs w-[20%] text-left">To {o.production_status}</TableCell>
+                                </TableRow>
                             ))}
                           </TableBody>
                         </Table>
@@ -325,7 +400,7 @@ export function TimelineOrders() {
                         <TableBody>
                           <TableRow>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <span>{orderIdNum} </span>
+                              <span>{orderIdNum}</span>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
                               <div> {order.shipping_method || "-"}</div>
@@ -337,7 +412,7 @@ export function TimelineOrders() {
                               <div> {order.ihd_date || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div>{isPastDue ? "Status: Due" : "Status: Incoming"}</div>
+                              <div>Not In Log</div>
                             </TableCell>
                           </TableRow>
                         </TableBody>

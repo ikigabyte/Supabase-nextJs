@@ -417,7 +417,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const ignoreUpdateIds = useRef<Set<string>>(new Set());
   const router = useRouter();
   const pathname = usePathname();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [refreshed, setRefreshed] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [dragging, setDragging] = useState(false);
   const [scrollPosition, setScrollPosition] = useState<number>(0); // Temporary
@@ -487,22 +488,25 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   useEffect(() => {
     async function checkMatchingCounts() {
       if (!orders || orders.length === 0) {
-        console.log("Orders are not loaded yet, waiting...");
+        // console.log("Orders are not loaded yet, waiting...");
         return;
       }
       const counts = { ...categoryCounts };
       // Ignore the "sheets" category
       delete counts["sheets"];
       const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
-      console.log("Total count of all categories (excluding 'sheets'):", totalCount);
+      // console.log("Total count of all categories (excluding 'sheets'):", totalCount);
       const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
       if (totalCount !== totalProductionCount) {
         console.log("There is a mismatch in counts, refreshing orders...");
+        const all = await fetchAllOrders();
+        setOrders(all);
       }
-      console.log(rowRefs.current);
-      console.log(`Category total (excluding 'sheets'): ${totalCount}, Production status total: ${totalProductionCount}`);
+      // console.log(rowRefs.current);
+      console.log(
+        `Category total (excluding 'sheets'): ${totalCount}, Production status total: ${totalProductionCount}`
+      );
     }
-
     // Run immediately, then every 5 minutes
     checkMatchingCounts();
     const interval = setInterval(checkMatchingCounts, TIME_BETWEEN_FORCED_REFRESHES);
@@ -622,20 +626,18 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, [supabase]);
 
   const refreshOrders = useCallback(async () => {
-    setLoading(true);
+    // setLoading(true);
     try {
       toast("Orders refreshed", {
         description: "The orders have been successfully refreshed.",
       });
       // console.log("Manual refresh triggered");
       const all = await fetchAllOrders();
-      console.log(`Fetched ${all.length} orders from server`);
       setOrders(all);
       // optional: keep navbar counters in sync
       // const counts = await filterOutOrderCounts({ supabase });
       // updateOrderCountersDom(counts);
     } finally {
-      setLoading(false);
     }
   }, [supabase]);
 
@@ -646,7 +648,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // const takeOutOrderIds = allOrders.filter(order => order.production_status === "to_take_out").map(order => order.id);
       setOrders(allOrders);
     });
-    
+
     const channel = supabase
       .channel("orders_all")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
@@ -734,12 +736,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           }
         }
 
-        // console.log("UPDATE event payload.old:", payload.old);
-        // console.log("UPDATE event payload.new:", payload.new);
         // If only notes changed, update that field
         if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes) {
-          // console.log("Notes changed for order", updated.name_id);
-          // console.log(updated.notes);
           setOrders((prev) =>
             prev.map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o)).slice()
           );
@@ -819,6 +817,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
     return () => {
       supabase.removeChannel(channel);
+      setLoading(false);
     };
   }, [orderType, currentRowClicked, isRowHovered]);
 
@@ -842,12 +841,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           if (!row) continue;
           const cells = Array.from(row.children).slice(0, 3) as HTMLTableCellElement[];
           const types = cells.map((cell) => cell.getAttribute("datatype") || cell.innerText.toUpperCase());
-          console.log("Selected row columns:", types);
+          // console.log("Selected row columns:", types);
           const valuesRow = cells.map((cell) => cell.innerText.toUpperCase() + "   ");
           values.push(valuesRow.join(""));
         }
       });
-      console.log(values);
+      // console.log(values);
       e.preventDefault();
       e.clipboardData?.setData("text/plain", values.join("\n"));
     };
@@ -1106,6 +1105,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [dragging]);
 
+  console.log(loading);
   //   useEffect(() => {
   //   (async () => {
   //     const counts = await filterOutOrderCounts({ orders, supabase });
@@ -1253,9 +1253,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       const decoded = decodeURIComponent(rawVal ?? "");
       const withHash = decoded.replace(/%23/gi, "#");
       // Final name: only convert literal "u00A0" → real NBSP. Do NOT trim. Do NOT turn NBSP into space.
-      console.log("Raw value from URLSearchParams:", withHash);
+      // console.log("Raw value from URLSearchParams:", withHash);
       const finalName = withHash;
-      console.log("Scrolling to order:", finalName);
+      // console.log("Scrolling to order:", finalName);
       if (finalName) {
         let tries = 0;
         const find = () => {
@@ -1609,9 +1609,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 profilesById={profilesById}
               />
             </div>
-
-            <Button onClick={refreshOrders} disabled={false}>
-              <RefreshCcw className="w-full h-full" />
+            <Button
+              onClick={async () => {
+                if (refreshed) return;
+                setRefreshed(true);
+                await refreshOrders();
+                await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second cooldown
+                setRefreshed(false);
+              }}
+              disabled={refreshed}
+            >
+              {refreshed ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-200" />
+              ) : (
+                <RefreshCcw className="w-full h-full" />
+              )}
             </Button>
           </div>
         </div>
