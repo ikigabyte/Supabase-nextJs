@@ -1,6 +1,6 @@
 "use client";
 // import * as React from "react"
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { redirect } from "next/navigation";
@@ -16,18 +16,17 @@ import Papa from "papaparse";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { Download } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Info } from "lucide-react";
-import {capitalizeFirstLetter} from "@/utils/stringfunctions";
+import { Info, ExternalLink } from "lucide-react";
+import { capitalizeFirstLetter } from "@/utils/stringfunctions";
+import { Toaster } from "@/components/ui/sonner";
 // const supabase = createClientComponentClient();
+// import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle, DialogDescription
-} from "@/components/ui/dialog";
 
-const STATUS_ORDER = ["to_print", "to_cut", "to_ship", "to_pack"] as const;
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
+const STATUS_ORDER = ["print", "cut", "ship", "pack"] as const;
 type StatusType = (typeof STATUS_ORDER)[number];
 
 function getStatusIndex(status: string): number {
@@ -85,9 +84,9 @@ const supabase = getBrowserClient();
 export function TimelineOrders() {
   const [combinedOrders, setCombinedOrders] = useState<TimelineOrder[]>([]);
   // const [futureOrders, setFutureOrders] = useState<TimelineOrder[]>([]);
-
+  const lastClickTime = useRef<number>(0);
   const [timeUpdated, setTimeUpdated] = useState<string>("");
-
+  const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   // at top of component state
   const [openIds, setOpenIds] = useState<Set<number>>(new Set());
   const toggleOpen = (id: number, open: boolean) =>
@@ -155,7 +154,6 @@ export function TimelineOrders() {
     redirect("/login");
     return null; // or handle the error as needed
   }
-  // console.log("Supabase client initialized:", supabase);
 
   useEffect(() => {
     supabase
@@ -202,11 +200,10 @@ export function TimelineOrders() {
         };
 
         const combinedOrders = sortAllOrders(
-          data
-            .filter((order) => {
-              const orderDate = new Date(order.ship_date ?? "");
-              return !isNaN(orderDate.getTime()) && (orderDate >= today || isWithin7Days(orderDate));
-            })
+          data.filter((order) => {
+            const orderDate = new Date(order.ship_date ?? "");
+            return !isNaN(orderDate.getTime()) && (orderDate >= today || isWithin7Days(orderDate));
+          })
         );
 
         setCombinedOrders(combinedOrders);
@@ -226,17 +223,17 @@ export function TimelineOrders() {
       });
   }, []);
 
-  const HEADER_COLS = 4;
-
+  const HEADER_COLS = 6;
 
   const getStatus = (orders: Order[]): string => {
+    // console.log(orders);
     if (orders.length === 0) return "No Data Found";
 
     const statusCounts: Record<StatusType, number> = {
-      to_ship: 0,
-      to_pack: 0,
-      to_cut: 0,
-      to_print: 0,
+      print: 0,
+      pack: 0,
+      cut: 0,
+      ship: 0,
     };
 
     for (const order of orders) {
@@ -255,7 +252,20 @@ export function TimelineOrders() {
     return "No Data Found";
   };
 
-  
+  const handleClick = (orderId: string | number) => {
+    navigator.clipboard.writeText(String(orderId));
+    // alert(`Double clicked on Order ID: ${orderId}`);
+    toast("Copied to clipboard", {
+      description: `The order ${orderId} has been copied to clipboard.`,
+    });
+    // await new Promise((resolve) => setTimeout(resolve, 1000));
+  };
+
+  const openZendeskLink = (orderId: number) => {
+    const url = `https://stickerbeat.zendesk.com/agent/tickets/${orderId}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   const handleDownloadCSV = () => {
     if (combinedOrders.length === 0) {
       alert("No due orders to export.");
@@ -318,9 +328,9 @@ export function TimelineOrders() {
               <DialogHeader>
                 <DialogTitle>Timeline</DialogTitle>
                 <DialogDescription className="text-sm">
-                  This scans Zendesk categories: To Print, To Cut, To Pack and To Ship every hour on Zendesk.
-                  It organizes all the orders by due date and displays them here. Orders with ship dates longer then 30 days are not shown here
-                  
+                  This scans Zendesk categories: To Print, To Cut, To Pack and To Ship every hour on Zendesk. It
+                  organizes all the orders by due date and displays them here. Orders with ship dates longer then 30
+                  days are not shown here
                 </DialogDescription>
               </DialogHeader>
             </DialogContent>
@@ -336,7 +346,7 @@ export function TimelineOrders() {
           const rows = ordersById[orderIdNum] ?? [];
           const hasRows = !ordersLoading && rows.length > 0;
           const isPastDue = order.ship_date ? isDateBeforeOrEqual(order.ship_date, new Date()) : false;
-          const latestStatus = getStatus(rows)
+          const latestStatus = getStatus(rows);
           return (
             <React.Fragment key={`due-group-${orderIdNum}`}>
               {hasRows ? (
@@ -346,27 +356,35 @@ export function TimelineOrders() {
                     className={`cursor-pointer ${isPastDue ? "bg-red-200" : "bg-gray-200"}`}
                     onClick={() => toggleOpen(orderIdNum, !openIds.has(orderIdNum))}
                   >
-                    <TableCell colSpan={HEADER_COLS} className="p-0">
+                    <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
                       <Table className="w-full table-fixed">
                         <TableBody>
                           <TableRow>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div className="flex items-center">
                                 <span className="mr-2">{openIds.has(orderIdNum) ? "▾" : "▸"}</span>
                                 <span>{orderIdNum}</span>
                               </div>
                             </TableCell>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div> {order.ship_date || "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div> {order.ihd_date || "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[15%] px-3 py-2 font-semibold">
                               <div>Status: {capitalizeFirstLetter(latestStatus)}</div>
+                            </TableCell>
+                            <TableCell className="w-[5%] px-3 py-2">
+                              <Button onClick={() => openZendeskLink(orderIdNum)}>
+                                {" "}
+                                <>
+                                  <ExternalLink />
+                                </>
+                              </Button>
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -376,15 +394,16 @@ export function TimelineOrders() {
                   {/* DETAILS ROW */}
                   {openIds.has(orderIdNum) && (
                     <TableRow className="bg-gray-50">
-                      <TableCell colSpan={HEADER_COLS} className="p-0">
+                      <TableCell colSpan={HEADER_COLS} className="p-0 ">
                         <Table className="w-full table-fixed">
                           <TableBody>
                             {rows.map((o) => (
-                              console.log("Rendering order row:", o.production_status),
-                                <TableRow key={`${orderIdNum}-${o.name_id}`}>
-                                  <TableCell className="text-xs truncate">{o.name_id}</TableCell>
-                                  <TableCell className="text-xs w-[20%] text-left">To {o.production_status}</TableCell>
-                                </TableRow>
+                              <TableRow key={`${orderIdNum}-${o.name_id}`}>
+                                <TableCell className="text-xs truncate">{o.name_id}</TableCell>
+                                <TableCell className="text-xs w-[20%] text-left">
+                                  To {capitalizeFirstLetter(o.production_status)}
+                                </TableCell>
+                              </TableRow>
                             ))}
                           </TableBody>
                         </Table>
@@ -395,24 +414,32 @@ export function TimelineOrders() {
               ) : (
                 <>
                   <TableRow className={`${isPastDue ? "bg-red-200" : "bg-gray-200"}`}>
-                    <TableCell colSpan={HEADER_COLS} className="p-0">
+                    <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
                       <Table className="w-full table-fixed">
                         <TableBody>
                           <TableRow>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <span>{orderIdNum}</span>
                             </TableCell>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
-                              <div> {order.shipping_method || "-"}</div>
+                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                              <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div> {order.ship_date || "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div> {order.ihd_date || "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[25%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[15%] px-3 py-2 font-semibold">
                               <div>Not In Log</div>
+                            </TableCell>
+                            <TableCell className="w-[5%] px-3 py-2">
+                              <Button onClick={() => openZendeskLink(orderIdNum)}>
+                                {" "}
+                                <>
+                                  <ExternalLink />
+                                </>
+                              </Button>
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -421,7 +448,9 @@ export function TimelineOrders() {
                   </TableRow>
                 </>
               )}
+              <Toaster theme={"dark"} richColors={true} />
             </React.Fragment>
+            
           );
         })}
       </section>

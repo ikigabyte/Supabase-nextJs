@@ -1191,7 +1191,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [headers, setHeaders] = useState<string[]>(() => getMaterialHeaders(orderType, defaultPage));
   // const [scrollAreaName, setScrollAreaName] = useState<string>(orderType);
   const [rowHistory, setRowHistory] = useState<string[] | null>(null);
-  const [clickedTables, setClickedTables] = useState<Set<string>>(new Set());
+  // const [clickedTables, setClickedTables] = useState<Set<string>>(new Set());
   // const [users, setUsers] = useState<Set<string>>(new Set());
   const [scrollAreaName, setScrollAreaName] = useState<string>("History");
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
