@@ -361,10 +361,7 @@ export function TimelineOrders() {
                         <TableBody>
                           <TableRow>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
-                              <div className="flex items-center">
-                                <span className="mr-2">{openIds.has(orderIdNum) ? "▾" : "▸"}</span>
-                                <span>{orderIdNum}</span>
-                              </div>
+                                <span>&nbsp;{orderIdNum || "—"}&nbsp;{openIds.has(orderIdNum) ? "▾" : "▸"}</span>
                             </TableCell>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
@@ -421,7 +418,7 @@ export function TimelineOrders() {
                         <TableBody>
                           <TableRow>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
-                              <span>{orderIdNum}</span>
+                                <span>&nbsp;{orderIdNum || "—"}</span>
                             </TableCell>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
