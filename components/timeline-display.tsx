@@ -353,11 +353,11 @@ export function TimelineOrders() {
                 <>
                   {/* TRIGGER ROW: spans full table */}
                   <TableRow
-                    className={`cursor-pointer ${isPastDue ? "bg-red-200" : "bg-gray-200"}`}
+                    className={`${isPastDue ? "bg-red-200" : "bg-gray-200"} h-12`}
                     onClick={() => toggleOpen(orderIdNum, !openIds.has(orderIdNum))}
                   >
                     <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-                      <Table className="w-full table-fixed">
+                      <Table className="w-full table-fixed min-w-0">
                         <TableBody>
                           <TableRow>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
@@ -378,7 +378,7 @@ export function TimelineOrders() {
                             <TableCell className="w-[15%] px-3 py-2 font-semibold">
                               <div>Status: {capitalizeFirstLetter(latestStatus)}</div>
                             </TableCell>
-                            <TableCell className="w-[5%] px-3 py-2">
+                            <TableCell className="w-[5%] px-3 py-1">
                               <Button onClick={() => openZendeskLink(orderIdNum)}>
                                 {" "}
                                 <>
@@ -394,8 +394,9 @@ export function TimelineOrders() {
                   {/* DETAILS ROW */}
                   {openIds.has(orderIdNum) && (
                     <TableRow className="bg-gray-50">
-                      <TableCell colSpan={HEADER_COLS} className="p-0 ">
-                        <Table className="w-full table-fixed">
+                      <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
+
+                        <Table className="w-full table-fixed min-w-0">
                           <TableBody>
                             {rows.map((o) => (
                               <TableRow key={`${orderIdNum}-${o.name_id}`}>
@@ -413,9 +414,10 @@ export function TimelineOrders() {
                 </>
               ) : (
                 <>
-                  <TableRow className={`${isPastDue ? "bg-red-200" : "bg-gray-200"}`}>
+                  <TableRow className={`${isPastDue ? "bg-red-200" : "bg-gray-200"} h-12`}>
                     <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-                      <Table className="w-full table-fixed">
+
+                      <Table className="w-full table-fixed min-w-0">
                         <TableBody>
                           <TableRow>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
