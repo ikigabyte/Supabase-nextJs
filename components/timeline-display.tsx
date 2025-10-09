@@ -373,7 +373,7 @@ export function TimelineOrders() {
                               <div> {order.ihd_date || "-"}</div>
                             </TableCell>
                             <TableCell className="w-[15%] px-3 py-2 font-semibold">
-                              <div>Status: {capitalizeFirstLetter(latestStatus)}</div>
+                              <div>Status: To {capitalizeFirstLetter(latestStatus)}</div>
                             </TableCell>
                             <TableCell className="w-[5%] px-3 py-1">
                               <Button onClick={() => openZendeskLink(orderIdNum)}>

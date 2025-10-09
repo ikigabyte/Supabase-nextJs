@@ -20,8 +20,8 @@ export function OrderTableHeader({
   let headers = tableHeaders;
   let headerWidths = widths;
 
-  if (productionStatus && productionStatus === "print") {
-    headers = [...tableHeaders.slice(0, 9), "ASIGNEE", ...tableHeaders.slice(9)];
+  if (true) {
+    headers = [...tableHeaders.slice(0, 9), "ASSIGNEE", ...tableHeaders.slice(9)];
 
     // Find the index of the 25% width and reduce it by 3%
     const widthsCopy = [...widths];

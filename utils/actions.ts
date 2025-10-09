@@ -196,6 +196,8 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
   const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
   if (!newStatus) throw new Error("No new status found");
+  
+
 
   const addHistoryPromise = addHistoryForUser(order.name_id, newStatus, order.production_status || "");
 
@@ -225,7 +227,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
   const updateOrderPromise = supabase
     .from("orders")
-    .update({ ...order, production_status: newStatus, history })
+    .update({ ...order, production_status: newStatus, history, asignee: null })
     .match({ name_id: order.name_id });
 
   // Run both in parallel
@@ -239,6 +241,9 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   //   void updateZendeskStatus(order.order_id, newStatus); // don't block
   // }
 }
+
+
+
 export async function addOrderViewer(name_ids: string[]) {
   if (!name_ids || name_ids.length === 0) {
     console.warn("No name_ids provided for order viewers");
