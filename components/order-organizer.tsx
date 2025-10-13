@@ -415,6 +415,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   // Track orders for which we want to ignore the next real-time update
   const ignoreUpdateIds = useRef<Set<string>>(new Set());
+  const ignoreRushIds = useRef<Set<string>>(new Set());
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(false);
@@ -663,6 +664,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             return next;
           });
         }
+
         if (ignoreUpdateIds.current.has(newOrder.name_id)) {
           ignoreUpdateIds.current.delete(newOrder.name_id);
           return;
@@ -686,6 +688,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             if (isRowHovered) {
               setIsRowHovered(false);
             }
+            if (newOrder.rush == true && !ignoreRushIds.current.has(newOrder.name_id)) {
+              toast.error("New order in rush", {
+                description: `${newOrder.name_id} has been added to ${orderType} and is marked as RUSH.`,
+              });
+              ignoreRushIds.current.add(newOrder.name_id);
+            }
+            // ignoreUpdateIds.current.delete(newOrder.name_id);
             // Always sort by due_date (ascending)
             return next.slice();
           });
@@ -715,6 +724,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         //     });
         //   }
         // }
+
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(updated.name_id)) {
           setMultiSelectedRows((prev) => {
@@ -1286,7 +1296,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
     setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
     updateOrderStatus(order, false);
-    toast("Order updated", {
+    toast.success("Order updated", {
       description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
         order.production_status,
         false
@@ -1457,7 +1467,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (option == "deleteAll") {
         console.log("Deleting line:", currentRowClicked);
         await removeOrderAll(currentRowClicked?.order_id!);
-        toast("All orders deleted", {
+        toast.error("Order Deleted", {
           description: `Deleted all items for order ${currentRowClicked!.order_id}.`,
           action: {
             label: "Undo",
