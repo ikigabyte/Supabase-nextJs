@@ -37,7 +37,7 @@ import { ViewersDropdown } from "./viewers";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
-import { RefreshCcw } from "lucide-react"
+import { RefreshCcw } from "lucide-react";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 // import { Description } from "@radix-ui/react-toast";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
@@ -52,8 +52,8 @@ type UserProfileRow = { id: string; role: string; color: string | null };
 const STATUSES: readonly OrderTypes[] = ["print", "cut", "pack", "ship"] as const;
 const draggingThreshold = 1; // px
 
-const ACTIVE_MS = 30 * 60 * 1000 // 30 minutes
-const IDLE_MS   = 3 * 60 * 60 * 1000 // 2 hours
+const ACTIVE_MS = 30 * 60 * 1000; // 30 minutes
+const IDLE_MS = 3 * 60 * 60 * 1000; // 2 hours
 
 const MAX_RETRIES_FOR_SCROLL = 10;
 const TIME_BETWEEN_FORCED_REFRESHES = 5 * 60 * 1000; // 5 minutes
@@ -111,7 +111,6 @@ const laminationHeaderColors = {
 //   const bNum = extractDashNumber(b.name_id);
 //   return aNum - bNum;
 // }
-
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -249,7 +248,6 @@ async function ensureOrdersInLog(params: {
 // function convertDateStringtoTime(dateString : string) : Date{
 // }
 
-
 export async function checkTotalCountsForStatus(
   source?: { orders?: Order[]; supabase?: SupabaseClient },
   productionStatus?: OrderTypes
@@ -369,8 +367,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const supabase = getBrowserClient();
   // console
 
-
-
   // console.log("Supabase client initialized:", supabase.auth.getUser());
 
   async function fetchAllOrders() {
@@ -423,7 +419,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [orders, setOrders] = useState<Order[]>([]);
   const [dragging, setDragging] = useState(false);
   const [scrollPosition, setScrollPosition] = useState<number>(0); // Temporary
-  // Move these hooks above useEffect so they're in scope in subscription handlers
+  const [selectedCategory, setSelectedCategory] = useState<string>(defaultPage);
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
   const [displayDropdown, setDisplayDropdown] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -688,9 +684,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             if (isRowHovered) {
               setIsRowHovered(false);
             }
-            if (newOrder.rush == true && !ignoreRushIds.current.has(newOrder.name_id)) {
-              toast.error("New order in rush", {
-                description: `${newOrder.name_id} has been added to ${orderType} and is marked as RUSH.`,
+            const currentUrl = window.location.href; // full URL
+            const hasRoll = currentUrl.includes("roll");
+            if (newOrder.rush == true && !ignoreRushIds.current.has(newOrder.name_id) && !hasRoll) {
+              const correctedName = convertToSpaces(newOrder.name_id);
+              toast.error("New Order has entered Rush!", {
+                description: `${correctedName} has been added to ${orderType} and is marked as RUSH.`,
+                duration: 10000,
               });
               ignoreRushIds.current.add(newOrder.name_id);
             }
@@ -706,26 +706,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // const oldStatus = (payload.old as Order).production_status as OrderTypes | null;
         const oldRow = payload.old as Order;
         const updated = payload.new as Order;
-
-        // 1) COUNTS + DOM: bump/decrement only if status actually changed
-        const oldStatus = oldRow.production_status as OrderTypes | null;
-        const newStatus = updated.production_status as OrderTypes | null;
-        // if (oldStatus !== newStatus) {
-        //   const oldTracked = !!oldStatus && STATUSES.includes(oldStatus);
-        //   const newTracked = !!newStatus && STATUSES.includes(newStatus);
-
-        //   if (oldTracked || newTracked) {
-        //     setCounts((prev) => {
-        //       const next = { ...prev };
-        //       if (oldTracked) next[oldStatus!] = Math.max(0, (next[oldStatus!] ?? 0) - 1);
-        //       if (newTracked) next[newStatus!] = (next[newStatus!] ?? 0) + 1;
-        //       updateOrderCountersDom(next);
-        //       return next;
-        //     });
-        //   }
-        // }
-
-        // Remove from multiSelectedRows if present
+        // const oldStatus = oldRow.production_status as OrderTypes | null;
+        // const newStatus = updated.production_status as OrderTypes | null;
         if (multiSelectedRows.has(updated.name_id)) {
           setMultiSelectedRows((prev) => {
             const next = new Map(prev);
@@ -1002,7 +984,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
         // This is a click (not a drag)
         // You can handle click here if needed
-        console.log("This was a click, not a drag");
+        // console.log("This was a click, not a drag");
         let rowIndex = -1;
         const tbody = row.parentElement;
         if (tbody && tbody.nodeName === "TBODY") {
@@ -1115,22 +1097,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [dragging]);
 
-  console.log(loading);
-  //   useEffect(() => {
-  //   (async () => {
-  //     const counts = await filterOutOrderCounts({ orders, supabase });
-  //     console.log("Fetched initial order counts:", counts);
-  //     updateOrderCountersDom(counts)
-  //     // updateOrderCountersDom(counts);
-  //   })();
-  // }, [orders]);
-
-  // useEffect(() => {
-  //   const counts = filterOutOrderCounts(orders);
-  //   console.log("Fetched initial order counts:", counts);
-  //   // updateOrderCounts(counts);
-  // }, [orders]);
-
   useEffect(() => {
     // console.log("Drag selections changed:", dragSelections.current);
     const selectedNameIds: string[] = [];
@@ -1197,7 +1163,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   // todo add it here so the first visible groups is the default category
   const [visibleGroups, setVisibleGroups] = useState<Record<string, boolean>>({});
-  const [selectedCategory, setSelectedCategory] = useState<string>(defaultPage);
+
   const [headers, setHeaders] = useState<string[]>(() => getMaterialHeaders(orderType, defaultPage));
   // const [scrollAreaName, setScrollAreaName] = useState<string>(orderType);
   const [rowHistory, setRowHistory] = useState<string[] | null>(null);
@@ -1279,20 +1245,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, [pathname, searchParams, handleCategoryClick, designatedCategories, selectedCategory]);
 
   const handleCheckboxClick = useCallback(async (order: Order) => {
-    // Ignore real-time updates for this order, to prevent flicker
-    // setMultiSelectedRows((prev) => {
-    //   const next = new Map(prev);
-    //   next.delete(order.name_id);
-    //   return next;
-    // });
-
     setCurrentRowClicked(null);
     setIsRowClicked(false);
     dragSelections.current.clear();
     ignoreUpdateIds.current.add(order.name_id);
     pendingRemovalIds.current.add(order.name_id);
-    // console.log("Order clicked:", order.name_id, "Status:", order.production_status);
-    // console.log(`Order clicked: ${order.name_id}`);
 
     setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
     updateOrderStatus(order, false);
@@ -1395,6 +1352,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     [orderType]
   );
 
+  console.log(selectedCategory);
+
   const revertStatus = useCallback(async (order: Order) => {
     console.log("Reverting status for order", order.name_id);
     // Optimistically update local state
@@ -1467,21 +1426,16 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (option == "deleteAll") {
         console.log("Deleting line:", currentRowClicked);
         await removeOrderAll(currentRowClicked?.order_id!);
-        toast.error("Order Deleted", {
+        toast.warning("Order Deleted", {
           description: `Deleted all items for order ${currentRowClicked!.order_id}.`,
           action: {
             label: "Undo",
             onClick: () => {},
           },
+          duration: 3000,
         });
-        // toast({
-        //   title: "All orders deleted",
-        //   description: `Deleted all items for order ${currentRowClicked!.order_id}.`,
-        //   // action: <ToastAction altText="Undo delete all">Undo</ToastAction>,
-        // });
         return;
       }
-      // Example async operation
       await new Promise((resolve) => setTimeout(resolve, 1000));
       window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, "_top");
     },
@@ -1544,62 +1498,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
   );
 
-  // if (!loading) {
-  //   return <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">Loading…</div>;
-  // }
-
-  // console.log(dragSelections.current)
-  // console.log(multiSelectedRows);
-  // Ensure we render a table for every possible key, even if group is empty
   const allKeys = orderKeys[orderType] || [];
-  // console.log(activeViewers);
 
-  // const ViewerRow = useCallback(
-  //   ({ user_id, faded }: { user_id: string; faded?: boolean }) => {
-  //     // console.log(profilesById)
-  //     const p = profilesById.get(user_id);
-  //     // console.log(p)
-  //     const name = p?.name ?? p?.identifier ?? user_id;
-  //     let color = p?.color ?? "#e5e7eb";
-  //     console.log("this is the color", color, " for ", user_id);
-  //     // Convert "rgb 102/255/102" to "rgb(102,255,102)"
-  //     if (typeof color === "string" && color.startsWith("rgb ")) {
-  //       color = "rgb(" + color.slice(4).split("/").join(",") + ")";
-  //     }
-
-  //     // faded = false
-  //     const initials = name
-  //       .split(/\s+/)
-  //       .map((w) => w[0])
-  //       .join("")
-  //       .slice(0, 2)
-  //       .toUpperCase();
-  //     return (
-  //       <div
-  //         className={`flex items-center space-x-2 px-2 py-1 ${faded ? "opacity-50" : ""}`}
-  //         data-testid={`viewer-${user_id}`}
-  //       >
-  //         {p?.avatar ? (
-  //           <img src={p.avatar} className="w-6 h-6 rounded-full object-cover" alt={name} />
-  //         ) : (
-  //           <div
-  //             className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-black/70"
-  //             style={{ backgroundColor: String(color) }}
-  //           >
-  //             {initials}
-  //           </div>
-  //         )}
-  //         <span className="text-sm">{name}</span>
-  //       </div>
-  //     );
-  //   },
-  //   [profilesById]
-  // );
-
-  // console.log('active viewers:', activeViewers);
-  // console.log('idle viewers:', idleViewers);
-  // const viewers = [];
-  // console.log(grouped);
   return (
     <>
       <div className="relative" ref={containerRef}>
@@ -1701,7 +1601,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         </Fragment>
         {/* Pass both categories and onCategoryClick to ButtonOrganizer */}
 
-        {/* Render circle if position is found */}
+        {/* Render circle if position is found comming soon not yet integrated*/}
         {circlePos && (
           <div
             style={{
@@ -1747,7 +1647,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               zIndex: 1000,
             }}
           >
-            <ContextMenu handleMenuOptionClick={handleMenuOptionClick} orderType={orderType} />
+            <ContextMenu handleMenuOptionClick={handleMenuOptionClick} orderType={orderType} currentRow={currentRowClicked} />
           </div>
         )}
         {/* <This is for dialaying the notifications */}
@@ -1756,7 +1656,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
         1 && <OrderViewer dragSelections={dragSelections} />}
       <Toaster theme={"dark"} richColors={true} />
-
       {/* <DropdownAsignee asignees={Array.from(users)} /> */}
     </>
   );

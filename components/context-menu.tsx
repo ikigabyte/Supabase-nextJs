@@ -1,13 +1,24 @@
 // import * as React from "react"
 import { Button } from "./ui/button";
-import { SkipBack, Eye, MailOpen, Trash } from "lucide-react"
+import { SkipBack, Eye, MailOpen, Trash } from "lucide-react";
 import { Separator } from "./ui/separator";
 import { OrderTypes } from "@/utils/orderTypes";
+import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
+import { convertToSpaces } from "@/lib/utils";
 
-export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOptionClick: (option: string) => void, orderType: OrderTypes }) {
+
+export function ContextMenu({
+  handleMenuOptionClick,
+  orderType,
+  currentRow
+}: {
+  handleMenuOptionClick: (option: string) => void;
+  orderType: OrderTypes;
+  currentRow: any; // Replace 'any' with the actual type of your row data
+}) {
   // console.log("ContextMenu orderType:", orderType);
   return (
-    <div className="flex flex-col space-y-1 border border-gray-300 shadow-sm w-40 rounded-md bg-white p-2">
+    <div className="flex flex-col space-y-3 border border-gray-300 shadow-sm w-60 rounded-md bg-white p-3">
       {orderType !== "print" && (
         <>
           <Button
@@ -36,7 +47,10 @@ export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOp
           <Separator className="my-2" />
         </>
       )}
-
+      <p
+      className="text-sm font-medium justify-center"
+      >Viewing {truncate(currentRow.name_id, 10)}</p>
+      {/* <Separator className="my-2" /> */}
       <Button
         datatype="menu-option"
         className="bg-white text-[12px] text-black hover:bg-gray-100"
@@ -46,7 +60,7 @@ export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOp
       >
         <Eye className="mr-3" /> Zendesk Page
       </Button>
-      <Separator className="my-2" />
+      {/* <Separator className="my-2" /> */}
       <Button
         datatype="menu-option"
         className="bg-white text-[12px] text-red-500 hover:bg-gray-100"
@@ -56,7 +70,7 @@ export function ContextMenu({ handleMenuOptionClick, orderType }: { handleMenuOp
       >
         <Trash className="mr-3 text-red-500" size={16} /> Remove Item
       </Button>
-      <Separator className="my-2" />
+      {/* <Separator className="my-2" /> */}
       <Button
         datatype="menu-option"
         className="bg-white text-[12px] text-red-500 hover:bg-gray-100"
