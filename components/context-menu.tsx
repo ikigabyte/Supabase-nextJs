@@ -18,7 +18,7 @@ export function ContextMenu({
 }) {
   // console.log("ContextMenu orderType:", orderType);
   return (
-    <div className="flex flex-col space-y-3 border border-gray-300 shadow-sm w-60 rounded-md bg-white p-3">
+    <div className="flex flex-col space-y-3 border border-gray-300 shadow-sm w-45 rounded-md bg-white p-3">
       {orderType !== "print" && (
         <>
           <Button
@@ -53,7 +53,7 @@ export function ContextMenu({
       {/* <Separator className="my-2" /> */}
       <Button
         datatype="menu-option"
-        className="bg-white text-[12px] text-black hover:bg-gray-100"
+        className="bg-gray-100 text-[12px] text-black hover:bg-gray-200"
         onClick={() => {
           handleMenuOptionClick("view");
         }}
@@ -63,7 +63,7 @@ export function ContextMenu({
       {/* <Separator className="my-2" /> */}
       <Button
         datatype="menu-option"
-        className="bg-white text-[12px] text-red-500 hover:bg-gray-100"
+        className="bg-gray-100 text-[12px] text-red-500 hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("delete");
         }}
@@ -73,7 +73,7 @@ export function ContextMenu({
       {/* <Separator className="my-2" /> */}
       <Button
         datatype="menu-option"
-        className="bg-white text-[12px] text-red-500 hover:bg-gray-100"
+        className="bg-gray-100 text-[12px] text-red-500 hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("deleteAll");
         }}

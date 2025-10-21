@@ -122,9 +122,9 @@ export function NavBarElement() {
   // Open DialogSearch on Ctrl+F or Cmd+F
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        setDialogOpen(true);
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      setDialogOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);

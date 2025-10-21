@@ -38,13 +38,15 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { RefreshCcw } from "lucide-react";
+import { Info } from "lucide-react";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 // import { Description } from "@radix-ui/react-toast";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
 // import { ScrollBar } from "./ui/scroll-area";
 import { convertToSpaces } from "@/lib/utils";
-import { UserSearchIcon } from "lucide-react";
-import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
+// import { UserSearchIcon } from "lucide-react";
+// import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
@@ -111,6 +113,48 @@ const laminationHeaderColors = {
 //   const bNum = extractDashNumber(b.name_id);
 //   return aNum - bNum;
 // }
+
+
+export const getTextColor = (category: string) => {
+  switch (category) {
+    case "rush":
+      return "text-red-800";
+    case "white":
+      return "text-gray-800";
+    case "glitter":
+      return "text-yellow-400";
+    case "holographic":
+      return "text-green-500";
+    case "clear":
+      return "text-pink-300";
+    case "20ptmag":
+      return "text-green-800";
+    case "30ptmag":
+      return "text-blue-800";
+        case "sheets":
+      return "text-blue-600";
+    case "arlon":
+      return "text-teal-500";
+    case "floor":
+      return "text-yellow-800";
+    case "roll":
+      return "text-yellow-900";
+        case "cling":
+      return "text-red-300";
+    case "arlon":
+      return "text-teal-500";
+    case "reflective":
+      return "text-green-300";
+         case "floor":
+      return "text-brown-200";
+             case "special":
+      return "text-yellow-500";
+    
+    default:
+      return "text-black";
+  }
+};
+
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -431,7 +475,63 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const pendingRemovalIds = useRef<Set<string>>(new Set());
   const [userRows, setUserRows] = useState<Map<string, string>>(new Map());
   const [updateCounter, forceUpdate] = useState(0);
+  const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
+  // at component scope
+  const shiftDown = useRef(false);
+
+  async function copyPrintData() {
+    // if (!shiftDown.current) return;
+    // if (e.shiftKey) return;
+    let values = [] as string[];
+    dragSelections.current.forEach((selection, table) => {
+      const tbody = table.querySelector("tbody");
+      if (!tbody) return;
+      // Only data rows (exclude separators)
+      const dataRows = Array.from(tbody.children).filter(
+        (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
+      );
+      const rowStart = Math.min(selection.startRow, selection.endRow);
+      const rowEnd = Math.max(selection.startRow, selection.endRow);
+      for (let i = rowStart; i <= rowEnd; i++) {
+        const row = dataRows[i];
+        if (!row) continue;
+        const cells = Array.from(row.children).slice(0, 3) as HTMLTableCellElement[];
+        const types = cells.map((cell) => cell.getAttribute("datatype") || cell.innerText.toUpperCase());
+        // console.log("Selected row columns:", types);
+        const valuesRow = cells.map((cell) => cell.innerText.toUpperCase() + "   ");
+        values.push(valuesRow.join(""));
+      }
+    });
+    // console.log(values);
+
+    toast("Copied Print Data", {
+      description: `For orders selected (${values.length} rows).`,
+    });
+    // Write text here to the clipboard
+    try {
+      await navigator.clipboard.writeText(values.join("\n") || "");
+    } catch (err) {
+      console.error("Failed to write to clipboard:", err);
+    }
+  }
+  
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") shiftDown.current = true;
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") shiftDown.current = false;
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
   // const [updateCounter, forceUpdate] = useState(0);
   const dragSelections = useRef<
     Map<HTMLTableElement, { startRow: number; endRow: number /* , startCol: number; endCol: number */ }>
@@ -813,38 +913,33 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [orderType, currentRowClicked, isRowHovered]);
 
-  useEffect(() => {
-    const onCopy = (e: ClipboardEvent) => {
-      if (dragSelections.current.size === 0) {
-        return;
+
+      useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "c") {
+        console.log("Ctrl+C detected, copying print data...");
+        copyPrintData();
       }
-      let values = [] as string[];
-      dragSelections.current.forEach((selection, table) => {
-        const tbody = table.querySelector("tbody");
-        if (!tbody) return;
-        // Only data rows (exclude separators)
-        const dataRows = Array.from(tbody.children).filter(
-          (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
-        );
-        const rowStart = Math.min(selection.startRow, selection.endRow);
-        const rowEnd = Math.max(selection.startRow, selection.endRow);
-        for (let i = rowStart; i <= rowEnd; i++) {
-          const row = dataRows[i];
-          if (!row) continue;
-          const cells = Array.from(row.children).slice(0, 3) as HTMLTableCellElement[];
-          const types = cells.map((cell) => cell.getAttribute("datatype") || cell.innerText.toUpperCase());
-          // console.log("Selected row columns:", types);
-          const valuesRow = cells.map((cell) => cell.innerText.toUpperCase() + "   ");
-          values.push(valuesRow.join(""));
-        }
-      });
-      // console.log(values);
-      e.preventDefault();
-      e.clipboardData?.setData("text/plain", values.join("\n"));
     };
-    document.addEventListener("copy", onCopy);
-    return () => document.removeEventListener("copy", onCopy);
-  }, []);
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+      }, []);
+  
+
+  // useEffect(() => {
+  //   const onCopy = (e : ClipboardEvent) => {
+  //     if (dragSelections.current.size === 0) {
+  //       return;
+  //     }
+
+  //   };
+  //   document.addEventListener("copy", onCopy);
+  //   return () => document.removeEventListener("copy", onCopy);
+  // }, []);
 
   // useEffect(() => {
   //   // Temporarily deactivating the circles
@@ -924,8 +1019,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const dx = Math.abs(e.clientX - dragStartPos.current.x);
         const dy = Math.abs(e.clientY - dragStartPos.current.y);
         if ((dx > draggingThreshold || dy > draggingThreshold) && !dragging) {
-          // This is a drag
-          // hoveredCells.current.clear();
+          if (!e.shiftKey) return;
+          console.log("Shift key is held down during drag start");
           document.body.style.cursor = "grabbing";
           document.body.style.setProperty("user-select", "none", "important");
           setDragging(true);
@@ -1195,11 +1290,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleCategoryClick = useCallback(
     (category: string, ignoreRefresh?: boolean) => {
+      console.log("Category clicked:", category);
       setSelectedCategory(category);
       setHeaders(getMaterialHeaders(orderType, category.toLowerCase()));
-      if (!ignoreRefresh) {
-        router.push(`${pathname}?${category.toLowerCase()}`);
-      }
+      // if (!ignoreRefresh) {
+      //   router.push(`${pathname}?${category.toLowerCase()}`);
+      // }
       const lowerCategory = category.toLowerCase();
       setVisibleGroups((prev) => {
         const newVisibility = {} as Record<string, boolean>;
@@ -1213,35 +1309,37 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     },
     [pathname, orderType, designatedCategories]
   );
-  useEffect(() => {
-    const first = Array.from(searchParams.entries())[0] ?? [];
-    const [key, rawVal] = first as [string | undefined, string | undefined];
 
-    // If first key is a real category, hydrate state without navigating.
-    if (key && designatedCategories.some((c) => c.toLowerCase() === key.toLowerCase()) && key !== selectedCategory) {
-      handleCategoryClick(key, true);
-      return;
-    }
 
-    // Non-category param (e.g., clear=...)
-    if (key) {
-      // URLSearchParams already decodes %23 → '#', but guard anyway.
-      const decoded = decodeURIComponent(rawVal ?? "");
-      const withHash = decoded.replace(/%23/gi, "#");
-      // Final name: only convert literal "u00A0" → real NBSP. Do NOT trim. Do NOT turn NBSP into space.
-      // console.log("Raw value from URLSearchParams:", withHash);
-      const finalName = withHash;
-      // console.log("Scrolling to order:", finalName);
-      if (finalName) {
-        let tries = 0;
-        const find = () => {
-          const el = rowRefs.current[finalName];
-          if (el) scrollToOrder(finalName);
-          else if (tries++ < MAX_RETRIES_FOR_SCROLL) setTimeout(find, 300);
-        };
-        find();
-      }
-    }
+  // *  Finding a different way to search
+  useEffect(() => { 
+    // if (true) return;
+    // const first = Array.from(searchParams.entries())[0] ?? [];
+    // const [key, rawVal] = first as [string | undefined, string | undefined];
+    // if (key && designatedCategories.some((c) => c.toLowerCase() === key.toLowerCase()) && key !== selectedCategory) {
+    //   handleCategoryClick(key);
+    //   return;
+    // }
+
+    // // Non-category param (e.g., clear=...)
+    // if (key) {
+    //   // URLSearchParams already decodes %23 → '#', but guard anyway.
+    //   const decoded = decodeURIComponent(rawVal ?? "");
+    //   const withHash = decoded.replace(/%23/gi, "#");
+    //   // Final name: only convert literal "u00A0" → real NBSP. Do NOT trim. Do NOT turn NBSP into space.
+    //   // console.log("Raw value from URLSearchParams:", withHash);
+    //   const finalName = withHash;
+    //   // console.log("Scrolling to order:", finalName);
+    //   if (finalName) {
+    //     let tries = 0;
+    //     const find = () => {
+    //       const el = rowRefs.current[finalName];
+    //       if (el) scrollToOrder(finalName);
+    //       else if (tries++ < MAX_RETRIES_FOR_SCROLL) setTimeout(find, 300);
+    //     };
+    //     find();
+    //   }
+    // }
   }, [pathname, searchParams, handleCategoryClick, designatedCategories, selectedCategory]);
 
   const handleCheckboxClick = useCallback(async (order: Order) => {
@@ -1329,14 +1427,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleDoubleClick = useCallback(
     async (fileName: string) => {
-      // if (orderType === "print") {
-      //   return;
-      // }
-      // Read clipboard text (requires permissions in some browsers)
-      // const clipboardText = await navigator.clipboard.readText();
-      // if (clipboardText === String(fileName)) {
-      //   return;
-      // }
+      if (orderType === "print") {
+        return;
+      }
       toast("Copied to clipboard", {
         description: `${fileName} has been copied to the clipboard.`,
       });
@@ -1351,9 +1444,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     },
     [orderType]
   );
-
-  console.log(selectedCategory);
-
+  // console.log(selectedCategory);
   const revertStatus = useCallback(async (order: Order) => {
     console.log("Reverting status for order", order.name_id);
     // Optimistically update local state
@@ -1474,10 +1565,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         return;
       }
       console.log("Row clicked:", row.name_id);
-      // console.log("Row clicked:", row);
-      // Use the provided row element directly
       if (rowEl) {
-        // console.log("Row element:", rowEl);
         const rect = rowEl.getBoundingClientRect();
         setMenuPos({ x: rect.right, y: rect.bottom });
         // console.log("setting the menu pos", rect.right, rect.bottom);
@@ -1499,16 +1587,67 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   );
 
   const allKeys = orderKeys[orderType] || [];
-
+  const textColor = getTextColor(selectedCategory);
   return (
     <>
       <div className="relative" ref={containerRef}>
         <div className="flex flex-row items-start justify-between w-full">
           <div className="flex-shrink-0">
-            <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+            <h1 className={`scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl ${textColor}`}>
               {"To " + orderType.charAt(0).toUpperCase() + orderType.slice(1)} -{" "}
               {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
             </h1>
+          </div>
+          <div className="w-full flex justify-end gap-2">
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Shortcuts</DialogTitle>
+                  <DialogDescription className="text-sm">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <ul className="list-di+sc list-inside text-xs">
+                          <li>[CMD] + [SHIFT] + [F] = Find Orders through Database</li>
+                          <li>[SHIFT] + [HOLD] = Multi select Rows</li>
+                          <li>[CMD] + [C] = Copy File Name + Quantity for Print</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <ul className="list-disc list-inside text-xs">
+                          <li>Double Click = Quickly copy file name</li>
+                          <li>[SHIFT] + [CMD] = Multi select Rows</li>
+                          <li></li>
+                        </ul>
+                      </div>
+                    </div>
+                  </DialogDescription>
+                  <DialogDescription className="text-sm">
+                    <ul className="list-disc list-inside">
+                      <li>
+                        <span className="inline-block w-2 h-2 rounded-full mr-2 bg-gray-302"></span>
+                        Monday
+                      </li>
+                      <li>
+                        <span className="inline-block w-2 h-2 rounded-full mr-2 bg-gray-305"></span>
+                        Tuesday
+                      </li>
+                      <li>
+                        <span className="inline-block w-2 h-2 rounded-full mr-2 bg-gray-303"></span>
+                        Wednesday
+                      </li>
+                      <li>
+                        <span className="inline-block w-2 h-2 rounded-full mr-2 bg-gray-302"></span>
+                        Thursday
+                      </li>
+                      <li>
+                        <span className="inline-block w-2 h-2 rounded-full mr-2 bg-gray-301"></span>
+                        Friday
+                      </li>
+                    </ul>
+                  </DialogDescription>
+                </DialogHeader>
+              </DialogContent>
+            </Dialog>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <div className="max-w-xs">
@@ -1534,6 +1673,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               ) : (
                 <RefreshCcw className="w-full h-full" />
               )}
+            </Button>
+            <Button onClick={() => setOpen(true)}>
+              <Info />
             </Button>
           </div>
         </div>
@@ -1647,7 +1789,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               zIndex: 1000,
             }}
           >
-            <ContextMenu handleMenuOptionClick={handleMenuOptionClick} orderType={orderType} currentRow={currentRowClicked} />
+            <ContextMenu
+              handleMenuOptionClick={handleMenuOptionClick}
+              orderType={orderType}
+              currentRow={currentRowClicked}
+            />
           </div>
         )}
         {/* <This is for dialaying the notifications */}

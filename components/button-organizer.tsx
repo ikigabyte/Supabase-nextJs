@@ -1,36 +1,41 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-// import { ScrollArea, ScrollBar } from "@radix-ui/react-scroll-area";
-// import { getButtonColor  } from "@/types/buttons";
+// import { getButtonColor } from "@/utils/colors";
 
-const getButtonColor = (category: string) => {
+export const getBorderColor = (category: string) => {
   switch (category) {
     case "rush":
-      return "bg-red-800 text-white";
-    // case 'white':
-    //   return 'bg-gray-800 text-white';
-    // case 'glitter':
-    //   return 'bg-yellow-300 text-black';
-    // case 'holographic':
-    //   return 'bg-green-500 text-white';
-    // case 'clear':
-    //   return 'bg-pink-300 text-black';
-    // case 'mag20pt':
-    //   return 'bg-green-800 text-white';
-    // case 'mag30pt':
-    //   return 'bg-blue-800 text-white';
-    // case 'reflective':
-    //   return 'bg-green-200 text-black';
-    // case 'arlon':
-    //   return 'bg-teal-500 text-white';
-    // case 'floor':
-    //   return 'bg-yellow-800 text-white';
-    // case 'roll':
-    //   return 'bg-orange-300 text-black';
+      return "border-red-800";
+    case "white":
+      return "border-gray-800";
+    case "glitter":
+      return "border-yellow-400";
+    case "holographic":
+      return "border-green-500";
+    case "clear":
+      return "border-pink-300";
+    case "20ptmag":
+      return "border-green-800";
+    case "30ptmag":
+      return "border-blue-800";
+    case "sheets":
+      return "border-blue-600";
+    case "arlon":
+      return "border-teal-500";
+    case "floor":
+      return "border-yellow-800";
+    case "roll":
+      return "border-yellow-900";
+    case "cling":
+      return "border-red-300";
+    case "reflective":
+      return "border-green-300";
+    case "special":
+      return "border-yellow-500";
     default:
-      return "bg-gray-900 text-white";
+      return "border-black";
   }
 };
 
@@ -42,23 +47,33 @@ export function ButtonOrganizer({
 }: {
   categories?: string[];
   counts?: Record<string, number>;
-  onCategoryClick: (category: string) => void;
+  onCategoryClick: (category: string) => Promise<void> | void;
   categoryViewing: string;
 }) {
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  const handleClick = async (category: string) => {
+    setActiveCategory(category); // optimistic UI update
+    onCategoryClick(category);
+  };
+
   return (
     <div className="w-full flex justify-center">
-      <div className="fixed bottom-0 left-0 right-0 w-full bg-gray-500 py-2 z-30 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 w-full bg-gray-200 py-2 z-30 shadow-lg">
         <div className="flex flex-nowrap overflow-x-auto pl-5">
           {categories.map((category) => {
-            const isActive = category === categoryViewing;
-            const color = getButtonColor(category.toLowerCase());
-
-            // For active: add white border, for inactive: no extra border
-            const buttonClass = `${color} px-3 py-2 mx-1 ${isActive ? "border-2 border-white" : ""}`;
-
+            const isActive = activeCategory === category || categoryViewing === category;
+            const borderColor = getBorderColor(category.toLowerCase());
             return (
-              <Button key={category} variant="default" className={buttonClass} onClick={() => onCategoryClick(category)}>
-                {category} ({counts[category] || 0})
+              <Button
+                key={category}
+                className={`
+              relative px-3 py-2 mx-1
+              ${isActive ? `bg-gray-600 border-2 ${borderColor}` : "border-2 bg-gray-500"}
+              `}
+                onClick={() => handleClick(category)}
+              >
+                {category.toUpperCase()} ({counts[category] || 0})
               </Button>
             );
           })}
