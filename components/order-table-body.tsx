@@ -465,8 +465,8 @@ export function OrderTableBody({
               name-id={row.name_id}
               className={`
               [&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white
-              ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-blue-300"}
-                ${isHighlighted ? "bg-blue-300 hover:bg-blue-300" : ""}`}
+              ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-blue-100"}
+                ${isHighlighted ? "bg-blue-100 hover:bg-blue-100" : ""}`}
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
                 // setMultiSelectedRows((prev) => {
@@ -506,7 +506,7 @@ export function OrderTableBody({
                 className={
                   "whitespace-normal break-all " +
                   (isHighlighted
-                    ? "bg-blue-300 hover:bg-blue-300"
+                    ? "bg-blue-100 hover:bg-blue-100"
                     : row.production_status === "print"
                     ? convertColorStringToValue(row.color)
                     : "")
