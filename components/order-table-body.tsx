@@ -204,6 +204,22 @@ const materialColors: { [key: string]: string } = {
   "clear-roll": "bg-teal-100",
 };
 
+
+
+
+const convertDateToActualDay = (dateString: string | null) => {
+  if (!dateString) return dateString;
+  const parts = dateString.split("-");
+  const [year, month, day] = parts.map(Number);
+  // if (parts.length !== 3) console.log("testing here") return dateString; // Ensure the format is correct
+  const date = new Date(year, month - 1, day); // month is 0-based
+  if (isNaN(date.getTime())) return "-"; // Invalid date
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return days[date.getDay()];
+};
+
+
+
 const convertDateToReadableDate = (dateString: string | null): string => {
   if (!dateString) return "-";
   // Expecting format "YYYY-MM-DD"
@@ -329,6 +345,7 @@ export function OrderTableBody({
   const tableRef = useRef<HTMLTableSectionElement>(null);
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const lastClickTime = useRef<number>(0);
+  const [tableCellHovered, setTableCellHovered] = useState<HTMLTableCellElement | null>(null);
 
   // Handling the dragging here
 
@@ -423,7 +440,16 @@ export function OrderTableBody({
   // let isRowClicked = false;
   return (
     // <div className={isTableClicked ? 'border border-black' : ''} onClick={() => setIsTableClicked(true)}>
-    <TableBody ref={tableRef} className="py-5">
+    <TableBody
+      ref={tableRef}
+      className="py-5"
+      onMouseDownCapture={(e) => {
+        if (e.shiftKey) {
+          // stop native selection from starting
+          e.preventDefault();
+        }
+      }}
+    >
       {data.map((row, i) => {
         // const nameCellRef = useRef<HTMLTableCellElement>(null);
 
@@ -488,6 +514,16 @@ export function OrderTableBody({
               }}
             >
               {/* This is the file name cell / first cell */}
+
+              <TableCell
+                ref={(el) => {
+                  if (!cellRefs.current[i]) cellRefs.current[i] = [];
+                  cellRefs.current[i][0] = el;
+                }}
+                className="bg-gray-100 text-black"
+              >
+                {i + 1}
+              </TableCell>
               <TableCell
                 ref={(el) => {
                   if (!cellRefs.current[i]) cellRefs.current[i] = [];
@@ -605,7 +641,11 @@ export function OrderTableBody({
               >
                 {convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
               </TableCell>
-              <TableCell className="">
+              <TableCell
+                className=""
+                onMouseEnter={() => setTableCellHovered(cellRefs.current[i][1])}
+                onMouseLeave={() => setTableCellHovered(null)}
+              >
                 {productionStatus === "ship"
                   ? convertDateToReadableDate(row.ihd_date)
                   : convertDateToReadableDate(row.due_date)}

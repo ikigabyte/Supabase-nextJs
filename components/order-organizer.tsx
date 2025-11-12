@@ -516,19 +516,26 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }
   
-
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Shift") shiftDown.current = true;
+      if (e.key === "Shift") {
+        shiftDown.current = true;
+        e.preventDefault
+        document.body.style.userSelect = "none"; // Disable text selection
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Shift") shiftDown.current = false;
+      if (e.key === "Shift") {
+        shiftDown.current = false;
+        document.body.style.userSelect = ""; // Re-enable text selection
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      document.body.style.userSelect = ""; // Ensure text selection is re-enabled on cleanup
     };
   }, []);
 
@@ -1711,7 +1718,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                   <>
                     <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
                     <Table className="mb-5">
-                      <OrderTableHeader tableHeaders={headers} productionStatus={orderType} />
+                      <OrderTableHeader tableHeaders={headers} />
                       <OrderTableBody
                         data={group}
                         productionStatus={orderType}

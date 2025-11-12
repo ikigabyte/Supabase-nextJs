@@ -31,7 +31,7 @@ export default async function ToCutPage() {
   // };
   return (
     <div className="w-full overflow-x-auto">
-      <section className="p-1 pt-10 w-[95%] flex flex-col gap-2 mb-40 mx-auto">
+      <section className="p-1 pt-10 w-[98%] flex flex-col gap-2 mb-40 mx-auto">
         <OrderOrganizer orderType="cut" defaultPage="regular" />
       </section>
     </div>

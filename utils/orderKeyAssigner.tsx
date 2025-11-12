@@ -118,3 +118,13 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
   const simpleKey = order.material === "roll" ? "roll" : "regular";
   return keys.find((k) => k === simpleKey) || null;
 }
+
+export function filterBySameKeyType(orders: Order[], referenceOrder: Order, orderType: OrderTypes): Order[] {
+  const referenceKey = assignKeyType(referenceOrder, orderType);
+  if (referenceKey == null) return [];
+
+  return orders.filter((order) => {
+    const orderKey = assignKeyType(order, orderType);
+    return orderKey === referenceKey;
+  });
+}

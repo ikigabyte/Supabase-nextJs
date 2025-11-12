@@ -56,7 +56,7 @@ export default function Header() {
             <img src="/stickerbeat-logo.png" alt="Stickerbeat Logo" className="h-8 w-8" />
             <p
             className="text-xs"
-            >v.11</p>
+            >v.125</p>
             </a>
           <div className="flex items-center justify-end space-x-12">
             {user !== null ? <NavBarElement /> : <Link href="/login"></Link>}
