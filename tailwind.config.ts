@@ -50,11 +50,11 @@ const config = {
         },
 
         gray: {
-          301: "rgba(225, 225, 225, 1)", // your custom light gray
-          302: "rgba(215, 215, 215, 1)", // your custom light gray
-          303: "rgba(205, 205, 205, 1)", // your custom light gray with transparency
-          304: "rgba(185, 185, 185, 1)", // your custom light gray with more transparency
-          305: "rgba(170, 170, 170, 1)", // your custom light gray with even more transparency
+          301: "rgba(239, 239, 239, 1)", // your custom light gray
+          302: "rgba(201, 201, 201, 1)", // your custom light gray
+          303: "rgba(230, 230, 230, 1)", // your custom light gray with transparency
+          304: "rgba(172, 172, 172, 1)", // your custom light gray with more transparency
+          305: "rgba(216, 216, 216, 1)", // your custom light gray with even more transparency
         },
         red: {
           101: "rgba(244, 204, 204, 1)", // your custom red

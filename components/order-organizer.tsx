@@ -25,6 +25,7 @@ import {
   createCustomOrder,
   addOrderViewer,
   assignOrderToUser,
+  assignMultiOrderToUser,
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -114,7 +115,6 @@ const laminationHeaderColors = {
 //   return aNum - bNum;
 // }
 
-
 export const getTextColor = (category: string) => {
   switch (category) {
     case "rush":
@@ -131,7 +131,7 @@ export const getTextColor = (category: string) => {
       return "text-green-800";
     case "30ptmag":
       return "text-blue-800";
-        case "sheets":
+    case "sheets":
       return "text-blue-600";
     case "arlon":
       return "text-teal-500";
@@ -139,22 +139,21 @@ export const getTextColor = (category: string) => {
       return "text-yellow-800";
     case "roll":
       return "text-yellow-900";
-        case "cling":
+    case "cling":
       return "text-red-300";
     case "arlon":
       return "text-teal-500";
     case "reflective":
       return "text-green-300";
-         case "floor":
+    case "floor":
       return "text-brown-200";
-             case "special":
+    case "special":
       return "text-yellow-500";
-    
+
     default:
       return "text-black";
   }
 };
-
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -291,6 +290,28 @@ async function ensureOrdersInLog(params: {
 
 // function convertDateStringtoTime(dateString : string) : Date{
 // }
+
+// at top-level inside OrderOrganizer (before the useEffect)
+function clearAllSelection() {
+  // Clear normal text selection
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    sel.removeAllRanges();
+  }
+
+  // Clear selection inside focused input/textarea
+  const active = document.activeElement as HTMLElement | null;
+  if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) {
+    const el = active as HTMLInputElement | HTMLTextAreaElement;
+    // collapse to end (no visible selection)
+    const len = el.value?.length ?? 0;
+    try {
+      el.setSelectionRange(len, len);
+    } catch {
+      // ignore if not supported
+    }
+  }
+}
 
 export async function checkTotalCountsForStatus(
   source?: { orders?: Order[]; supabase?: SupabaseClient },
@@ -481,8 +502,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const shiftDown = useRef(false);
 
   async function copyPrintData() {
-    // if (!shiftDown.current) return;
-    // if (e.shiftKey) return;
     let values = [] as string[];
     dragSelections.current.forEach((selection, table) => {
       const tbody = table.querySelector("tbody");
@@ -515,13 +534,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       console.error("Failed to write to clipboard:", err);
     }
   }
-  
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Shift") {
         shiftDown.current = true;
-        e.preventDefault
-        document.body.style.userSelect = "none"; // Disable text selection
+        // console.log("Shift key down, now disabling the text selection");
+        clearAllSelection();
+        document.body.style.userSelect = "none"; // Disable text selection seems to be working good
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -535,7 +555,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
-      document.body.style.userSelect = ""; // Ensure text selection is re-enabled on cleanup
+      // document.body.style.userSelect = ""; // Ensure text selection is re-enabled on cleanup
     };
   }, []);
 
@@ -558,9 +578,22 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => clearInterval(id);
   }, []);
 
-  // 3) ----- replace your existing profiles fetch effect to enrich profiles -----
-  // BEFORE: select("identifier, color")
-  // AFTER:
+  const clearOrderValueFromUrl = useCallback(() => {
+    const basePath = pathname.split("?")[0];
+
+    // We assume your scheme is always a single key: /toprint?clear=...
+    const first = Array.from(searchParams.entries())[0] ?? [];
+    const [key] = first as [string | undefined, string | undefined];
+
+    if (!key) {
+      // No query at all → nothing to do
+      return;
+    }
+
+    // Go to /toprint?clear (no '=value')
+    router.replace(`${basePath}?${encodeURIComponent(key)}`);
+  }, [pathname, searchParams, router]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -700,12 +733,48 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [circlePos, setCirclePos] = useState<{ top: number; right: number; height: number } | null>(null);
   // const [counts, setCounts] = useState<Counts>({ print: 0, cut: 0, pack: 0, ship: 0 });
 
-  const scrollToOrder = (name_id: string) => {
-    const rowEl = rowRefs.current[name_id];
-    if (rowEl) {
-      rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  };
+  const selectRowByNameId = useCallback(
+    (nameId: string) => {
+      const rowEl = rowRefs.current[nameId];
+      if (!rowEl) {
+        console.log("No row element found for", nameId);
+        return;
+      }
+
+      const table = rowEl.closest("table") as HTMLTableElement | null;
+      if (!table) {
+        console.log("No table found for row", nameId);
+        return;
+      }
+
+      const tbody = rowEl.parentElement;
+      if (!tbody || tbody.nodeName !== "TBODY") {
+        console.log("Row is not inside a TBODY", nameId);
+        return;
+      }
+
+      const allRows = Array.from(tbody.children).filter((el) => el.nodeName === "TR");
+      const dataRows = allRows.filter((el) => el.getAttribute("datatype") === "data");
+
+      const rowIndex = dataRows.indexOf(rowEl);
+      if (rowIndex === -1) {
+        console.log("Row not found in dataRows for", nameId);
+        return;
+      }
+
+      // Clear previous selection if you want
+      dragSelections.current.clear();
+      pendingDragSelections.current.clear();
+
+      dragSelections.current.set(table, {
+        startRow: rowIndex,
+        endRow: rowIndex,
+      });
+      console.log("Selected row", nameId, "at index", rowIndex);
+      forceUpdate((n) => n + 1); // trigger re-render so highlight applies
+    },
+    [forceUpdate]
+  );
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -920,8 +989,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [orderType, currentRowClicked, isRowHovered]);
 
-
-      useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "c") {
         console.log("Ctrl+C detected, copying print data...");
@@ -934,49 +1002,31 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-      }, []);
-  
+  }, []);
 
-  // useEffect(() => {
-  //   const onCopy = (e : ClipboardEvent) => {
-  //     if (dragSelections.current.size === 0) {
-  //       return;
-  //     }
-
-  //   };
-  //   document.addEventListener("copy", onCopy);
-  //   return () => document.removeEventListener("copy", onCopy);
-  // }, []);
-
-  // useEffect(() => {
-  //   // Temporarily deactivating the circles
-  //   if (true) return;
-  //   // const targetNameId = "99889-TESTA-ORDER-2";
-  //   // const rowEl = rowRefs.current[targetNameId];
-  //   // const containerEl = containerRef.current;
-  //   // if (rowEl && containerEl) {
-  //   //   const rowRect = rowEl.getBoundingClientRect();
-  //   //   const containerRect = containerEl.getBoundingClientRect();
-  //   //   setCirclePos({
-  //   //     top: rowRect.top - containerRect.top,
-  //   //     right: containerRect.right - rowRect.right,
-  //   //     height: rowRect.height,
-  //   //   });
-  //   // } else {
-  //   //   setCirclePos(null);
-  //   // }
-  // }, [orders]);
-
-  // dragSelections.current.clear();
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return; // left button only
+
+      const target = e.target as HTMLElement;
+
+      // If this click is on an element that should NOT touch selection
+      // (assignee cell/button, etc.), bail out immediately.
+      if (target.closest("[data-ignore-selection='true']")) {
+        console.log("Click on ignore-selection element, not starting drag");
+        dragStartPos.current = null;
+        dragStartTime.current = 0;
+        return;
+      }
+
       if (e.buttons === 1) {
         dragSelections.current.clear();
         pendingDragSelections.current.clear();
         dragStartPos.current = { x: e.clientX, y: e.clientY };
         dragStartTime.current = Date.now();
+        clearOrderValueFromUrl();
 
-        // --- Add this block to initialize pendingDragSelections ---
+        // --- existing initialization of pendingDragSelections here ---
         const cell = (e.target as HTMLElement).closest("td");
         if (cell) {
           const row = cell.parentElement as HTMLTableRowElement | null;
@@ -993,7 +1043,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 if (rowType === "data") {
                   rowIndex = dataRows.indexOf(row);
                 } else {
-                  // If separator, get the next data row after this separator
                   const sepIdx = allRows.indexOf(row);
                   let found = false;
                   for (let i = sepIdx + 1; i < allRows.length; i++) {
@@ -1008,7 +1057,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                   }
                 }
               }
-              // Only set if we have a valid index
               if (rowIndex !== -1) {
                 pendingDragSelections.current.set(table, {
                   startRow: rowIndex,
@@ -1027,9 +1075,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const dy = Math.abs(e.clientY - dragStartPos.current.y);
         if ((dx > draggingThreshold || dy > draggingThreshold) && !dragging) {
           if (!e.shiftKey) return;
-          console.log("Shift key is held down during drag start");
+          // clearOrderValueFromUrl(); // ⬅ strip `=name_id` from URL
+          // console.log("Starting drag operation");
           document.body.style.cursor = "grabbing";
-          document.body.style.setProperty("user-select", "none", "important");
+          // document.body.style.setProperty("user-select", "none", "important");
           setDragging(true);
           // handleDragging(e, true);
         }
@@ -1044,9 +1093,25 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // console.log(dragSelections.current);
       // console.log("Mouse up event detected");
       const target = e.target as HTMLElement;
-      //  console.log(target.getAttribute("datatype"));
+
+      if (target.closest("[data-ignore-selection='true']")) {
+        // Just finalize any active drag, but do NOT clear or overwrite selection
+        document.body.style.cursor = "";
+
+        if (dragging) {
+          dragSelections.current = new Map(pendingDragSelections.current);
+          pendingDragSelections.current.clear();
+          setDragging(false);
+          forceUpdate((n) => n + 1);
+        }
+
+        dragStartPos.current = null;
+        dragStartTime.current = 0;
+        return;
+      }
+
       if (target.getAttribute("datatype") === "menu-option") {
-        console.log("Clicked on a menu option, not resetting selections");
+        // console.log("Clicked on a menu option, not resetting selections");
         return;
       }
       if (!target.closest("table")) {
@@ -1124,7 +1189,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         forceUpdate((n) => n + 1);
       }
 
-      document.body.style.removeProperty("user-select");
+      // document.body.style.removeProperty("user-select");
       dragStartPos.current = null;
       dragStartTime.current = 0;
     };
@@ -1220,11 +1285,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (nameId) {
           selectedNameIds.push(nameId);
         }
-
-        // const nameId = rowRefs.current[row.getAttribute("name_id") || ""]?.getAttribute("name_id");
-        // if (nameId) selectedNameIds.push(nameId);
-        // console.log("Selected row name_id:", nameId);
-        // console.log("Selected row columns:", row.getAttribute("name_id"));
       }
     });
     // console.log("Selected name_ids:", selectedNameIds);
@@ -1298,56 +1358,67 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const handleCategoryClick = useCallback(
     (category: string, ignoreRefresh?: boolean) => {
       console.log("Category clicked:", category);
-      setSelectedCategory(category);
-      setHeaders(getMaterialHeaders(orderType, category.toLowerCase()));
-      // if (!ignoreRefresh) {
-      //   router.push(`${pathname}?${category.toLowerCase()}`);
-      // }
       const lowerCategory = category.toLowerCase();
-      setVisibleGroups((prev) => {
-        const newVisibility = {} as Record<string, boolean>;
-        Object.keys(prev).forEach((key) => {
-          // Compare first segment of each group key
-          const prefix = key.split("-")[0];
-          newVisibility[key] = prefix === lowerCategory;
+
+      if (!ignoreRefresh) {
+        // Ensure we strip any existing query from the path
+        const basePath = pathname.split("?")[0];
+
+        // This yields: /toprint?special, /toprint?white, etc.
+        router.push(`${basePath}?${lowerCategory}`);
+      }
+    },
+    [pathname, router]
+  );
+
+  // *  Finding a different way to search
+  // * URL → state: category, headers, visible groups
+  useEffect(() => {
+    // Get first key from ?category style URL, e.g. /toprint?special
+    const first = Array.from(searchParams.entries())[0] ?? [];
+    const [key, value] = first as [string | undefined, string | undefined];
+
+    if (value && value.length > 0) {
+      const decoded = decodeURIComponent(value);
+      selectRowByNameId(decoded);
+      // * make sure to then add it back once it finds it
+      // const rowValue = convertToSpaces(decoded);
+
+      // console.log("Decoded value from URL:", decoded);
+      // console.log("Value after '=' in URL:", decoded);
+      // example: "118052-#BDO23085-1-Ram-Head-Seal-BLACK"
+    }
+
+    // If no key in URL, fall back to defaultPage
+    const urlCategoryRaw = key ?? defaultPage;
+    if (!urlCategoryRaw) return;
+
+    // Make sure the URL category is one of the designatedCategories
+    const urlCategoryMatch = designatedCategories.find((c) => c.toLowerCase() === urlCategoryRaw.toLowerCase());
+    // console.log("URL category match:", urlCategoryMatch);
+    if (!urlCategoryMatch) {
+      // If it's invalid, you could optionally reset URL here, but for now just bail
+      return;
+    }
+
+    const normalized = urlCategoryMatch.toLowerCase();
+
+    // Only update if different from current to avoid useless re-renders
+    if (normalized !== selectedCategory.toLowerCase()) {
+      setSelectedCategory(urlCategoryMatch);
+      setHeaders(getMaterialHeaders(orderType, normalized));
+
+      // Rebuild visibleGroups so only groups with matching prefix are visible
+      setVisibleGroups(() => {
+        const newVisibility: Record<string, boolean> = {};
+        Object.keys(grouped).forEach((groupKey) => {
+          const prefix = groupKey.split("-")[0];
+          newVisibility[groupKey] = prefix === normalized;
         });
         return newVisibility;
       });
-    },
-    [pathname, orderType, designatedCategories]
-  );
-
-
-  // *  Finding a different way to search
-  useEffect(() => { 
-    // if (true) return;
-    // const first = Array.from(searchParams.entries())[0] ?? [];
-    // const [key, rawVal] = first as [string | undefined, string | undefined];
-    // if (key && designatedCategories.some((c) => c.toLowerCase() === key.toLowerCase()) && key !== selectedCategory) {
-    //   handleCategoryClick(key);
-    //   return;
-    // }
-
-    // // Non-category param (e.g., clear=...)
-    // if (key) {
-    //   // URLSearchParams already decodes %23 → '#', but guard anyway.
-    //   const decoded = decodeURIComponent(rawVal ?? "");
-    //   const withHash = decoded.replace(/%23/gi, "#");
-    //   // Final name: only convert literal "u00A0" → real NBSP. Do NOT trim. Do NOT turn NBSP into space.
-    //   // console.log("Raw value from URLSearchParams:", withHash);
-    //   const finalName = withHash;
-    //   // console.log("Scrolling to order:", finalName);
-    //   if (finalName) {
-    //     let tries = 0;
-    //     const find = () => {
-    //       const el = rowRefs.current[finalName];
-    //       if (el) scrollToOrder(finalName);
-    //       else if (tries++ < MAX_RETRIES_FOR_SCROLL) setTimeout(find, 300);
-    //     };
-    //     find();
-    //   }
-    // }
-  }, [pathname, searchParams, handleCategoryClick, designatedCategories, selectedCategory]);
+    }
+  }, [searchParams, designatedCategories, defaultPage, grouped, orderType, selectedCategory]);
 
   const handleCheckboxClick = useCallback(async (order: Order) => {
     setCurrentRowClicked(null);
@@ -1370,22 +1441,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         },
       },
     });
-
-    // setTimeout(() => {
-    // }, 1000);
   }, []);
-  // const createNewOrder = useCallback(async (Record<stringify, string) => {
-  //   // console.log("Reverting status for order", order.name_id);
-  //   // Optimistically update local state
-  //   // setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
-  //   // Persist change
-  //   console.log("Creating new order", order.name_id);
-  //   // if (ignoreUpdateIds.current.has(order.name_id)) {
-  //   //   console.log("Deleting the order here from the ignoreUpdateIds section", order.name_id);
-  //   //   ignoreUpdateIds.current.delete(order.name_id);
-  //   // }
-  //   await updateOrderStatus(order, false, orderType);
-  // }, []);
 
   const handleNewOrderSubmit = useCallback(
     async (form: Record<string, any>) => {
@@ -1514,11 +1570,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             onClick: () => {},
           },
         });
-        // toast({
-        //   title: "Order line deleted",
-        //   description: `Deleted line ${currentRowClicked!.name_id}.`,
-        //   // action: <ToastAction altText="Undo delete">Undo</ToastAction>,
-        // });
         return;
       }
       if (option == "deleteAll") {
@@ -1549,13 +1600,42 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     async (row: Order) => {
       if (!session?.user?.email) return;
       const me = session.user.email;
-
-      // 1) Optimistically update client‐side:
-      setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: me } : o)));
-
-      // 2) Fire off the real request:
       try {
-        assignOrderToUser(row);
+        // how to handle multi selection row
+        // console.log(dragSelections.current);
+        if (dragSelections.current.size > 0) {
+          console.log("Handling multi-row assignment");
+          const nameIds: string[] = [];
+          dragSelections.current.forEach((selection, table) => {
+            const tbody = table.querySelector("tbody");
+            if (!tbody) return;
+            const dataRows = Array.from(tbody.children).filter(
+              (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
+            );
+            const rowStart = Math.min(selection.startRow, selection.endRow);
+            const rowEnd = Math.max(selection.startRow, selection.endRow);
+
+            for (let i = rowStart; i <= rowEnd; i++) {
+              const row = dataRows[i];
+              if (!row) continue;
+              const nameId = row.getAttribute("name-id");
+              if (nameId) {
+                nameIds.push(nameId);
+              }
+            }
+          });
+
+          // Optimistically update the orders for all selected nameIds
+          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: me } : o)));
+
+          // Proceed with the assignment
+          assignMultiOrderToUser(nameIds);
+          // assignMultiOrderToUser(nameIds);
+          return;
+        }
+        // // * work with this thing hewre
+        // console.log("Handling single-row assignment for", row.name_id);
+        // assignOrderToUser(row);
       } catch (err) {
         console.error("assign failed", err);
         // 3) (optional) roll back if it errored:
@@ -1595,6 +1675,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const allKeys = orderKeys[orderType] || [];
   const textColor = getTextColor(selectedCategory);
+  // console.log(dragSelections);
   return (
     <>
       <div className="relative" ref={containerRef}>

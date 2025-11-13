@@ -5,7 +5,8 @@ import { getServerClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { OrderTypes } from "./orderTypes";
 
-import { updateZendeskNotes, updateZendeskStatus } from "@/utils/google-functions";
+import { updateZendeskNotes } from "@/utils/google-functions";
+// import { order } from "tailwindcss/defaultTheme";
 
 type AdminRow = { role: "admin" | string };
 const getNewStatus = (currentStatus: string, revert: boolean) => {
@@ -156,6 +157,28 @@ export async function removeOrderAll(orderId: number) {
 
   console.log(`Orders with order_id ${orderId} deleted successfully`);
   revalidatePath("/toprint");
+}
+
+
+export async function assignMultiOrderToUser(nameIds : string[]) {
+  if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");
+
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("User is not logged in");
+  for (const nameId of nameIds) {
+    console.log("Assigning order", nameId, "to user", user.email);
+    supabase.from("orders").update({ asignee: user.email }).match({ name_id: nameId });
+  }
+  // if (error) {
+  //   console.error("Error assigning order", error);
+  //   throw new Error("Error assigning order");
+  // }
+
+  // Optionally revalidate if needed
+  // revalidatePath("/toprint");
 }
 
 export async function assignOrderToUser(order: Order) {

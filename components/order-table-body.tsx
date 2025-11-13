@@ -184,10 +184,10 @@ const isSectionIgnored = (material: string | null, section: string): boolean => 
 };
 
 const dayOfTheWeekColor: { [key: number]: string } = {
-  1: "bg-gray-302", // Monday
-  2: "bg-gray-301", // Tuesday // change this to friday
+  1: "bg-gray-301", // Monday
+  2: "bg-gray-302", // Tuesday // change this to friday
   3: "bg-gray-303", // Wednesday
-  4: "bg-gray-302", // Thursday
+  4: "bg-gray-304", // Thursday
   5: "bg-gray-305", // Friday
 };
 
@@ -220,6 +220,8 @@ const convertDateToActualDay = (dateString: string | null) => {
 
 
 
+
+// * Uncomment this one, the other one is just for testijng
 const convertDateToReadableDate = (dateString: string | null): string => {
   if (!dateString) return "-";
   // Expecting format "YYYY-MM-DD"
@@ -228,6 +230,19 @@ const convertDateToReadableDate = (dateString: string | null): string => {
   const [_, month, day] = parts;
   return `${month}-${day}`;
 };
+
+// * this is just for testing
+// const convertDateToReadableDate = (dateString: string | null): string => {
+//   if (!dateString) return "-";
+//   const parts = dateString.split("-");
+//   if (parts.length !== 3) return dateString;
+//   const [year, month, day] = parts.map(Number);
+//   const date = new Date(year, month - 1, day); // month is 0-based
+//   if (isNaN(date.getTime())) return "-"; // Invalid date
+//   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+//   return days[date.getDay()];
+// };
+
 
 function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
   const [value, setValue] = useState(note);
@@ -520,7 +535,7 @@ export function OrderTableBody({
                   if (!cellRefs.current[i]) cellRefs.current[i] = [];
                   cellRefs.current[i][0] = el;
                 }}
-                className="bg-gray-100 text-black"
+                className={"text-black text-center" + (isHighlighted ? " bg-blue-100 " : " bg-gray-100")}
               >
                 {i + 1}
               </TableCell>
@@ -652,7 +667,9 @@ export function OrderTableBody({
               </TableCell>
               <TableCell
                 className=""
+                data-ignore-selection="true" // <-- new
                 onClick={(e) => {
+                  // console.log(dragSelections.current);
                   e.stopPropagation();
                   onAsigneeClick(row);
                 }}

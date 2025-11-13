@@ -159,7 +159,8 @@ export function NavBarElement() {
       <Link href="#" onClick={() => setDialogOpen(true)}>
         Search
       </Link>
-      <DialogSearch open={dialogOpen} onOpenChange={setDialogOpen} />
+      <DialogSearch
+        open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }
