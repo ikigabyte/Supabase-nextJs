@@ -160,7 +160,7 @@ export async function removeOrderAll(orderId: number) {
 }
 
 
-export async function assignMultiOrderToUser(nameIds : string[]) {
+export async function assignMultiOrderToUser(nameIds: string[]) {
   if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");
 
   const supabase = await getServerClient();
@@ -168,17 +168,29 @@ export async function assignMultiOrderToUser(nameIds : string[]) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("User is not logged in");
-  for (const nameId of nameIds) {
-    console.log("Assigning order", nameId, "to user", user.email);
-    supabase.from("orders").update({ asignee: user.email }).match({ name_id: nameId });
-  }
-  // if (error) {
-  //   console.error("Error assigning order", error);
-  //   throw new Error("Error assigning order");
-  // }
 
-  // Optionally revalidate if needed
-  // revalidatePath("/toprint");
+  console.log("Assigning orders to:", user.email, "for nameIds:", nameIds);
+
+  const { data: updatedRows, error } = await supabase
+    .from("orders")
+    .update({ asignee: user.email })
+    .in("name_id", nameIds)
+    .select("name_id");           // <- return the rows that were actually updated
+
+  if (error) {
+    console.error("Error assigning orders", error);
+    throw new Error("Error assigning orders");
+  }
+
+  // updatedRows is an array of { name_id: string } for rows that existed
+  const updatedIds = new Set((updatedRows ?? []).map((r) => r.name_id));
+  const missingIds = nameIds.filter((id) => !updatedIds.has(id));
+
+  if (missingIds.length > 0) {
+    console.warn("No matching orders found for name_id(s):", missingIds);
+  }
+
+  console.log("Orders assigned successfully for:", Array.from(updatedIds));
 }
 
 export async function assignOrderToUser(order: Order) {

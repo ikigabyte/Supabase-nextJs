@@ -498,8 +498,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [updateCounter, forceUpdate] = useState(0);
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
-  // at component scope
   const shiftDown = useRef(false);
+  const lastUrlSelectedNameId = useRef<string | null>(null);
+  const pendingUrlNameId = useRef<string | null>(null);
 
   async function copyPrintData() {
     let values = [] as string[];
@@ -578,21 +579,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => clearInterval(id);
   }, []);
 
-  const clearOrderValueFromUrl = useCallback(() => {
-    const basePath = pathname.split("?")[0];
+  // const clearOrderValueFromUrl = useCallback(() => {
+  //   if (typeof window === "undefined") return;
 
-    // We assume your scheme is always a single key: /toprint?clear=...
-    const first = Array.from(searchParams.entries())[0] ?? [];
-    const [key] = first as [string | undefined, string | undefined];
+  //   const url = new URL(window.location.href);
 
-    if (!key) {
-      // No query at all → nothing to do
-      return;
-    }
+  //   // First param key (e.g. "clear" from ?clear=...)
+  //   const firstKey = url.searchParams.keys().next().value as string | undefined;
+  //   if (!firstKey) return;
 
-    // Go to /toprint?clear (no '=value')
-    router.replace(`${basePath}?${encodeURIComponent(key)}`);
-  }, [pathname, searchParams, router]);
+  //   // Set query to "?clear" (no value)
+  //   const base = url.origin + url.pathname;
+  //   const newUrl = `${base}?${encodeURIComponent(firstKey)}`;
+
+  //   window.history.replaceState(null, "", newUrl);
+  // }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -735,9 +736,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const selectRowByNameId = useCallback(
     (nameId: string) => {
-      const rowEl = rowRefs.current[nameId];
+      const id = pendingUrlNameId.current;
+      if (!id) return;
+
+      // If the DOM row doesn’t exist yet, just wait for the next render
+      const rowEl = rowRefs.current[id];
       if (!rowEl) {
-        console.log("No row element found for", nameId);
         return;
       }
 
@@ -775,6 +779,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     },
     [forceUpdate]
   );
+
+  // any deps that change once tables/rows are in place
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -992,7 +999,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "c") {
-        console.log("Ctrl+C detected, copying print data...");
+        // console.log("Ctrl+C detected, copying print data...");
         copyPrintData();
       }
     };
@@ -1013,7 +1020,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // If this click is on an element that should NOT touch selection
       // (assignee cell/button, etc.), bail out immediately.
       if (target.closest("[data-ignore-selection='true']")) {
-        console.log("Click on ignore-selection element, not starting drag");
+        // console.log("Click on ignore-selection element, not starting drag");
         dragStartPos.current = null;
         dragStartTime.current = 0;
         return;
@@ -1024,7 +1031,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         pendingDragSelections.current.clear();
         dragStartPos.current = { x: e.clientX, y: e.clientY };
         dragStartTime.current = Date.now();
-        clearOrderValueFromUrl();
+        // clearOrderValueFromUrl();
 
         // --- existing initialization of pendingDragSelections here ---
         const cell = (e.target as HTMLElement).closest("td");
@@ -1090,14 +1097,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (e.button !== 0) {
         return;
       }
-      // console.log(dragSelections.current);
-      // console.log("Mouse up event detected");
       const target = e.target as HTMLElement;
-
       if (target.closest("[data-ignore-selection='true']")) {
         // Just finalize any active drag, but do NOT clear or overwrite selection
         document.body.style.cursor = "";
-
         if (dragging) {
           dragSelections.current = new Map(pendingDragSelections.current);
           pendingDragSelections.current.clear();
@@ -1136,6 +1139,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const cell = (e.target as HTMLElement).closest("td");
         if (!cell) {
           forceUpdate((n) => n + 1);
+          // console.log("No cell found on click");
           return;
         }
         const row = cell.parentElement as HTMLTableRowElement | null;
@@ -1336,6 +1340,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   useEffect(() => {
+    const id = pendingUrlNameId.current;
+    if (!id) return;
+
+    const rowEl = rowRefs.current[id];
+    if (!rowEl) {
+      return;
+    }
+
+    // Now we know the table + row exist → safe to select
+    selectRowByNameId(id);
+    lastUrlSelectedNameId.current = id;
+    pendingUrlNameId.current = null; // consume it
+  }, [grouped, selectedCategory, orders.length]);
+
+  useEffect(() => {
     const groupKeys = Object.keys(grouped);
     if (groupKeys.length > 0 && Object.keys(visibleGroups).length === 0) {
       const initial = groupKeys.reduce((acc, key) => {
@@ -1380,13 +1399,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
     if (value && value.length > 0) {
       const decoded = decodeURIComponent(value);
-      selectRowByNameId(decoded);
-      // * make sure to then add it back once it finds it
-      // const rowValue = convertToSpaces(decoded);
 
-      // console.log("Decoded value from URL:", decoded);
-      // console.log("Value after '=' in URL:", decoded);
-      // example: "118052-#BDO23085-1-Ram-Head-Seal-BLACK"
+      // Only queue if different from last used
+      if (decoded !== lastUrlSelectedNameId.current) {
+        pendingUrlNameId.current = decoded; // <-- defer selection
+      }
+    } else {
+      // No value (e.g. /toprint?clear) → reset
+      lastUrlSelectedNameId.current = null;
+      pendingUrlNameId.current = null;
     }
 
     // If no key in URL, fall back to defaultPage
@@ -1626,10 +1647,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           });
 
           // Optimistically update the orders for all selected nameIds
-          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: me } : o)));
-
-          // Proceed with the assignment
           assignMultiOrderToUser(nameIds);
+          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: me } : o)));
+          // Proceed with the assignment
           // assignMultiOrderToUser(nameIds);
           return;
         }
