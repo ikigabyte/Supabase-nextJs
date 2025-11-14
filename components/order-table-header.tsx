@@ -36,7 +36,7 @@ export function OrderTableHeader({
             key={index}
             className={`border-r border-gray-200 font-bold text-white truncate text-[11px]${
               headers[index]?.toLowerCase() === "lamination" && laminationColor ? laminationColor : ""
-            }`}
+            }${index === 0 ? " text-center" : ""}`}
             style={{ width: w }}
           >
             {headers[index] ? headers[index].toUpperCase() : ""}

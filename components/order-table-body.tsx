@@ -648,11 +648,11 @@ export function OrderTableBody({
                   onAsigneeClick(row);
                 }}
               >
-                <Button
+              <Button
                   className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
                     !row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
                   }`}
-                  style={row.asignee ? getCorrectUserColor(row.asignee, row.assigneeColor) : undefined}
+                  style={row.asignee ? getCorrectUserColor(userColors, row.asignee) : undefined}
                 >
                   {row.asignee && row.asignee.length >= 2
                     ? row.asignee.slice(0, 2).toUpperCase()

@@ -23,16 +23,31 @@ export const convertToSpaces = (str: string) => {
   );
 };
 
-export const getCorrectUserColor = (asignee: string | undefined, assigneeColor: string | undefined) => {
-  if (!asignee) return { backgroundColor: "#ff6b16ff" }; // black as default
+// export const getCorrectUserColor = (asignee: string | undefined, assigneeColor: string | undefined) => {
+//   if (!asignee) return { backgroundColor: "#ff6b16ff" }; // black as default
 
-  // Map color names to hex codes
+//   // Map color names to hex codes
 
-  // Use assigneeColor if provided and mapped, otherwise fallback to default red
-  const colorHex =
-    assigneeColor && colorMap[assigneeColor.toLowerCase()] ? colorMap[assigneeColor.toLowerCase()] : colorMap["red"];
+//   // Use assigneeColor if provided and mapped, otherwise fallback to default red
+//   const colorHex =
+//     assigneeColor && colorMap[assigneeColor.toLowerCase()] ? colorMap[assigneeColor.toLowerCase()] : colorMap["red"];
 
-  return { backgroundColor: colorHex };
+//   return { backgroundColor: colorHex };
+// };
+
+
+export const getCorrectUserColor = (userColors: Map<string, string>, asignee: string | undefined) => {
+  if (!asignee) return { backgroundColor: "#000000" }; // black as default
+  const color = userColors.get(asignee);
+  if (!color) return { backgroundColor: "#d22b2bff" };
+  // If color is in "R/G/B" format, convert to rgb()
+  const rgbMatch = color.match(/^(\d{1,3})\/(\d{1,3})\/(\d{1,3})$/);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return { backgroundColor: `rgb(${r},${g},${b})` };
+  }
+  // Otherwise, assume it's a valid CSS color (hex, named, etc.)
+  return { backgroundColor: color };
 };
 
 

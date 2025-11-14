@@ -159,7 +159,7 @@ export async function removeOrderAll(orderId: number) {
   revalidatePath("/toprint");
 }
 
-export async function assignMultiOrderToUser(nameIds: string[], colorSelected: string) {
+export async function assignMultiOrderToUser(nameIds: string[], userEmail?: string) {
   if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");
 
   const supabase = await getServerClient();
@@ -171,7 +171,7 @@ export async function assignMultiOrderToUser(nameIds: string[], colorSelected: s
   // console.log("Assigning orders to:", user.email, "for nameIds:", nameIds);
   const { data: updatedRows, error } = await supabase
     .from("orders")
-    .update({ asignee: user.email, assigneeColor: colorSelected })
+    .update({ asignee: userEmail || user.email }) // if it's passed in then use that 
     .in("name_id", nameIds)
     .select("name_id"); // <- return the rows that were actually updated
 
@@ -190,7 +190,7 @@ export async function assignMultiOrderToUser(nameIds: string[], colorSelected: s
   console.log("Orders assigned successfully for:", Array.from(updatedIds));
 }
 
-export async function assignOrderToUser(order: Order, colorSelected: string) {
+export async function assignOrderToUser(order: Order, userEmail?: string) {
   if (!order) throw new Error("No order provided");
 
   const supabase = await getServerClient();
@@ -202,7 +202,7 @@ export async function assignOrderToUser(order: Order, colorSelected: string) {
 
   const { error } = await supabase
     .from("orders")
-    .update({ ...order, asignee: user.email, assigneeColor: colorSelected })
+    .update({ ...order, asignee: userEmail || user.email })
     .match({ name_id: order.name_id });
 
   if (error) {

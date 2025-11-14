@@ -474,7 +474,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     });
   }, []);
 
-  // Track orders for which we want to ignore the next real-time update
+  // const me = session?.user?.email || "";
   const ignoreUpdateIds = useRef<Set<string>>(new Set());
   const ignoreRushIds = useRef<Set<string>>(new Set());
   const router = useRouter();
@@ -483,13 +483,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [refreshed, setRefreshed] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [me, setMe] = useState<string>("");
   const [scrollPosition, setScrollPosition] = useState<number>(0); // Temporary
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultPage);
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
   const [displayDropdown, setDisplayDropdown] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
-  const [colorSelected, setColorSelected] = useState<string>("orange");
+  const [userSelected, setUserSelected] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const rowRefs = useRef<{ [name_id: string]: HTMLTableRowElement | null }>({});
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
@@ -500,8 +502,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
+  const [isShiftDown, setIsShiftDown] = useState(false);
+// const shiftDown = useRef(false); // you can delete this if you don't use it elsewhere
   const lastUrlSelectedNameId = useRef<string | null>(null);
   const pendingUrlNameId = useRef<string | null>(null);
+
+  
 
   async function copyPrintData() {
     let values = [] as string[];
@@ -540,6 +546,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Shift") {
+        setIsShiftDown(true);
         shiftDown.current = true;
         // console.log("Shift key down, now disabling the text selection");
         clearAllSelection();
@@ -548,6 +555,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Shift") {
+        setIsShiftDown(false);
         shiftDown.current = false;
         document.body.style.userSelect = ""; // Re-enable text selection
       }
@@ -580,49 +588,58 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => clearInterval(id);
   }, []);
 
-  // const clearOrderValueFromUrl = useCallback(() => {
-  //   if (typeof window === "undefined") return;
 
-  //   const url = new URL(window.location.href);
+useEffect(() => {
+  let cancelled = false;
+  (async () => {
+    const { data, error } = await supabase.from("profiles").select("id, identifier, color, role");
+    if (error) {
+      console.error("Failed to load profiles:", error);
+      return;
+    }
+    if (!cancelled) {
+      const idMap = new Map<string, { name: string; color?: string | null; identifier?: string | null; role?: string | null }>();
+      const userColorMap = new Map<string, string>();
 
-  //   // First param key (e.g. "clear" from ?clear=...)
-  //   const firstKey = url.searchParams.keys().next().value as string | undefined;
-  //   if (!firstKey) return;
-
-  //   // Set query to "?clear" (no value)
-  //   const base = url.origin + url.pathname;
-  //   const newUrl = `${base}?${encodeURIComponent(firstKey)}`;
-
-  //   window.history.replaceState(null, "", newUrl);
-  // }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase.from("profiles").select("id, identifier, color");
-      if (error) {
-        console.error("Failed to load profiles:", error);
-        return;
-      }
-      if (!cancelled) {
-        const idMap = new Map<string, { name: string; color?: string | null; identifier?: string | null }>();
-        const userColorMap = new Map<string, string>();
-        (data ?? []).forEach((row: any) => {
-          idMap.set(row.id, {
-            name: row.identifier ?? row.id,
-            color: row.color ?? null,
-            identifier: row.identifier ?? null,
-          });
-          userColorMap.set(row.identifier ?? "", row.color ?? "");
+      (data ?? []).forEach((row: any) => {
+        idMap.set(row.id, {
+          name: row.identifier ?? row.id,
+          color: row.color ?? null,
+          identifier: row.identifier ?? null,
+          role: row.role ?? null,
         });
-        setProfilesById(idMap);
-        setUserRows(userColorMap);
+        userColorMap.set(row.identifier ?? "", row.color ?? "");
+      });
+
+      setProfilesById(idMap);
+      setUserRows(userColorMap);
+      setMe(session?.user?.email ?? "");
+      setUserSelected(session?.user?.email ?? "");
+
+      // derive isAdmin from session email and idMap
+      const myEmail = session?.user?.email ?? null;
+      if (myEmail) {
+        let meProfile = undefined as
+          | { name: string; color?: string | null; identifier?: string | null; role?: string | null }
+          | undefined;
+
+        for (const profile of idMap.values()) {
+          if (profile.identifier === myEmail) {
+            meProfile = profile;
+            break;
+          }
+        }
+        setIsAdmin(meProfile?.role === "admin");
+      } else {
+        setIsAdmin(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
+    }
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, [supabase, session]); // <- depend on session, not me/userSelected
 
   useEffect(() => {
     async function checkMatchingCounts() {
@@ -631,7 +648,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         return;
       }
       const counts = { ...categoryCounts };
-      // Ignore the "sheets" category
       delete counts["sheets"];
       const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
       // console.log("Total count of all categories (excluding 'sheets'):", totalCount);
@@ -704,7 +720,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [supabase]);
 
-  // console.log(userRows)
+  console.log(userRows)
   // 5) ----- derive active/idle lists -----
   // Viewer activity thresholds (in ms)
 
@@ -1017,9 +1033,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (e.button !== 0) return; // left button only
 
       const target = e.target as HTMLElement;
-
-      // If this click is on an element that should NOT touch selection
-      // (assignee cell/button, etc.), bail out immediately.
       if (target.closest("[data-ignore-selection='true']")) {
         // console.log("Click on ignore-selection element, not starting drag");
         dragStartPos.current = null;
@@ -1376,10 +1389,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .join(" "); // Join the words with a space
   };
 
-const onColorSelect = (color: string) => {
-  console.log("Color selected:", color);
-  setColorSelected(color);
-};
+// const onColorSelect = (color: string) => {
+//   console.log("Color selected:", color);
+//   setColorSelected(color);
+// };
 
   const handleCategoryClick = useCallback(
     (category: string, ignoreRefresh?: boolean) => {
@@ -1626,8 +1639,8 @@ const onColorSelect = (color: string) => {
 
   const handleAsigneeClick = useCallback(
     async (row: Order) => {
-      if (!session?.user?.email) return;
-      const me = session.user.email;
+      // if (!session?.user?.email) return;
+      // const me = session.user.email; // use this to find out if the user is an admin
       try {
         if (dragSelections.current.size > 0) {
           // console.log("Handling multi-row assignment");
@@ -1650,15 +1663,15 @@ const onColorSelect = (color: string) => {
               }
             }
           });
-          console.log(colorSelected);
+          // console.log(colorSelected);
           // Optimistically update the orders for all selected nameIds
-          assignMultiOrderToUser(nameIds, colorSelected);
-          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: me } : o)));
+          assignMultiOrderToUser(nameIds, userSelected);
+          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: userSelected } : o)));
           return;
         }
         console.log("Handling single-row assignment for", row.name_id);
-        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: me } : o))); // optimistic update
-        assignOrderToUser(row, colorSelected);
+        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: userSelected } : o))); // optimistic update
+        assignOrderToUser(row, userSelected);
       } catch (err) {
         console.error("assign failed", err);
         // 3) (optional) roll back if it errored:
@@ -1666,7 +1679,7 @@ const onColorSelect = (color: string) => {
         // toast("Couldn’t assign order", { type: "error" });
       }
     },
-    [session, setOrders, colorSelected]
+    [session, setOrders, userSelected]
   );
   const handleRowClick = useCallback(
     (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
@@ -1790,8 +1803,13 @@ const onColorSelect = (color: string) => {
             </Button>
           </div>
         </div>
-
         <Separator className="w-full mb-10" />
+        <div className="flex items-center gap-2 mb-6 h-4">
+          <Button  disabled={!isShiftDown} className="rounded-sm px-4 py-2 bg-gray-200 text-gray-700 cursor-default">
+            SHIFT
+          </Button>
+          <span>Hold to multi-select rows</span>
+        </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           {selectedCategory.toLowerCase() === "special" && (
             <OrderInputter onSubmit={handleNewOrderSubmit}></OrderInputter>
@@ -1912,7 +1930,13 @@ const onColorSelect = (color: string) => {
       {/* <DropdownAsignee/> */}
       {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
         1 && (
-        <OrderViewer dragSelections={dragSelections} colorSelected={colorSelected} onColorSelected={onColorSelect} />
+        <OrderViewer
+          dragSelections={dragSelections}
+          isAdmin={isAdmin}
+          userRows={userRows}
+          currentUserSelected={userSelected}
+          setCurrentUser={setUserSelected}
+        />
       )}
       <Toaster theme={"dark"} richColors={true} />
       {/* <DropdownAsignee asignees={Array.from(users)} /> */}

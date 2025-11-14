@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,23 +7,49 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 
-export function DropdownAsignee() {
+type DropdownAssigneeProps = {
+  users: { email: string; color: string }[];
+};
+
+export function DropdownAssignee({
+  currentUser,
+  users,
+  setCurrentUser,
+}: {
+  currentUser: string;
+  users: { email: string; color: string }[];
+  setCurrentUser: (user: string) => void;
+}) {
   return (
-       <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline">Open</Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild data-ignore-selection="true">
+        <Button
+          variant="destructive"
+          className="h-full px-4 py-4 flex items-center"  // height + vertical padding
+        >
+          Current Assignee: {currentUser}
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>Select a</DropdownMenuLabel>
+        <DropdownMenuLabel>Select an assignee</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup>
-          <DropdownMenuRadioItem value="top">Printing1</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="bottom">Printing2</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="right">Printing3</DropdownMenuRadioItem>
+        <DropdownMenuRadioGroup
+          data-ignore-selection="true"
+          value={currentUser}
+          onValueChange={(value) => {
+            console.log("Radio changed to:", value);
+            setCurrentUser(value);
+          }}
+        >
+          {users.map(({ email }) => (
+            <DropdownMenuRadioItem key={email} value={email}>
+              {email}
+            </DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

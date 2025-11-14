@@ -1,1 +1,4 @@
-## Supabase Next Js Project Scope
+
+
+
+## WAITING TO ADD ASSIGNEE COLORS RESPECTIVELY
