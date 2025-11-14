@@ -48,10 +48,10 @@ async function requireAdmin() {
   const { data, error } = await supabase
     .from("profiles")
     .select<"role", AdminRow>("role")
-    .eq("id", user.id)       // column must store auth user id
+    .eq("id", user.id) // column must store auth user id
     .eq("role", "admin")
     .single();
-  
+
   console.log("Admin check data:", data, "error:", error);
 
   if (error && error.code !== "PGRST116") throw new Error("Admin check failed");
@@ -159,7 +159,6 @@ export async function removeOrderAll(orderId: number) {
   revalidatePath("/toprint");
 }
 
-
 export async function assignMultiOrderToUser(nameIds: string[], colorSelected: string) {
   if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");
 
@@ -170,12 +169,11 @@ export async function assignMultiOrderToUser(nameIds: string[], colorSelected: s
   if (!user) throw new Error("User is not logged in");
 
   // console.log("Assigning orders to:", user.email, "for nameIds:", nameIds);
-  console.log("Color selected:", colorSelected);
   const { data: updatedRows, error } = await supabase
     .from("orders")
     .update({ asignee: user.email, assigneeColor: colorSelected })
     .in("name_id", nameIds)
-    .select("name_id");           // <- return the rows that were actually updated
+    .select("name_id"); // <- return the rows that were actually updated
 
   if (error) {
     console.error("Error assigning orders", error);
@@ -189,11 +187,10 @@ export async function assignMultiOrderToUser(nameIds: string[], colorSelected: s
   if (missingIds.length > 0) {
     console.warn("No matching orders found for name_id(s):", missingIds);
   }
-
   console.log("Orders assigned successfully for:", Array.from(updatedIds));
 }
 
-export async function assignOrderToUser(order: Order, colorSelected : string) {
+export async function assignOrderToUser(order: Order, colorSelected: string) {
   if (!order) throw new Error("No order provided");
 
   const supabase = await getServerClient();
@@ -231,8 +228,6 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
   const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
   if (!newStatus) throw new Error("No new status found");
-  
-
 
   const addHistoryPromise = addHistoryForUser(order.name_id, newStatus, order.production_status || "");
 
@@ -276,8 +271,6 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   //   void updateZendeskStatus(order.order_id, newStatus); // don't block
   // }
 }
-
-
 
 export async function addOrderViewer(name_ids: string[]) {
   if (!name_ids || name_ids.length === 0) {
@@ -365,7 +358,6 @@ export async function deleteAllOrders() {
   }
   console.log("All orders deleted successfully");
   return true;
-  
 }
 /**
  * Create a custom order using the values submitted from the OrderInputter.
@@ -389,10 +381,7 @@ export async function createCustomOrder(
 
   // Check for duplicate name_id
   const nameIds = values.map((val) => val.name_id);
-  const { data: existing, error: checkError } = await supabase
-    .from("orders")
-    .select("name_id")
-    .in("name_id", nameIds);
+  const { data: existing, error: checkError } = await supabase.from("orders").select("name_id").in("name_id", nameIds);
 
   if (checkError) {
     console.error("Error checking for duplicate name_id", checkError);
@@ -412,9 +401,7 @@ export async function createCustomOrder(
     production_status: "print",
   }));
   console.log("Orders to insert:", ordersToInsert);
-  const { error } = await supabase
-    .from("orders")
-    .insert(ordersToInsert);
+  const { error } = await supabase.from("orders").insert(ordersToInsert);
   if (error) {
     console.error("Error creating custom orders", error);
     return { result: false, message: error.message };
