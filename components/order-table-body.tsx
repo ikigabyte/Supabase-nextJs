@@ -183,6 +183,20 @@ const isSectionIgnored = (material: string | null, section: string): boolean => 
   return ignoredSections[lowerCaseMaterial]?.includes(section) || false;
 };
 
+const convertColorToUsableValue = (color: string | null): string => {
+  if (!color || color == null) return "bg-red-100"; // Default color
+  const lowerCaseColor = color.toLowerCase();
+  switch (lowerCaseColor) {
+    case "red":
+      return "bg-orange-100";
+    case "teal":
+      return "bg-teal-100";
+    case "green":
+      return "bg-green-100";
+  }
+  return "bg-red-100"; // Default color if no match
+};
+
 const dayOfTheWeekColor: { [key: number]: string } = {
   1: "bg-gray-301", // Monday
   2: "bg-gray-302", // Tuesday // change this to friday
@@ -204,9 +218,6 @@ const materialColors: { [key: string]: string } = {
   "clear-roll": "bg-teal-100",
 };
 
-
-
-
 const convertDateToActualDay = (dateString: string | null) => {
   if (!dateString) return dateString;
   const parts = dateString.split("-");
@@ -218,8 +229,18 @@ const convertDateToActualDay = (dateString: string | null) => {
   return days[date.getDay()];
 };
 
-
-
+const meetsProductionCycle = (convertedOrderTypeDate: string): boolean => {
+  const today = new Date();
+  const [year, month, day] = convertedOrderTypeDate.split("-").map(Number);
+  const dueDate = new Date(year, month - 1, day);
+  // Remove time part for comparison
+  today.setHours(0, 0, 0, 0);
+  dueDate.setHours(0, 0, 0, 0);
+  if (dueDate < today) {
+    return true;
+  }
+  return false;
+};
 
 // * Uncomment this one, the other one is just for testijng
 const convertDateToReadableDate = (dateString: string | null): string => {
@@ -242,7 +263,6 @@ const convertDateToReadableDate = (dateString: string | null): string => {
 //   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 //   return days[date.getDay()];
 // };
-
 
 function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
   const [value, setValue] = useState(note);
@@ -276,7 +296,6 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
       console.log("Committing note change:", value);
       onCommit(value);
     } else {
-      console.log("No change in note, not committing.");
     }
   };
 
@@ -423,6 +442,9 @@ export function OrderTableBody({
         // setRowHistory(["Tile: " + row.quantity]);
         setScrollAreaName("Tile Size");
         lastHoveredIdRef.current = row.name_id;
+      } else if (type === "production_warning") {
+        setScrollAreaName("Production Warning");
+        setRowHistory(["Based on the production cycle, this order is overdue"]);
       }
       setIsRowHovered(true);
     } else {
@@ -449,12 +471,7 @@ export function OrderTableBody({
 
   const tableEl = tableRef.current?.closest("table") as HTMLTableElement | null;
   const dragSelection = dragSelections?.current && tableEl ? dragSelections.current.get(tableEl) : null;
-
-  // const lastSelectedIndexRef = useRef<number | null>(null);
-
-  // let isRowClicked = false;
   return (
-    // <div className={isTableClicked ? 'border border-black' : ''} onClick={() => setIsTableClicked(true)}>
     <TableBody
       ref={tableRef}
       className="py-5"
@@ -466,9 +483,6 @@ export function OrderTableBody({
       }}
     >
       {data.map((row, i) => {
-        // const nameCellRef = useRef<HTMLTableCellElement>(null);
-
-        // Move checkbox state out of the map, see below
         const isChecked = checkedRows.has(row.name_id);
         const currentDay = convertToDayOfTheWeek(row.due_date);
         const safeName = convertToSpaces(row.name_id);
@@ -487,11 +501,8 @@ export function OrderTableBody({
         }
         const prev = data[i - 1];
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
-
-        //* Took this out of line 309
-        // ${multiSelectedRows.has(row.name_id) ? " ring-1 ring-black relative" : ""}
-        // ${String(row.order_id) === hashValue ? "bg-yellow-200 !hover:bg-yellow-300" : ""}
-        // console.log(currentDay)
+        const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus);
+        const meetsProduction = meetsProductionCycle(convertedProductionDate);
         return (
           <React.Fragment key={row.name_id}>
             {showSeparator && (
@@ -581,45 +592,23 @@ export function OrderTableBody({
                 }}
               >
                 {isHighlighted ? boldUntilDash(safeName) : boldUntilDash(truncate(safeName, 30)) || "-"}
-                {/* {boldUntilDash(multiSelectedRows.has(row.name_id) ? safeName : truncate(safeName, 40) || "-")} */}
               </TableCell>
               <TableCell
                 ref={(el) => {
                   if (!cellRefs.current[i]) cellRefs.current[i] = [];
                   cellRefs.current[i][1] = el;
                 }}
-                // className={
-                //   hoveredCells?.current &&
-                //   cellRefs.current[i] &&
-                //   cellRefs.current[i][1] &&
-                //   hoveredCells.current.has(cellRefs.current[i][1]!)
-                //     ? "bg-blue-100"
-                //     : ""
-                // }
               >
                 {capitalizeFirstLetter(row.shape) || "-"}
               </TableCell>
               <TableCell
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
                 onMouseLeave={handleMouseLeave}
-                // className={
-                //   hoveredCells?.current && cellRefs.current[i] && hoveredCells.current.has(cellRefs.current[i]!)
-                //     ? "bg-blue-100"
-                //     : ""
-                // }
               >
                 {displayCorrectQuantity(row.quantity) || "-"}
               </TableCell>
 
-              <TableCell
-              // className={
-              //   hoveredCells?.current && cellRefs.current[i] && hoveredCells.current.has(cellRefs.current[i]!)
-              //     ? "bg-blue-100"
-              //     : ""
-              // }
-              >
-                {capitalizeFirstLetter(row.lamination) || "-"}
-              </TableCell>
+              <TableCell>{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
               <TableCell
                 className={`${
                   row.material && materialColors[row.material.toLowerCase()]
@@ -634,27 +623,12 @@ export function OrderTableBody({
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
               <TableCell
-                className={(() => {
-                  const convertedOrderTypeDate = convertToOrderTypeDate(row.due_date, productionStatus);
-                  if (
-                    convertedOrderTypeDate &&
-                    convertedOrderTypeDate !== "-" &&
-                    !isHighlighted // Don't highlight if row is highlighted
-                  ) {
-                    const today = new Date();
-                    const [year, month, day] = convertedOrderTypeDate.split("-").map(Number);
-                    const dueDate = new Date(year, month - 1, day);
-                    // Remove time part for comparison
-                    today.setHours(0, 0, 0, 0);
-                    dueDate.setHours(0, 0, 0, 0);
-                    if (dueDate < today) {
-                      return "bg-yellow-200";
-                    }
-                  }
-                  return "";
-                })()}
+                onMouseEnter={(event) => handleMouseEnter(event, row, "production_warning")}
+                onMouseLeave={handleMouseLeave}
               >
-                {convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
+                {meetsProduction
+                  ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
+                  : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
               </TableCell>
               <TableCell
                 className=""
@@ -678,7 +652,7 @@ export function OrderTableBody({
                   className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
                     !row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
                   }`}
-                  style={row.asignee ? getCorrectUserColor(userColors, row.asignee) : undefined}
+                  style={row.asignee ? getCorrectUserColor(row.asignee, row.assigneeColor) : undefined}
                 >
                   {row.asignee && row.asignee.length >= 2
                     ? row.asignee.slice(0, 2).toUpperCase()
@@ -728,9 +702,10 @@ export function OrderTableBody({
   );
 }
 
-            {/* className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
+{
+  /* className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
                       row.asignee
                         ? getCorrectUserColor(row.asignee ?? "")
                         : "border bg-transparent border-dotted border-gray-400 text-gray-400"
-                    }`} */}
-                    
+                    }`} */
+}

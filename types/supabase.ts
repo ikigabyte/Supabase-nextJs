@@ -47,7 +47,7 @@ export type Database = {
           history: Json | null
           ihd_date: string | null
           ink: string | null
-          inserted_date: string
+          inserted_date: string | null
           lamination: string | null
           material: string | null
           name_id: string
@@ -68,7 +68,7 @@ export type Database = {
           history?: Json | null
           ihd_date?: string | null
           ink?: string | null
-          inserted_date?: string
+          inserted_date?: string | null
           lamination?: string | null
           material?: string | null
           name_id: string
@@ -89,7 +89,7 @@ export type Database = {
           history?: Json | null
           ihd_date?: string | null
           ink?: string | null
-          inserted_date?: string
+          inserted_date?: string | null
           lamination?: string | null
           material?: string | null
           name_id?: string
@@ -153,6 +153,7 @@ export type Database = {
       orders: {
         Row: {
           asignee: string | null
+          assigneeColor: string | null
           color: string | null
           due_date: string
           history: Json | null
@@ -173,6 +174,7 @@ export type Database = {
         }
         Insert: {
           asignee?: string | null
+          assigneeColor?: string | null
           color?: string | null
           due_date: string
           history?: Json | null
@@ -193,6 +195,7 @@ export type Database = {
         }
         Update: {
           asignee?: string | null
+          assigneeColor?: string | null
           color?: string | null
           due_date?: string
           history?: Json | null
@@ -266,14 +269,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      move_order: {
-        Args: { p_id: string }
-        Returns: undefined
-      }
-      scheduler_deleter: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      move_order: { Args: { p_id: string }; Returns: undefined }
+      scheduler_deleter: { Args: never; Returns: undefined }
     }
     Enums: {
       user_role: "user" | "admin"

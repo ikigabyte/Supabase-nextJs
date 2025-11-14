@@ -2,8 +2,10 @@
 
 import React from "react";
 import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { Button } from "./ui/button";
+import { getNameToColor } from "@/lib/utils";
 
-const quantityColumnIndex = 2;
+const quantityColumnIndex = 3; // * Adjust this to where the quantity is
 function extractNumber(str: string) {
   // Remove "QTY" (case-insensitive) and trim whitespace
   const cleaned = str.replace(/qty/gi, "").trim();
@@ -22,8 +24,12 @@ function extractNumber(str: string) {
 
 export function OrderViewer({
   dragSelections,
+  colorSelected,
+  onColorSelected,
 }: {
-  dragSelections: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
+    dragSelections: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
+    colorSelected: string;
+    onColorSelected?: (color: string) => void;
 }) {
   let sumValue = 0;
   let showDifferent = false;
@@ -46,9 +52,8 @@ export function OrderViewer({
       const cell = row.children[quantityColumnIndex]; // second column (index 1)
       if (cell) {
         const cellValue = cell.textContent ?? "";
-        // console.log(cellValue);
         if (cellValue.toLowerCase().includes("tiles")) {
-          showDifferent = true;
+          showDifferent = true; // Flag to show different values
         }
         rows.push(cellValue);
       }
@@ -63,36 +68,65 @@ export function OrderViewer({
       }
     }
   }
-
   const rowValue = showDifferent ? "Different values selected" : "Total: " + sumValue;
-
-  // rows.forEach((value, key) => {
-  //   if (typeof value === "string" && value.toLowerCase().includes("tiles")) {
-  //     // Ignore this value
-  //     sumValue = 0;
-  //     return;
-  //   }
-  //   if (value === null || value === undefined) {
-  //     return;
-  //   }
-  //   const number = parseFloat(extractNumber(value));
-  //   if (!isNaN(number)) {
-  //     sumValue += number; // Add the number to sumValue
-  //   }
-  // });
-  // let rowValue = "Total: " + sumValue;
-  // if (sumValue === 0) {
-  //   rowValue = "Rows selected of different values";
-  // }
   return (
-    <div className="fixed left-[15px] bottom-[80px] z-50 w-auto shadow-lg">
+    <div className="fixed left-[15px] bottom-[80px] z-50 flex gap-4 w-auto">
+      {/* Total / message container */}
+      <div className="shadow-lg">
       <Table className="w-full">
         <TableBody>
-          <TableRow>
-            <TableCell className="text-center bg-green-300 shadow-lg rounded-lg p-4 ">{rowValue}</TableCell>
-          </TableRow>
+        <TableRow>
+          <TableCell className="text-center bg-green-300 shadow-lg rounded-lg p-4">
+          {rowValue}
+          </TableCell>
+        </TableRow>
         </TableBody>
       </Table>
+      </div>
+
+      {/* Circles container */}
+      <div className="flex items-center justify-between gap-4 bg-white shadow-lg rounded-lg px-4 py-2">
+        <h1>Asignee color:</h1>
+
+        {/* Orange */}
+        <Button
+          type="button"
+          data-ignore-selection="true" // <-- new
+          onClick={() => onColorSelected?.("orange")}
+          style={{ backgroundColor: getNameToColor("orange").backgroundColor }}
+          className={`w-6 h-6 rounded-full p-0 ${
+        colorSelected === "orange"
+          ? "ring-2 ring-offset-2 ring-orange-500"
+          : ""
+          }`}
+        />
+
+        {/* Red */}
+        <Button
+          type="button"
+          data-ignore-selection="true" // <-- new
+          onClick={() => onColorSelected?.("red")}
+          style={{ backgroundColor: getNameToColor("red").backgroundColor }}
+          className={`w-6 h-6 rounded-full p-0 ${
+        colorSelected === "red"
+          ? "ring-2 ring-offset-2 ring-red-500"
+          : ""
+          }`}
+        />
+
+        {/* Blue */}
+        <Button
+          type="button"
+          data-ignore-selection="true" // <-- new
+          onClick={() => onColorSelected?.("blue")}
+          style={{ backgroundColor: getNameToColor("blue").backgroundColor }}
+          className={`w-6 h-6 rounded-full p-0 ${
+        colorSelected === "blue"
+          ? "ring-2 ring-offset-2 ring-blue-500"
+          : ""
+          }`}
+        />
+      </div>
     </div>
   );
 }

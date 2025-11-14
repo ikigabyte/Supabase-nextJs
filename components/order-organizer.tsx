@@ -489,6 +489,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [displayDropdown, setDisplayDropdown] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
+  const [colorSelected, setColorSelected] = useState<string>("orange");
   const rowRefs = useRef<{ [name_id: string]: HTMLTableRowElement | null }>({});
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
@@ -1333,6 +1334,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [headers, setHeaders] = useState<string[]>(() => getMaterialHeaders(orderType, defaultPage));
   // const [scrollAreaName, setScrollAreaName] = useState<string>(orderType);
   const [rowHistory, setRowHistory] = useState<string[] | null>(null);
+
   // const [clickedTables, setClickedTables] = useState<Set<string>>(new Set());
   // const [users, setUsers] = useState<Set<string>>(new Set());
   const [scrollAreaName, setScrollAreaName] = useState<string>("History");
@@ -1373,6 +1375,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
       .join(" "); // Join the words with a space
   };
+
+const onColorSelect = (color: string) => {
+  console.log("Color selected:", color);
+  setColorSelected(color);
+};
 
   const handleCategoryClick = useCallback(
     (category: string, ignoreRefresh?: boolean) => {
@@ -1622,10 +1629,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (!session?.user?.email) return;
       const me = session.user.email;
       try {
-        // how to handle multi selection row
-        // console.log(dragSelections.current);
         if (dragSelections.current.size > 0) {
-          console.log("Handling multi-row assignment");
+          // console.log("Handling multi-row assignment");
           const nameIds: string[] = [];
           dragSelections.current.forEach((selection, table) => {
             const tbody = table.querySelector("tbody");
@@ -1645,17 +1650,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               }
             }
           });
-
+          console.log(colorSelected);
           // Optimistically update the orders for all selected nameIds
-          assignMultiOrderToUser(nameIds);
+          assignMultiOrderToUser(nameIds, colorSelected);
           setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: me } : o)));
-          // Proceed with the assignment
-          // assignMultiOrderToUser(nameIds);
           return;
         }
-        // // * work with this thing hewre
-        // console.log("Handling single-row assignment for", row.name_id);
-        // assignOrderToUser(row);
+        console.log("Handling single-row assignment for", row.name_id);
+        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: me } : o))); // optimistic update
+        assignOrderToUser(row, colorSelected);
       } catch (err) {
         console.error("assign failed", err);
         // 3) (optional) roll back if it errored:
@@ -1663,7 +1666,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // toast("Couldn’t assign order", { type: "error" });
       }
     },
-    [session, setOrders]
+    [session, setOrders, colorSelected]
   );
   const handleRowClick = useCallback(
     (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
@@ -1908,7 +1911,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       </div>
       {/* <DropdownAsignee/> */}
       {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
-        1 && <OrderViewer dragSelections={dragSelections} />}
+        1 && (
+        <OrderViewer dragSelections={dragSelections} colorSelected={colorSelected} onColorSelected={onColorSelect} />
+      )}
       <Toaster theme={"dark"} richColors={true} />
       {/* <DropdownAsignee asignees={Array.from(users)} /> */}
     </>
