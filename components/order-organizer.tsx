@@ -48,6 +48,7 @@ import { convertToSpaces } from "@/lib/utils";
 // import { UserSearchIcon } from "lucide-react";
 // import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
@@ -1665,11 +1666,16 @@ useEffect(() => {
           });
           // console.log(colorSelected);
           // Optimistically update the orders for all selected nameIds
+          toast(`Assigning orders to ${userSelected}`, {
+            description: `${nameIds.length} orders changed`,
+          });
           assignMultiOrderToUser(nameIds, userSelected);
           setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: userSelected } : o)));
           return;
         }
-        console.log("Handling single-row assignment for", row.name_id);
+          //   toast(`Assigning orders to ${userSelected}`, {
+          //   description: `For ${row.name_id}.`,
+          // });
         setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: userSelected } : o))); // optimistic update
         assignOrderToUser(row, userSelected);
       } catch (err) {
@@ -1804,11 +1810,11 @@ useEffect(() => {
           </div>
         </div>
         <Separator className="w-full mb-10" />
-        <div className="flex items-center gap-2 mb-6 h-4">
-          <Button  disabled={!isShiftDown} className="rounded-sm px-4 py-2 bg-gray-200 text-gray-700 cursor-default">
+        <div className="flex items-center gap-2 mb-6 h-1">
+          <Button  disabled={!isShiftDown} className="rounded-sm px-2 py-2 bg-gray-200 text-gray-700 cursor-default">
             SHIFT
           </Button>
-          <span>Hold to multi-select rows</span>
+          <p>Hold SHIFT and drag mouse to multi-select rows</p>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           {selectedCategory.toLowerCase() === "special" && (

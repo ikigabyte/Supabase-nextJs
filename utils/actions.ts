@@ -187,7 +187,7 @@ export async function assignMultiOrderToUser(nameIds: string[], userEmail?: stri
   if (missingIds.length > 0) {
     console.warn("No matching orders found for name_id(s):", missingIds);
   }
-  console.log("Orders assigned successfully for:", Array.from(updatedIds));
+  // console.log("Orders assigned successfully for:", Array.from(updatedIds));
 }
 
 export async function assignOrderToUser(order: Order, userEmail?: string) {

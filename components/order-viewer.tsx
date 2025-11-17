@@ -3,7 +3,7 @@
 import React from "react";
 import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "./ui/button";
-import { getNameToColor } from "@/lib/utils";
+import { getCorrectUserColor, getNameToColor } from "@/lib/utils";
 import { DropdownAssignee } from "./dropdown";
 
 const quantityColumnIndex = 3; // * Adjust this to where the quantity is
@@ -64,10 +64,9 @@ export function OrderViewer({
   }
   const rowValue = showDifferent ? "Different values selected" : "Total: " + sumValue;
 
-  // Condense userRows to array of { email, color }
   const condensedUsers = Array.from(userRows.entries()).map(([email, color]) => ({
     email,
-    color,
+    color: getCorrectUserColor(userRows, email).backgroundColor,
   }));
   return (
     <div className="fixed left-[15px] bottom-[80px] z-50 flex gap-4 w-auto">

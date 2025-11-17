@@ -503,6 +503,7 @@ export function OrderTableBody({
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
         const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus);
         const meetsProduction = meetsProductionCycle(convertedProductionDate);
+        const getDayOfDate = convertDateToActualDay(row.due_date);
         return (
           <React.Fragment key={row.name_id}>
             {showSeparator && (
@@ -630,15 +631,17 @@ export function OrderTableBody({
                   ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
                   : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
               </TableCell>
-              <TableCell
+                <TableCell
                 className=""
                 onMouseEnter={() => setTableCellHovered(cellRefs.current[i][1])}
                 onMouseLeave={() => setTableCellHovered(null)}
-              >
-                {productionStatus === "ship"
+                >
+                {tableCellHovered && tableCellHovered === cellRefs.current[i][1]
+                  ? getDayOfDate
+                  : productionStatus === "ship"
                   ? convertDateToReadableDate(row.ihd_date)
                   : convertDateToReadableDate(row.due_date)}
-              </TableCell>
+                </TableCell>
               <TableCell
                 className=""
                 data-ignore-selection="true" // <-- new

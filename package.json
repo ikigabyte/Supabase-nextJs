@@ -17,6 +17,7 @@
     "@radix-ui/react-separator": "^1.0.3",
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-toast": "^1.2.11",
+    "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "autoprefixer": "10.4.17",
