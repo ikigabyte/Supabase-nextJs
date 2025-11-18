@@ -6,16 +6,17 @@ import { getCorrectUserColor, getNameToColor } from "@/lib/utils";
 import { DropdownAssignee } from "./dropdown";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ClipboardCopy } from "lucide-react";
+import { TableBody, TableRow, TableCell , Table} from "@/components/ui/table";
 
 
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item"
+// import {
+//   Item,
+//   ItemActions,
+//   ItemContent,
+//   ItemDescription,
+//   ItemMedia,
+//   ItemTitle,
+// } from "@/components/ui/item"
 
 const quantityColumnIndex = 3; // * Adjust this to where the quantity is
 function extractNumber(str: string) {
@@ -81,52 +82,45 @@ export function OrderViewer({
     email,
     color: getCorrectUserColor(userRows, email).backgroundColor,
   }));
-  return (
-    <div className="fixed left-[20px] bottom-[80px] max-w-xs rounded-lg max-w-[300px] z-50 flex flex-col gap-2">
-      <Item className="bg-white/90 shadow-lg rounded-full px-4 py-2 flex items-center gap-4 ring-1 ring-gray-300" size="sm" data-ignore-selection="true">
-        <ItemContent>
-          <ItemTitle>Total Quantity: {rowValue} </ItemTitle>
-        </ItemContent>
-        <ItemActions>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="default" size="sm" onClick={copyPrintData}>
-                  <ClipboardCopy />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="center">
-                [CTRL + C] Copy Print Data 
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
 
+
+
+return (
+  <div className="fixed left-[20px] bottom-[80px] max-w-xs rounded-lg max-w-[300px] z-50 flex flex-col gap-2">
+    <Table className="bg-white/90 shadow-lg rounded-full px-4 py-2 ring-1 ring-gray-300 w-full" data-ignore-selection="true"
+    >
+      <TableBody>
+        <TableRow>
+          <TableCell className="font-semibold pr-4">Total Quantity: {rowValue}</TableCell>
+          <TableCell>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="default" size="sm" onClick={copyPrintData}>
+                    <ClipboardCopy />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="center">
+                  [CTRL + C] Copy Print Data
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </TableCell>
           {isAdmin && (
-            <DropdownAssignee
-              currentUser={currentUserSelected}
-              users={condensedUsers}
-              setCurrentUser={setCurrentUser}
-              userRows={userRows}
-            />
+            <TableCell>
+              <DropdownAssignee
+                currentUser={currentUserSelected}
+                users={condensedUsers}
+                setCurrentUser={setCurrentUser}
+                userRows={userRows}
+              />
+            </TableCell>
           )}
-        </ItemActions>
-      </Item>
-      {/* <Item variant="default" size="sm" asChild className="bg-white shadow-md" onClick={copyPrintData} data-ignore-selection="true">
-        <a href="#">
-          <ItemMedia>
-            <ClipboardCopy className="size-3" />
-          </ItemMedia>
-          <ItemContent>
-              <ItemTitle>Copy Print Data</ItemTitle>
-          </ItemContent>
-        </a>
-      </Item>
-      {isAdmin && (
-        <DropdownAssignee currentUser={currentUserSelected} users={condensedUsers} setCurrentUser={setCurrentUser} />
-      )} */}
-    </div>
-  );
-}
+        </TableRow>
+      </TableBody>
+    </Table>
+  </div>
+);}
 
 
   //  <ItemActions>
