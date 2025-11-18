@@ -37,7 +37,7 @@ export const convertToSpaces = (str: string) => {
 
 
 export const getCorrectUserColor = (userColors: Map<string, string>, asignee: string | undefined) => {
-  console.log(userColors)
+
   if (!asignee) return { backgroundColor: "#000000" }; // black as default
   const color = userColors.get(asignee);
   if (!color) return { backgroundColor: "#d22b2bff" };

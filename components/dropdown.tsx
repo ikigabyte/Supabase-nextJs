@@ -18,10 +18,12 @@ export function DropdownAssignee({
   currentUser,
   users,
   setCurrentUser,
+  userRows
 }: {
   currentUser: string;
   users: { email: string; color: string }[];
-  setCurrentUser: (user: string) => void;
+    setCurrentUser: (user: string) => void;
+  userRows: Map<string, string>;
   }) {
   
 
@@ -30,13 +32,19 @@ export function DropdownAssignee({
     <DropdownMenu>
       <DropdownMenuTrigger asChild data-ignore-selection="true">
         <Button
-          variant="destructive"
-          className="h-full px-4 py-4 flex items-center"  // height + vertical padding
+          variant="outline"
+          className="rounded-full w-8 h-8 p-0 flex items-center justify-center text-white text-sm"
+          style={{ backgroundColor: getCorrectUserColor(userRows, currentUser).backgroundColor }}
         >
-          Current Assignee: {currentUser}
+          {currentUser
+            .split("@")[0]
+            .split(/[.\-_]/)
+            .map(part => part[0]?.toUpperCase())
+            .join("")
+            .slice(0, 2)}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-70">
+      <DropdownMenuContent className="w-100" side="right" align="end">
         <DropdownMenuLabel>Select a user</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup

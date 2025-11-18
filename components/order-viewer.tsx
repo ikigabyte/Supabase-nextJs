@@ -1,10 +1,21 @@
 "use client";
 
 import React from "react";
-import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "./ui/button";
 import { getCorrectUserColor, getNameToColor } from "@/lib/utils";
 import { DropdownAssignee } from "./dropdown";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { ClipboardCopy } from "lucide-react";
+
+
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item"
 
 const quantityColumnIndex = 3; // * Adjust this to where the quantity is
 function extractNumber(str: string) {
@@ -20,17 +31,19 @@ export function OrderViewer({
   userRows,
   currentUserSelected,
   setCurrentUser,
+  copyPrintData,
 }: {
   dragSelections: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
   isAdmin: boolean;
   userRows: Map<string, string>; // key: email, value: color
   currentUserSelected: string;
-  setCurrentUser: (user: string) => void;
+    setCurrentUser: (user: string) => void;
+  copyPrintData: () => void;
 }) {
   let sumValue = 0;
   let showDifferent = false;
   const rows: string[] = [];
-  console.log("Current user" + currentUserSelected);
+  // console.log("Current user" + currentUserSelected);
   dragSelections.current.forEach((selection, table) => {
     const tbody = table.querySelector("tbody");
     if (!tbody) return;
@@ -62,32 +75,66 @@ export function OrderViewer({
       }
     }
   }
-  const rowValue = showDifferent ? "Different values selected" : "Total: " + sumValue;
+  const rowValue = showDifferent ? "N/A" : sumValue;
 
   const condensedUsers = Array.from(userRows.entries()).map(([email, color]) => ({
     email,
     color: getCorrectUserColor(userRows, email).backgroundColor,
   }));
   return (
-    <div className="fixed left-[15px] bottom-[80px] z-50 flex gap-4 w-auto">
-      {/* Total / message container */}
-      <div className="shadow-lg">
-        <Table className="w-full">
-          <TableBody>
-            <TableRow>
-              <TableCell className="text-center bg-green-300 shadow-lg rounded-lg p-4">{rowValue}</TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
+    <div className="fixed left-[20px] bottom-[80px] max-w-xs rounded-lg max-w-[300px] z-50 flex flex-col gap-2">
+      <Item className="bg-white/90 shadow-lg rounded-full px-4 py-2 flex items-center gap-4 ring-1 ring-gray-300" size="sm" data-ignore-selection="true">
+        <ItemContent>
+          <ItemTitle>Total Quantity: {rowValue} </ItemTitle>
+        </ItemContent>
+        <ItemActions>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="default" size="sm" onClick={copyPrintData}>
+                  <ClipboardCopy />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="center">
+                [CTRL + C] Copy Print Data 
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
+          {isAdmin && (
+            <DropdownAssignee
+              currentUser={currentUserSelected}
+              users={condensedUsers}
+              setCurrentUser={setCurrentUser}
+              userRows={userRows}
+            />
+          )}
+        </ItemActions>
+      </Item>
+      {/* <Item variant="default" size="sm" asChild className="bg-white shadow-md" onClick={copyPrintData} data-ignore-selection="true">
+        <a href="#">
+          <ItemMedia>
+            <ClipboardCopy className="size-3" />
+          </ItemMedia>
+          <ItemContent>
+              <ItemTitle>Copy Print Data</ItemTitle>
+          </ItemContent>
+        </a>
+      </Item>
       {isAdmin && (
         <DropdownAssignee currentUser={currentUserSelected} users={condensedUsers} setCurrentUser={setCurrentUser} />
-      )}
+      )} */}
     </div>
   );
 }
 
+
+  //  <ItemActions>
+  //         <Button variant="muted" size="sm">
+  //           Copy Print Data
+  //         </Button>
+  //  </ItemActions>
+        
 // {Array.from(userRows.entries()).map(([key, user]) => (
 //           <Button
 //             key={key}

@@ -48,7 +48,6 @@ import { convertToSpaces } from "@/lib/utils";
 // import { UserSearchIcon } from "lucide-react";
 // import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { TooltipProvider } from "@radix-ui/react-tooltip";
 
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
@@ -508,10 +507,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const lastUrlSelectedNameId = useRef<string | null>(null);
   const pendingUrlNameId = useRef<string | null>(null);
 
-  
-
   async function copyPrintData() {
     let values = [] as string[];
+    console.log("Copying print data from selections");
+    if (dragSelections.current.size === 0) {
+      toast("No print data", {
+      });
+      // console.warn("No selections to copy");
+      return;
+    }
     dragSelections.current.forEach((selection, table) => {
       const tbody = table.querySelector("tbody");
       if (!tbody) return;
@@ -532,7 +536,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
     });
     // console.log(values);
-
     toast("Copied Print Data", {
       description: `For orders selected (${values.length} rows).`,
     });
@@ -721,7 +724,7 @@ useEffect(() => {
     };
   }, [supabase]);
 
-  console.log(userRows)
+  // console.log(userRows)
   // 5) ----- derive active/idle lists -----
   // Viewer activity thresholds (in ms)
 
@@ -1935,13 +1938,14 @@ useEffect(() => {
       </div>
       {/* <DropdownAsignee/> */}
       {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
-        1 && (
+        0 && (
         <OrderViewer
           dragSelections={dragSelections}
           isAdmin={isAdmin}
           userRows={userRows}
           currentUserSelected={userSelected}
           setCurrentUser={setUserSelected}
+          copyPrintData={copyPrintData}
         />
       )}
       <Toaster theme={"dark"} richColors={true} />

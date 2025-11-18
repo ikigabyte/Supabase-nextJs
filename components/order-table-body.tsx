@@ -11,6 +11,7 @@ import { convertToSpaces } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
 import { Button } from "@/components/ui/button";
 import { getCorrectUserColor } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 // import {
 //   DropdownMenu,
@@ -631,17 +632,17 @@ export function OrderTableBody({
                   ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
                   : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
               </TableCell>
-                <TableCell
+              <TableCell
                 className=""
                 onMouseEnter={() => setTableCellHovered(cellRefs.current[i][1])}
                 onMouseLeave={() => setTableCellHovered(null)}
-                >
+              >
                 {tableCellHovered && tableCellHovered === cellRefs.current[i][1]
                   ? getDayOfDate
                   : productionStatus === "ship"
                   ? convertDateToReadableDate(row.ihd_date)
                   : convertDateToReadableDate(row.due_date)}
-                </TableCell>
+              </TableCell>
               <TableCell
                 className=""
                 data-ignore-selection="true" // <-- new
@@ -651,18 +652,27 @@ export function OrderTableBody({
                   onAsigneeClick(row);
                 }}
               >
-              <Button
-                  className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
-                    !row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
-                  }`}
-                  style={row.asignee ? getCorrectUserColor(userColors, row.asignee) : undefined}
-                >
-                  {row.asignee && row.asignee.length >= 2
-                    ? row.asignee.slice(0, 2).toUpperCase()
-                    : row.asignee && row.asignee.length === 1
-                    ? row.asignee[0].toUpperCase()
-                    : "N/A"}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
+                          !row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
+                        }`}
+                        style={row.asignee ? getCorrectUserColor(userColors, row.asignee) : undefined}
+                      >
+                        {row.asignee && row.asignee.length >= 2
+                          ? row.asignee.slice(0, 2).toUpperCase()
+                          : row.asignee && row.asignee.length === 1
+                          ? row.asignee[0].toUpperCase()
+                          : "N/A"}
+                      </Button>
+                      {/* <Button variant="outline">Hover</Button> */}
+                    </TooltipTrigger>
+
+                    <TooltipContent>{row.asignee}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </TableCell>
               <TableCell className={`text-[11px] truncate`}>
                 {capitalizeFirstLetter(row.shipping_method) || ""}
