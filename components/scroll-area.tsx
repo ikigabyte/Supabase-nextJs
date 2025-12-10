@@ -1,30 +1,37 @@
-import * as React from "react"
+import * as React from "react";
 
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
-export function ScrollAreaDemo({ historySteps, scrollName }: { historySteps?: string[], scrollName?: string }) {
+export function ScrollAreaDemo({ historySteps, scrollName }: { historySteps?: string[]; scrollName?: string }) {
   const stepsExist = historySteps && historySteps.length > 0;
   const steps = stepsExist ? historySteps : ["No history available"];
-  // const textSize = stepsExist ? "text-[10px]" : "text-[8px]";
-  // console.log("this is the history", steps);
+  let heightClass = "h-72";
+  if (steps.length < 2) {
+    heightClass = "h-20";
+  } else if (steps.length < 4) {
+    heightClass = "h-32";
+  }
 
-  const uniformFontSize = Math.max(14 - steps.length, 8); // Ensure minimum font size of 6px
-  const fontSizeStyle = { fontSize: `${uniformFontSize}px` };
+  const fontSizeStyle = { fontSize: `${10}px` };
+
+  // Limit to 6 steps, show "X more steps" if there are more
+  const maxStepsToShow = 6;
+  const stepsToDisplay =
+    steps.length > maxStepsToShow
+      ? [...steps.slice(0, maxStepsToShow - 1), `${steps.length - (maxStepsToShow - 1)} more history steps`]
+      : steps;
+
   return (
-    <ScrollArea className="h-72 w-48 rounded-md border bg-white z-1">
+    <ScrollArea className={`${heightClass} w-60 rounded-md border bg-white z-1`}>
       <div className="p-4">
-        
         <h4 className="mb-4 font-medium leading-none">{scrollName}</h4>
-        {steps.map((step, index) => {
-          // `const fontSize = Math.max(12 - index, 6);`
-          return (
-            <React.Fragment key={index}>
-              <div style={fontSizeStyle}>{step}</div>
-              <Separator className="my-2" />
-            </React.Fragment>
-          );
-        })}
+        {stepsToDisplay.map((step, index) => (
+          <React.Fragment key={index}>
+            <div style={fontSizeStyle}>{step}</div>
+            {index < stepsToDisplay.length - 1 && <Separator className="my-2" />}
+          </React.Fragment>
+        ))}
       </div>
     </ScrollArea>
   );

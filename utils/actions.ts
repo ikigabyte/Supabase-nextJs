@@ -15,6 +15,8 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
       case "cut":
         return "print";
       case "pack":
+        return "prepack";
+      case "prepack":
         return "cut";
       case "ship":
         return "pack";
@@ -28,6 +30,8 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
       case "print":
         return "cut";
       case "cut":
+        return "prepack";
+      case "prepack":
         return "pack";
       case "pack":
         return "ship";
@@ -171,7 +175,7 @@ export async function assignMultiOrderToUser(nameIds: string[], userEmail?: stri
   // console.log("Assigning orders to:", user.email, "for nameIds:", nameIds);
   const { data: updatedRows, error } = await supabase
     .from("orders")
-    .update({ asignee: userEmail || user.email }) // if it's passed in then use that 
+    .update({ asignee: userEmail || user.email }) // if it's passed in then use that
     .in("name_id", nameIds)
     .select("name_id"); // <- return the rows that were actually updated
 

@@ -86,39 +86,51 @@ export function OrderViewer({
 
 
 return (
-  <div className="fixed left-[20px] bottom-[80px] max-w-xs rounded-lg max-w-[300px] z-50 flex flex-col gap-2">
-    <Table className="bg-white/90 shadow-lg rounded-full px-4 py-2 ring-1 ring-gray-300 w-full" data-ignore-selection="true"
-    >
-      <TableBody>
-        <TableRow>
-          <TableCell className="font-semibold pr-4">Total Quantity: {rowValue}</TableCell>
-          <TableCell>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="default" size="sm" onClick={copyPrintData}>
-                    <ClipboardCopy />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" align="center">
-                  [CTRL + C] Copy Print Data
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </TableCell>
-          {isAdmin && (
+  <div
+  className="
+    fixed left-[20px] bottom-[80px] 
+    max-w-[300px] 
+    z-50 flex flex-
+      overflow-visible 
+
+  "
+>
+    <div className="p-4">
+     <Table
+    className="bg-white/80 rounded-full ring-1 ring-inset ring-gray-300 w-full p-2 hover:bg-white"
+    data-ignore-selection="true"
+  >
+        <TableBody>
+          <TableRow>
+            <TableCell className="font-semibold pr-4">Total Quantity: {rowValue}</TableCell>
             <TableCell>
-              <DropdownAssignee
-                currentUser={currentUserSelected}
-                users={condensedUsers}
-                setCurrentUser={setCurrentUser}
-                userRows={userRows}
-              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="default" size="sm" onClick={copyPrintData}>
+                      <ClipboardCopy />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="center">
+                    [CTRL + C] Copy Print Data
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </TableCell>
-          )}
-        </TableRow>
-      </TableBody>
-    </Table>
+            {isAdmin && (
+              <TableCell>
+                <DropdownAssignee
+                  currentUser={currentUserSelected}
+                  users={condensedUsers}
+                  setCurrentUser={setCurrentUser}
+                  userRows={userRows}
+                />
+              </TableCell>
+            )}
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
   </div>
 );}
 

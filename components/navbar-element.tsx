@@ -15,10 +15,12 @@ export function NavBarElement() {
     print: number | string;
     cut: number | string;
     pack: number | string;
+    prepack: number | string;
     ship: number | string;
   }>({
     print: "...",
     cut: "...",
+    prepack: "...",
     pack: "...",
     ship: "...",
   });
@@ -76,11 +78,12 @@ export function NavBarElement() {
   // fetchCounts moved out, memoized on supabase
   const timeoutRef = useRef<number | null>(null);
   const fetchCounts = useCallback(async () => {
-    const statuses = ["print", "cut", "pack", "ship"] as const;
+    const statuses = ["print", "cut", "pack", "prepack", "ship"] as const;
     const newCounts: Record<(typeof statuses)[number], number> = {
       print: 0,
       cut: 0,
       pack: 0,
+      prepack: 0,
       ship: 0,
     };
 
@@ -123,8 +126,8 @@ export function NavBarElement() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "f") {
-      e.preventDefault();
-      setDialogOpen(true);
+        e.preventDefault();
+        setDialogOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -138,6 +141,9 @@ export function NavBarElement() {
       </Link>
       <Link id="to-cut" href="/tocut?regular">
         To Cut ({counts.cut})
+      </Link>
+      <Link id="to-prepack" href="/toprepack?regular">
+        To Prepack ({counts.prepack})
       </Link>
       <Link id="to-pack" href="/topack?regular">
         To Pack ({counts.pack})
@@ -159,8 +165,7 @@ export function NavBarElement() {
       <Link href="#" onClick={() => setDialogOpen(true)}>
         Search
       </Link>
-      <DialogSearch
-        open={dialogOpen} onOpenChange={setDialogOpen} />
+      <DialogSearch open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }

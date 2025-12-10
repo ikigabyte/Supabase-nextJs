@@ -68,6 +68,7 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "roll-matte-promo",
   ],
   cut: ["regular", "roll"],
+  prepack: ["regular", "roll"],
   ship: ["regular", "roll"],
   pack: ["regular", "roll"],
   // completed: [], // add this to satisfy the OrderTypes enum

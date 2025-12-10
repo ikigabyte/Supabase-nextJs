@@ -52,7 +52,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
 
-const STATUSES: readonly OrderTypes[] = ["print", "cut", "pack", "ship"] as const;
+const STATUSES: readonly OrderTypes[] = ["print", "cut", "prepack", "pack", "ship"] as const;
 const draggingThreshold = 1; // px
 
 const ACTIVE_MS = 30 * 60 * 1000; // 30 minutes
@@ -69,6 +69,8 @@ const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
       case "ship":
         return "pack";
       case "pack":
+        return "prepack";
+      case "prepack":
         return "cut";
       case "cut":
         return "print";
@@ -80,6 +82,8 @@ const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
       case "print":
         return "cut";
       case "cut":
+        return "prepack";
+      case "prepack":
         return "pack";
       case "pack":
         return "ship";
@@ -345,7 +349,7 @@ export async function checkTotalCountsForStatus(
 export async function filterOutOrderCounts(source?: { orders?: Order[]; supabase?: SupabaseClient }): Promise<Counts> {
   // 1) Local path (fastest)
   if (source?.orders && Array.isArray(source.orders)) {
-    const counts: Counts = { print: 0, cut: 0, pack: 0, ship: 0 };
+    const counts: Counts = { print: 0, cut: 0, prepack: 0, pack: 0, ship: 0 };
     for (const o of source.orders) {
       const s = o.production_status as OrderTypes;
       if (STATUSES.includes(s)) counts[s] += 1;
@@ -361,7 +365,7 @@ export async function filterOutOrderCounts(source?: { orders?: Order[]; supabase
     )
   );
 
-  const counts: Counts = { print: 0, cut: 0, pack: 0, ship: 0 };
+  const counts: Counts = { print: 0, cut: 0, prepack: 0, pack: 0, ship: 0 };
   results.forEach(({ count, error }, i) => {
     if (error) console.error(`Count failed for ${STATUSES[i]}`, error);
     counts[STATUSES[i]] = count ?? 0;
@@ -375,6 +379,7 @@ export function updateOrderCountersDom(counts: Counts, attempt = 0) {
   const labels: Record<OrderTypes, string> = {
     print: `To Print (${counts.print})`,
     cut: `To Cut (${counts.cut})`,
+    prepack: `To Prepack (${counts.prepack})`,
     pack: `To Pack (${counts.pack})`,
     ship: `To Ship (${counts.ship})`,
   };
@@ -382,6 +387,7 @@ export function updateOrderCountersDom(counts: Counts, attempt = 0) {
   const idMap: Record<OrderTypes, string[]> = {
     print: ["to-print-counter", "to-print"],
     cut: ["to-cut-counter", "to-cut"],
+    prepack: ["to-prepack-counter", "to-prepack"],
     pack: ["to-pack-counter", "to-pack"],
     ship: ["to-ship-counter", "to-ship"],
   };
@@ -430,9 +436,6 @@ type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; 
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = getBrowserClient();
-  // console
-
-  // console.log("Supabase client initialized:", supabase.auth.getUser());
 
   async function fetchAllOrders() {
     const allOrders = [];
@@ -503,7 +506,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
   const [isShiftDown, setIsShiftDown] = useState(false);
-// const shiftDown = useRef(false); // you can delete this if you don't use it elsewhere
+  // const shiftDown = useRef(false); // you can delete this if you don't use it elsewhere
   const lastUrlSelectedNameId = useRef<string | null>(null);
   const pendingUrlNameId = useRef<string | null>(null);
 
@@ -511,8 +514,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     let values = [] as string[];
     console.log("Copying print data from selections");
     if (dragSelections.current.size === 0) {
-      toast("No print data", {
-      });
+      toast("No print data", {});
       // console.warn("No selections to copy");
       return;
     }
@@ -592,58 +594,60 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return () => clearInterval(id);
   }, []);
 
-
-useEffect(() => {
-  let cancelled = false;
-  (async () => {
-    const { data, error } = await supabase.from("profiles").select("id, identifier, color, role");
-    if (error) {
-      console.error("Failed to load profiles:", error);
-      return;
-    }
-    if (!cancelled) {
-      const idMap = new Map<string, { name: string; color?: string | null; identifier?: string | null; role?: string | null }>();
-      const userColorMap = new Map<string, string>();
-
-      (data ?? []).forEach((row: any) => {
-        idMap.set(row.id, {
-          name: row.identifier ?? row.id,
-          color: row.color ?? null,
-          identifier: row.identifier ?? null,
-          role: row.role ?? null,
-        });
-        userColorMap.set(row.identifier ?? "", row.color ?? "");
-      });
-
-      setProfilesById(idMap);
-      setUserRows(userColorMap);
-      setMe(session?.user?.email ?? "");
-      setUserSelected(session?.user?.email ?? "");
-
-      // derive isAdmin from session email and idMap
-      const myEmail = session?.user?.email ?? null;
-      if (myEmail) {
-        let meProfile = undefined as
-          | { name: string; color?: string | null; identifier?: string | null; role?: string | null }
-          | undefined;
-
-        for (const profile of idMap.values()) {
-          if (profile.identifier === myEmail) {
-            meProfile = profile;
-            break;
-          }
-        }
-        setIsAdmin(meProfile?.role === "admin");
-      } else {
-        setIsAdmin(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from("profiles").select("id, identifier, color, role");
+      if (error) {
+        console.error("Failed to load profiles:", error);
+        return;
       }
-    }
-  })();
+      if (!cancelled) {
+        const idMap = new Map<
+          string,
+          { name: string; color?: string | null; identifier?: string | null; role?: string | null }
+        >();
+        const userColorMap = new Map<string, string>();
 
-  return () => {
-    cancelled = true;
-  };
-}, [supabase, session]); // <- depend on session, not me/userSelected
+        (data ?? []).forEach((row: any) => {
+          idMap.set(row.id, {
+            name: row.identifier ?? row.id,
+            color: row.color ?? null,
+            identifier: row.identifier ?? null,
+            role: row.role ?? null,
+          });
+          userColorMap.set(row.identifier ?? "", row.color ?? "");
+        });
+
+        setProfilesById(idMap);
+        setUserRows(userColorMap);
+        setMe(session?.user?.email ?? "");
+        setUserSelected(session?.user?.email ?? "");
+
+        // derive isAdmin from session email and idMap
+        const myEmail = session?.user?.email ?? null;
+        if (myEmail) {
+          let meProfile = undefined as
+            | { name: string; color?: string | null; identifier?: string | null; role?: string | null }
+            | undefined;
+
+          for (const profile of idMap.values()) {
+            if (profile.identifier === myEmail) {
+              meProfile = profile;
+              break;
+            }
+          }
+          setIsAdmin(meProfile?.role === "admin");
+        } else {
+          setIsAdmin(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, session]); // <- depend on session, not me/userSelected
 
   useEffect(() => {
     async function checkMatchingCounts() {
@@ -1393,10 +1397,10 @@ useEffect(() => {
       .join(" "); // Join the words with a space
   };
 
-// const onColorSelect = (color: string) => {
-//   console.log("Color selected:", color);
-//   setColorSelected(color);
-// };
+  // const onColorSelect = (color: string) => {
+  //   console.log("Color selected:", color);
+  //   setColorSelected(color);
+  // };
 
   const handleCategoryClick = useCallback(
     (category: string, ignoreRefresh?: boolean) => {
@@ -1676,9 +1680,9 @@ useEffect(() => {
           setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: userSelected } : o)));
           return;
         }
-          //   toast(`Assigning orders to ${userSelected}`, {
-          //   description: `For ${row.name_id}.`,
-          // });
+        //   toast(`Assigning orders to ${userSelected}`, {
+        //   description: `For ${row.name_id}.`,
+        // });
         setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: userSelected } : o))); // optimistic update
         assignOrderToUser(row, userSelected);
       } catch (err) {
@@ -1814,7 +1818,7 @@ useEffect(() => {
         </div>
         <Separator className="w-full mb-10" />
         <div className="flex items-center gap-2 mb-6 h-1">
-          <Button  disabled={!isShiftDown} className="rounded-sm px-2 py-2 bg-gray-200 text-gray-700 cursor-default">
+          <Button disabled={!isShiftDown} className="rounded-sm px-2 py-2 bg-gray-200 text-gray-700 cursor-default">
             SHIFT
           </Button>
           <p>Hold SHIFT and drag mouse to multi-select rows</p>
@@ -1934,9 +1938,10 @@ useEffect(() => {
             />
           </div>
         )}
-        {/* <This is for dialaying the notifications */}
       </div>
       {/* <DropdownAsignee/> */}
+
+      <Toaster theme={"dark"} richColors={true} />
       {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
         0 && (
         <OrderViewer
@@ -1948,7 +1953,8 @@ useEffect(() => {
           copyPrintData={copyPrintData}
         />
       )}
-      <Toaster theme={"dark"} richColors={true} />
+      {/* <This is for dialaying the notifications */}
+
       {/* <DropdownAsignee asignees={Array.from(users)} /> */}
     </>
   );

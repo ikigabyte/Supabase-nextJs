@@ -21,8 +21,11 @@ export const getButtonCategories = (OrderType: OrderTypes) => {
       ];
     case "cut":
       return ["Regular", "Roll"];
+    case "prepack":
+      return ["Regular", "Roll"];
     case "pack":
       return ["Regular", "Roll"];
+
     case "ship":
       return ["Regular", "Roll"];
     default:
