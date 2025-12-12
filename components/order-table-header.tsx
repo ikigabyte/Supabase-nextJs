@@ -32,15 +32,21 @@ export function OrderTableHeader({
     <TableHeader>
       <TableRow className="h-.5 [&>th]:py-0 text-xs bg-gray-500 hover:bg-gray-500">
         {headerWidths.map((w, index) => (
-          <TableHead
-            key={index}
-            className={`border-r border-gray-200 font-bold text-white truncate text-[11px]${
-              headers[index]?.toLowerCase() === "lamination" && laminationColor ? laminationColor : ""
-            }${index === 0 ? " text-center" : ""}`}
-            style={{ width: w }}
-          >
-            {headers[index] ? headers[index].toUpperCase() : ""}
-          </TableHead>
+              <TableHead
+              key={index}
+              className={`border-r border-gray-200 font-bold text-white truncate text-[11px]${
+                headers[index]?.toLowerCase() === "lamination" && laminationColor ? laminationColor : ""
+              }${index === 0 ? " text-center" : ""}`}
+              style={{ width: w }}
+              >
+              {headers[index]
+                ? headers[index].toUpperCase() === "CUT"
+                ? "CUT"
+                : index === headers.length - 1
+                  ? headers[index].toUpperCase() + "ED"
+                  : headers[index].toUpperCase()
+                : ""}
+              </TableHead>
         ))}
       </TableRow>
     </TableHeader>

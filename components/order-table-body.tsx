@@ -554,27 +554,27 @@ const isHighlighted = inRange || inExtras;
             >
               {/* This is the file name cell / first cell */}
 
-                <TableCell
-                  ref={(el) => {
-                    if (!cellRefs.current[i]) cellRefs.current[i] = [];
-                    cellRefs.current[i][0] = el;
-                  }}
-                  className={
-                    "text-black text-center" +
-                    (isHighlighted ? " bg-blue-100 " : " bg-gray-100") +
-                    " w-[32px] min-w-[32px] max-w-[32px] px-0"
-                  }
-                >
-                  <span className="inline-block w-[16px] text-center">
-                    {isShiftDown ? "○" : i + 1}
-                  </span>
-                </TableCell>
-                <TableCell
-                  ref={(el) => {
-                    if (!cellRefs.current[i]) cellRefs.current[i] = [];
-                    cellRefs.current[i][0] = el;
-                  }}
-                  // className={
+              <TableCell
+                ref={(el) => {
+                  if (!cellRefs.current[i]) cellRefs.current[i] = [];
+                  cellRefs.current[i][0] = el;
+                }}
+                className={
+                  "text-black text-center" +
+                  (isHighlighted ? " bg-blue-100 " : " bg-gray-100") +
+                  " w-[32px] min-w-[32px] max-w-[32px] px-0"
+                }
+              >
+                <span className="inline-block w-[16px] text-center">
+                  {isShiftDown ? (isHighlighted ? "◍" : "○") : i + 1}
+                </span>
+              </TableCell>
+              <TableCell
+                ref={(el) => {
+                  if (!cellRefs.current[i]) cellRefs.current[i] = [];
+                  cellRefs.current[i][0] = el;
+                }}
+                // className={
                 //   hoveredCells?.current &&
                 //   cellRefs.current[i] &&
                 //   cellRefs.current[i][0] &&

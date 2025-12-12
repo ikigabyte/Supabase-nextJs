@@ -82,7 +82,7 @@ export function OptionsMenu({
   return (
     <div
       ref={menuRef}
-      className="w-50 flex flex-col space-y-3 border border-gray-300 shadow-sm w-45 rounded-md bg-white p-3"
+      className="w-40 flex flex-col space-y-3 border border-gray-300 shadow-sm w-45 rounded-md bg-white p-3"
       style={{
         position: "fixed", // <-- key change
         top: position.top,
@@ -121,7 +121,7 @@ export function OptionsMenu({
           handleMenuOptionClick("delete");
         }}
       >
-        <Trash className="mr-3 text-red-500" size={16} /> Remove Item
+        <Trash className="mr-3 text-red-500" size={16} /> Remove Line Item
       </Button>
       <Button
         datatype="menu-option"
@@ -130,7 +130,7 @@ export function OptionsMenu({
           handleMenuOptionClick("deleteAll");
         }}
       >
-        <Trash className="mr-3 text-red-500" size={16} /> Remove Order
+        <Trash className="mr-3 text-red-500" size={16} /> Remove All Order Items
       </Button>
     </div>
   );
