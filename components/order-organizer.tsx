@@ -1865,7 +1865,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           <Button disabled={!isShiftDown} className="rounded-sm px-2 py-2 bg-gray-200 text-gray-700 cursor-default">
             SHIFT
           </Button>
-          <p>Hold SHIFT and drag mouse to multi-select rows</p>
+          <p>Multi select rows by holding [SHIFT] and dragging your mouse</p>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           {selectedCategory.toLowerCase() === "special" && (

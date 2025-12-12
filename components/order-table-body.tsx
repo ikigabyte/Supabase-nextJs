@@ -566,7 +566,7 @@ const isHighlighted = inRange || inExtras;
                 }
               >
                 <span className="inline-block w-[16px] text-center">
-                  {isShiftDown ? (isHighlighted ? "◍" : "○") : i + 1}
+                  {isShiftDown ? (isHighlighted ? "●" : "○") : i + 1}
                 </span>
               </TableCell>
               <TableCell

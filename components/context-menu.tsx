@@ -82,7 +82,7 @@ export function OptionsMenu({
   return (
     <div
       ref={menuRef}
-      className="w-40 flex flex-col space-y-3 border border-gray-300 shadow-sm w-45 rounded-md bg-white p-3"
+      className="w-50 flex flex-col space-y-3 border border-gray-300 shadow-sm w-45 rounded-md bg-white p-3"
       style={{
         position: "fixed", // <-- key change
         top: position.top,
@@ -90,7 +90,7 @@ export function OptionsMenu({
         zIndex: 1000,
       }}
     >
-      <p className="text-sm text-center">Editing {truncate(currentRow.name_id, 30)}</p>
+      <p className="text-sm text-center">Editing {truncate(currentRow.name_id, 24)}</p>
       {orderType !== "print" && (
         <>
           <Button
