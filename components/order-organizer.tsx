@@ -29,10 +29,10 @@ import {
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
-import { ScrollAreaDemo } from "./scroll-area";
+import { HoverInformation } from "./hover-area";
 import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
-import { ContextMenu } from "./context-menu";
+import { OptionsMenu } from "./context-menu";
 import { OrderViewer } from "./order-viewer";
 import { ViewersDropdown } from "./viewers";
 import { Toaster } from "@/components/ui/sonner";
@@ -93,6 +93,12 @@ const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
         return status;
     }
   }
+};
+
+type DragSel = {
+  startRow: number;
+  endRow: number;
+  extras?: Set<number>; // non-contiguous added rows
 };
 
 const laminationHeaderColors = {
@@ -506,6 +512,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
   const [isShiftDown, setIsShiftDown] = useState(false);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   // const shiftDown = useRef(false); // you can delete this if you don't use it elsewhere
   const lastUrlSelectedNameId = useRef<string | null>(null);
   const pendingUrlNameId = useRef<string | null>(null);
@@ -527,15 +534,22 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       );
       const rowStart = Math.min(selection.startRow, selection.endRow);
       const rowEnd = Math.max(selection.startRow, selection.endRow);
-      for (let i = rowStart; i <= rowEnd; i++) {
-        const row = dataRows[i];
-        if (!row) continue;
-        const cells = Array.from(row.children).slice(0, 3) as HTMLTableCellElement[];
-        const types = cells.map((cell) => cell.getAttribute("datatype") || cell.innerText.toUpperCase());
-        // console.log("Selected row columns:", types);
-        const valuesRow = cells.map((cell) => cell.innerText.toUpperCase() + "   ");
-        values.push(valuesRow.join(""));
-      }
+
+      const picked = new Set<number>();
+      for (let i = rowStart; i <= rowEnd; i++) picked.add(i);
+      (selection.extras ?? new Set()).forEach((i) => picked.add(i));
+
+      [...picked]
+        .sort((a, b) => a - b)
+        .forEach((i) => {
+          const row = dataRows[i];
+          if (!row) return;
+          const cells = Array.from(row.children).slice(1, 4) as HTMLTableCellElement[];
+          const types = cells.map((cell) => cell.getAttribute("datatype") || cell.innerText.toUpperCase());
+          // console.log("Selected row columns:", types);
+          const valuesRow = cells.map((cell) => cell.innerText.toUpperCase() + "   ");
+          values.push(valuesRow.join(""));
+        });
     });
     // console.log(values);
     toast("Copied Print Data", {
@@ -577,7 +591,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   // const [updateCounter, forceUpdate] = useState(0);
   const dragSelections = useRef<
-    Map<HTMLTableElement, { startRow: number; endRow: number /* , startCol: number; endCol: number */ }>
+    Map<HTMLTableElement, DragSel>
   >(new Map());
 
   // 2) ----- inside OrderOrganizer component state block -----
@@ -755,7 +769,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragStartTime = useRef<number>(0);
-  const pendingDragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map());
+  const pendingDragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
   const [circlePos, setCirclePos] = useState<{ top: number; right: number; height: number } | null>(null);
   // const [counts, setCounts] = useState<Counts>({ print: 0, cut: 0, pack: 0, ship: 0 });
 
@@ -1049,8 +1063,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
 
       if (e.buttons === 1) {
-        dragSelections.current.clear();
-        pendingDragSelections.current.clear();
+        if (!e.shiftKey) {
+          dragSelections.current.clear();
+          pendingDragSelections.current.clear();
+        }
         dragStartPos.current = { x: e.clientX, y: e.clientY };
         dragStartTime.current = Date.now();
         // clearOrderValueFromUrl();
@@ -1086,12 +1102,22 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                   }
                 }
               }
-              if (rowIndex !== -1) {
-                pendingDragSelections.current.set(table, {
-                  startRow: rowIndex,
-                  endRow: rowIndex,
-                });
-              }
+              if (rowIndex === -1) return;
+              pendingDragSelections.current.set(table, {
+                startRow: rowIndex,
+                endRow: rowIndex,
+                extras: dragSelections.current.get(table)?.extras ?? new Set(),
+              });
+
+              // If shift is down and there is an existing selection in this table, extend it
+              // const existing = dragSelections.current.get(table);
+              // if (e.shiftKey && existing) {
+              //   const start = Math.min(existing.startRow, existing.endRow, rowIndex);
+              //   const end = Math.max(existing.startRow, existing.endRow, rowIndex);
+              //   pendingDragSelections.current.set(table, { startRow: start, endRow: end });
+              // } else {
+              //   pendingDragSelections.current.set(table, { startRow: rowIndex, endRow: rowIndex });
+              // }
             }
           }
         }
@@ -1145,19 +1171,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         setCurrentRowClicked(null);
       }
       document.body.style.cursor = "";
-      // console.log(pendingDragSelections.current);
-      dragSelections.current = new Map(pendingDragSelections.current);
       forceUpdate((n) => n + 1); // Dummy state to re-render
       if (dragging) {
-        // console.log(dragSelections.current)
+        dragSelections.current = new Map(pendingDragSelections.current);
+        pendingDragSelections.current.clear();
         setDragging(false);
+        forceUpdate((n) => n + 1);
         // handleDragging(null, false);
       } else {
-        // dragSelections.current.clear();
-        // dragSelections.current = new Map(); // Clear selections on mouse up
-        // console.log("This was a click, not a drag");
-        pendingDragSelections.current.clear();
-        dragSelections.current.clear();
+        console.log("Mouse up without drag, interpreting as click");
+        if (!e.shiftKey) {
+          pendingDragSelections.current.clear();
+          dragSelections.current.clear();
+        } else {
+          // keep current selection, we are adding/extending
+        }
         const cell = (e.target as HTMLElement).closest("td");
         if (!cell) {
           forceUpdate((n) => n + 1);
@@ -1206,11 +1234,23 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
         // If valid, set selection for that single row in that table
         if (rowIndex !== -1) {
-          dragSelections.current.set(table, {
-            startRow: rowIndex,
-            endRow: rowIndex,
-          });
-          // addOrderViewer([])
+          const prev = dragSelections.current.get(table);
+
+          if (e.shiftKey) {
+            const next: DragSel = prev
+              ? { ...prev, extras: new Set(prev.extras ?? []) }
+              : { startRow: rowIndex, endRow: rowIndex, extras: new Set<number>() };
+
+            // toggle this index
+            if (next.extras!.has(rowIndex)) next.extras!.delete(rowIndex);
+            else next.extras!.add(rowIndex);
+
+            // do not destroy the range; keep it as-is
+            dragSelections.current.set(table, next);
+          } else {
+            // normal click selects only this row (reset)
+            dragSelections.current.set(table, { startRow: rowIndex, endRow: rowIndex, extras: new Set() });
+          }
         }
         forceUpdate((n) => n + 1);
       }
@@ -1274,10 +1314,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           endRow: rowIndex,
         });
       } else {
-        const prev = pendingDragSelections.current.get(table)!;
+        const prev = pendingDragSelections.current.get(table);
         pendingDragSelections.current.set(table, {
-          startRow: prev.startRow,
+          startRow: prev ? prev.startRow : rowIndex,
           endRow: rowIndex,
+          extras: prev?.extras ?? new Set(),
         });
       }
     }
@@ -1700,6 +1741,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         console.warn("Row is null, skipping click handling.");
         return;
       }
+      setMenuAnchorEl(rowEl);
       console.log("Row clicked:", row.name_id);
       if (rowEl) {
         const rect = rowEl.getBoundingClientRect();
@@ -1797,19 +1839,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             </div>
             <Button
               onClick={async () => {
-                if (refreshed) return;
-                setRefreshed(true);
-                await refreshOrders();
-                await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second cooldown
-                setRefreshed(false);
+              if (refreshed) return;
+              setRefreshed(true);
+              await refreshOrders();
+              await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second cooldown
+              setRefreshed(false);
               }}
               disabled={refreshed}
+              className="flex items-center gap-2"
             >
               {refreshed ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-200" />
+              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-200" />
               ) : (
-                <RefreshCcw className="w-full h-full" />
+              <RefreshCcw className="w-5 h-5" />
               )}
+              Force Refresh
             </Button>
             <Button onClick={() => setOpen(true)}>
               <Info />
@@ -1875,6 +1919,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                         }}
                         onAsigneeClick={handleAsigneeClick}
                         userColors={userRows}
+                        isShiftDown={isShiftDown}
                       />
                     </Table>
                   </>
@@ -1918,29 +1963,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               pointerEvents: "none",
             }}
           >
-            <ScrollAreaDemo historySteps={rowHistory ?? undefined} scrollName={scrollAreaName} />
-          </div>
-        )}
-        {isRowClicked && (
-          <div
-            className="context-menu"
-            style={{
-              position: "fixed",
-              top: menuPos.y,
-              left: menuPos.x - 150,
-              zIndex: 1000,
-            }}
-          >
-            <ContextMenu
-              handleMenuOptionClick={handleMenuOptionClick}
-              orderType={orderType}
-              currentRow={currentRowClicked}
-            />
+            <HoverInformation historySteps={rowHistory ?? undefined} scrollName={scrollAreaName} />
           </div>
         )}
       </div>
       {/* <DropdownAsignee/> */}
-
+      {isRowClicked && (
+        <div>
+          <OptionsMenu
+            handleMenuOptionClick={handleMenuOptionClick}
+            orderType={orderType}
+            currentRow={currentRowClicked}
+            anchorEl={menuAnchorEl}
+          />
+        </div>
+      )}
       <Toaster theme={"dark"} richColors={true} />
       {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
         0 && (

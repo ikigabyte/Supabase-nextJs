@@ -321,6 +321,12 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
   );
 }
 
+
+type dragSel = {
+  startRow: number;
+  endRow: number;
+  extras?: Set<number>; // non-contiguous added rows
+}
 export function OrderTableBody({
   data,
   productionStatus,
@@ -337,10 +343,11 @@ export function OrderTableBody({
   setMultiSelectedRows,
   hashValue,
   handleDoubleClick,
-  dragSelections = useRef<Map<HTMLTableElement, { startRow: number; endRow: number }>>(new Map()),
+  dragSelections = useRef<Map<HTMLTableElement, dragSel>>(new Map()),
   getRowRef,
   onAsigneeClick,
   userColors,
+  isShiftDown
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -357,10 +364,11 @@ export function OrderTableBody({
   setMultiSelectedRows: React.Dispatch<React.SetStateAction<Map<string, string | null>>>;
   hashValue?: string | null; // Optional prop to track hash value
   handleDoubleClick: (fileName: string) => void;
-  dragSelections?: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
+  dragSelections?: React.MutableRefObject<Map<HTMLTableElement, dragSel>>;
   getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void;
   onAsigneeClick: (row: Order) => void;
-  userColors: Map<string, string>;
+    userColors: Map<string, string>;
+  isShiftDown: boolean;
 }) {
   // Example usage for setting userRows from data:
   // const simplifiedRows = (data ?? []).map((row) => ({
@@ -381,7 +389,6 @@ export function OrderTableBody({
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const lastClickTime = useRef<number>(0);
   const [tableCellHovered, setTableCellHovered] = useState<HTMLTableCellElement | null>(null);
-
   // Handling the dragging here
 
   // useEffect(() => {
@@ -488,10 +495,14 @@ export function OrderTableBody({
         const currentDay = convertToDayOfTheWeek(row.due_date);
         const safeName = convertToSpaces(row.name_id);
         const isSelected = row.name_id === selectedNameId;
-        const isHighlighted =
-          !!dragSelection &&
-          Math.min(dragSelection.startRow, dragSelection.endRow) <= i &&
-          i <= Math.max(dragSelection.startRow, dragSelection.endRow);
+    const inRange =
+  !!dragSelection &&
+  Math.min(dragSelection.startRow, dragSelection.endRow) <= i &&
+  i <= Math.max(dragSelection.startRow, dragSelection.endRow);
+
+const inExtras = !!dragSelection?.extras?.has(i);
+
+const isHighlighted = inRange || inExtras;
 
         differentOrderId = prevOrderId !== row.order_id;
         if (i === 0 && data.length > 1) {
@@ -543,21 +554,27 @@ export function OrderTableBody({
             >
               {/* This is the file name cell / first cell */}
 
-              <TableCell
-                ref={(el) => {
-                  if (!cellRefs.current[i]) cellRefs.current[i] = [];
-                  cellRefs.current[i][0] = el;
-                }}
-                className={"text-black text-center" + (isHighlighted ? " bg-blue-100 " : " bg-gray-100")}
-              >
-                {i + 1}
-              </TableCell>
-              <TableCell
-                ref={(el) => {
-                  if (!cellRefs.current[i]) cellRefs.current[i] = [];
-                  cellRefs.current[i][0] = el;
-                }}
-                // className={
+                <TableCell
+                  ref={(el) => {
+                    if (!cellRefs.current[i]) cellRefs.current[i] = [];
+                    cellRefs.current[i][0] = el;
+                  }}
+                  className={
+                    "text-black text-center" +
+                    (isHighlighted ? " bg-blue-100 " : " bg-gray-100") +
+                    " w-[32px] min-w-[32px] max-w-[32px] px-0"
+                  }
+                >
+                  <span className="inline-block w-[16px] text-center">
+                    {isShiftDown ? "○" : i + 1}
+                  </span>
+                </TableCell>
+                <TableCell
+                  ref={(el) => {
+                    if (!cellRefs.current[i]) cellRefs.current[i] = [];
+                    cellRefs.current[i][0] = el;
+                  }}
+                  // className={
                 //   hoveredCells?.current &&
                 //   cellRefs.current[i] &&
                 //   cellRefs.current[i][0] &&

@@ -95,14 +95,14 @@ return (
 
   "
 >
-    <div className="p-4">
+    <div className="ml-4">
      <Table
-    className="bg-white/80 rounded-full ring-1 ring-inset ring-gray-300 w-full p-2 hover:bg-white"
+    className="bg-white/90 rounded-full ring-1 ring-inset ring-gray-300 w-full"
     data-ignore-selection="true"
   >
-        <TableBody>
+        <TableBody className="ml-4">
           <TableRow>
-            <TableCell className="font-semibold pr-4">Total Quantity: {rowValue}</TableCell>
+            <TableCell className="font-semibold pr-4 mr-4 pl-6">Total Quantity: {rowValue}</TableCell>
             <TableCell>
               <TooltipProvider>
                 <Tooltip>
