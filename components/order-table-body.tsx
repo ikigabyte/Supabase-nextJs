@@ -425,29 +425,19 @@ export function OrderTableBody({
         setScrollAreaName("History");
         lastHoveredIdRef.current = row.name_id;
       } else if (type === "quantity") {
-        // console.log("Quantity hovered");
         const quantity = row.quantity || "";
         const cleanedQuantity = quantity.toLowerCase().replace(/qty/gi, ""); // Remove "qty" (case-insensitive)
-        if (!cleanedQuantity.includes("tiles")) {
-          // console.log("This is not a tile quantity");
-          // setRowHistory()
+        const splitPart = cleanedQuantity.split("-");
+        if (splitPart.length !== 3) {
+          // Only show when there are exactly two "-" (i.e., three parts)
           return;
         }
-        // console.log("Cleaned quantity", cleanedQuantity);
-        const splitPart = cleanedQuantity.split("-");
-        // const removedTilePart = splitpart
-
-        // console.log("Split part", removedTilePart);
-
         const quantityPart = splitPart[0];
         const sizePart = splitPart[2];
         const multiplication = parseInt(quantityPart) * parseInt(sizePart);
-        // console.log("Size part", sizePart);
-        // const testPart = splitPart[2] || "";
-        const multiplicationInFeet = multiplication / 12;
+        const multiplicationInFeet = Math.round((multiplication / 12) * 100) / 100;
         const combinedString = `${quantityPart} x ${sizePart}" H = ${multiplication}" or ${multiplicationInFeet}" ft`;
         setRowHistory([combinedString]);
-        // setRowHistory(["Tile: " + row.quantity]);
         setScrollAreaName("Tile Size");
         lastHoveredIdRef.current = row.name_id;
       } else if (type === "production_warning") {
@@ -548,7 +538,6 @@ const isHighlighted = inRange || inExtras;
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
-                console.log("Context menu clicked on row", row.name_id);
                 onRowClick(e.currentTarget, row, false);
               }}
             >
@@ -692,7 +681,7 @@ const isHighlighted = inRange || inExtras;
                 </TooltipProvider>
               </TableCell>
               <TableCell className={`text-[11px] truncate`}>
-                {capitalizeFirstLetter(row.shipping_method) || ""}
+                {capitalizeFirstLetter((row.shipping_method || "").replace(/_/g, " "))}
               </TableCell>
               <TableCell className={``}>
                 {/* <Textarea ></Textarea> */}

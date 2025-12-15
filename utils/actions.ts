@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { OrderTypes } from "./orderTypes";
 
 import { updateZendeskNotes } from "@/utils/google-functions";
+import { GoTrueAdminApi } from "@supabase/supabase-js";
 // import { order } from "tailwindcss/defaultTheme";
 
 type AdminRow = { role: "admin" | string };
@@ -42,17 +43,25 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
     }
   }
 };
-async function requireAdmin() {
+async function requireAdmin(user ?: { id: string; email?: string }) : Promise<boolean> {
   const supabase = await getServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("User is not logged in");
+  // const {
+  //   data: { user },
+  // } = await supabase.auth.getUser();
+  // if (!user) throw new Error("User is not logged in");
+
+  if (!user) {
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+    if (!currentUser) throw new Error("User is not logged in");
+    user = currentUser;
+  }
 
   const { data, error } = await supabase
     .from("profiles")
     .select<"role", AdminRow>("role")
-    .eq("id", user.id) // column must store auth user id
+    .eq("id", user?.id) // column must store auth user id
     .eq("role", "admin")
     .single();
 
@@ -60,7 +69,8 @@ async function requireAdmin() {
 
   if (error && error.code !== "PGRST116") throw new Error("Admin check failed");
   if (!data) throw new Error("Not authorized");
-  return supabase;
+  // return supabase;
+  return true
 }
 
 const getTimeStamp = () => {
@@ -131,6 +141,11 @@ export async function removeOrderLine(order: Order) {
   if (!user) {
     throw new Error("User is not logged in");
   }
+  const isAdmin = await requireAdmin(user);
+  if (!isAdmin) {
+    throw new Error("User is not an admin"); // not authorized
+  }
+  console.log(isAdmin);
 
   addHistoryForUser(order.name_id, "deleted", order.production_status || "");
   const { error: deleteError } = await supabase.from("orders").delete().eq("name_id", order.name_id);
@@ -146,11 +161,18 @@ export async function removeOrderLine(order: Order) {
 export async function removeOrderAll(orderId: number) {
   const supabase = await getServerClient();
 
+  
+  // const {remove}
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     throw new Error("User is not logged in");
+  }
+
+  const isAdmin = await requireAdmin(user);
+  if (!isAdmin) {
+    throw new Error("User is not an admin"); // not authorized
   }
 
   const { error } = await supabase.from("orders").delete().eq("order_id", orderId);
@@ -353,8 +375,15 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
 
 export async function deleteAllOrders() {
   // console.log("Deleting all orders");
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   // if (true) return
-  const supabase = await requireAdmin();
+  // const user = undefined;
+  // const user =
+  // const supabase = await requireAdmin();
   const { error } = await supabase.from("orders").delete().neq("name_id", 0);
   if (error) {
     console.error("Error deleting all orders:", error.message);

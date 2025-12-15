@@ -12,15 +12,17 @@ export function OptionsMenu({
   orderType,
   currentRow,
   anchorEl,
+  isAdmin,
 }: {
   handleMenuOptionClick: (option: string) => void;
   orderType: OrderTypes;
   currentRow: any; // Replace 'any' with the actual type of your row data
-  anchorEl: HTMLElement | null;
+    anchorEl: HTMLElement | null;
+  isAdmin: boolean;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const OFFSET_FROM_CORNER = 500;
+  // const OFFSET_FROM_CORNER = 500;
 
   useEffect(() => {
     if (!anchorEl) return;
@@ -90,7 +92,7 @@ export function OptionsMenu({
         zIndex: 1000,
       }}
     >
-      <p className="text-sm text-center">Editing {truncate(currentRow.name_id, 24)}</p>
+      <p className="text-sm text-center">{truncate(currentRow.name_id, 24)}</p>
       {orderType !== "print" && (
         <>
           <Button
@@ -114,24 +116,28 @@ export function OptionsMenu({
       >
         <Eye className="mr-3" /> Zendesk Page
       </Button>
-      <Button
+      {isAdmin && (
+        <>
+          <Button
         datatype="menu-option"
         className="bg-gray-100 text-[12px] text-red-500 hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("delete");
         }}
-      >
+          >
         <Trash className="mr-3 text-red-500" size={16} /> Remove Line Item
-      </Button>
-      <Button
+          </Button>
+          <Button
         datatype="menu-option"
         className="bg-gray-100 text-[12px] text-red-500 hover:bg-gray-100"
         onClick={() => {
           handleMenuOptionClick("deleteAll");
         }}
-      >
+          >
         <Trash className="mr-3 text-red-500" size={16} /> Remove All Order Items
-      </Button>
-    </div>
-  );
-}
+          </Button>
+        </>
+      )}
+        </div>
+      );
+    }

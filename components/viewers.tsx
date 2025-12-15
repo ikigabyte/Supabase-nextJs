@@ -42,7 +42,8 @@ export function ViewersDropdown({ activeViewers, idleViewers, totalRecentViewers
   };
 
   if (totalRecentViewers === 0) {
-    return <div className="flex items-center text-sm text-muted-foreground">No recent viewers</div>;
+    return <></>
+    // return <div className="flex items-center text-sm text-muted-foreground"></div>;
   }
 
   return (

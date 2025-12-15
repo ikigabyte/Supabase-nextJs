@@ -26,10 +26,10 @@ export function HoverInformation({ historySteps, scrollName }: { historySteps?: 
   return (
     <ScrollArea className="w-60 rounded-md border bg-white z-1" style={{ height }}>
       <div className="p-4 pb-[10px]">
-        <h4 className="mb-4 font-medium leading-none">{scrollName}</h4>
+        <h4 className="mb-4 font-large leading-none">{scrollName}</h4>
         {stepsToDisplay.map((step, index) => (
           <React.Fragment key={index}>
-            <div className="text-[10px] leading-4">{step}</div>
+            <div className="text-[12px] leading-4">{step}</div>
             {index < stepsToDisplay.length - 1 && <Separator className="my-2" />}
           </React.Fragment>
         ))}

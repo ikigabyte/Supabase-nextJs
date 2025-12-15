@@ -33,7 +33,7 @@ import { HoverInformation } from "./hover-area";
 import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { OptionsMenu } from "./context-menu";
-import { OrderViewer } from "./order-viewer";
+import { OrderViewer } from "./order-viewer"; 
 import { ViewersDropdown } from "./viewers";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -442,11 +442,10 @@ type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; 
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = getBrowserClient();
-
   async function fetchAllOrders() {
     const allOrders = [];
     let from = 0;
-    const chunkSize = 1000;
+    const chunkSize = 1000; // at one time
     let more = true;
 
     while (more) {
@@ -590,9 +589,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, []);
 
   // const [updateCounter, forceUpdate] = useState(0);
-  const dragSelections = useRef<
-    Map<HTMLTableElement, DragSel>
-  >(new Map());
+  const dragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
 
   // 2) ----- inside OrderOrganizer component state block -----
   const [profilesById, setProfilesById] = useState<
@@ -1179,7 +1176,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         forceUpdate((n) => n + 1);
         // handleDragging(null, false);
       } else {
-        console.log("Mouse up without drag, interpreting as click");
         if (!e.shiftKey) {
           pendingDragSelections.current.clear();
           dragSelections.current.clear();
@@ -1676,7 +1672,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, "_top");
+      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, "_blank");
     },
     [currentRowClicked, orderType]
   );
@@ -1742,7 +1738,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         return;
       }
       setMenuAnchorEl(rowEl);
-      console.log("Row clicked:", row.name_id);
       if (rowEl) {
         const rect = rowEl.getBoundingClientRect();
         setMenuPos({ x: rect.right, y: rect.bottom });
@@ -1756,7 +1751,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
 
       if (!isRowClicked) {
-        console.log("setting row clicked");
         setIsRowClicked(true);
       }
       setCurrentRowClicked(row);
@@ -1839,19 +1833,19 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             </div>
             <Button
               onClick={async () => {
-              if (refreshed) return;
-              setRefreshed(true);
-              await refreshOrders();
-              await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second cooldown
-              setRefreshed(false);
+                if (refreshed) return;
+                setRefreshed(true);
+                await refreshOrders();
+                await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second cooldown
+                setRefreshed(false);
               }}
               disabled={refreshed}
               className="flex items-center gap-2"
             >
               {refreshed ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-200" />
+                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-200" />
               ) : (
-              <RefreshCcw className="w-5 h-5" />
+                <RefreshCcw className="w-5 h-5" />
               )}
               Force Refresh
             </Button>
@@ -1952,6 +1946,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           counts={categoryCounts}
           onCategoryClick={handleCategoryClick}
           categoryViewing={selectedCategory}
+          dragSelections={dragSelections}
+          isAdmin={isAdmin}
+          userRows={userRows}
+          currentUserSelected={userSelected}
+          setCurrentUser={setUserSelected}
+          copyPrintData={copyPrintData}
         />
 
         {isRowHovered && (
@@ -1969,30 +1969,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       </div>
       {/* <DropdownAsignee/> */}
       {isRowClicked && (
-        <div>
-          <OptionsMenu
-            handleMenuOptionClick={handleMenuOptionClick}
-            orderType={orderType}
-            currentRow={currentRowClicked}
-            anchorEl={menuAnchorEl}
-          />
-        </div>
-      )}
-      <Toaster theme={"dark"} richColors={true} />
-      {[...dragSelections.current.values()].reduce((acc, sel) => acc + Math.abs(sel.endRow - sel.startRow) + 1, 0) >
-        0 && (
         <OrderViewer
-          dragSelections={dragSelections}
+          currentRow={currentRowClicked}
           isAdmin={isAdmin}
-          userRows={userRows}
-          currentUserSelected={userSelected}
-          setCurrentUser={setUserSelected}
-          copyPrintData={copyPrintData}
+          onViewZendesk={() => handleMenuOptionClick("view")}
+          onDeleteLine={() => handleMenuOptionClick("delete")}
+          onDeleteAll={() => handleMenuOptionClick("deleteAll")}
         />
       )}
-      {/* <This is for dialaying the notifications */}
-
-      {/* <DropdownAsignee asignees={Array.from(users)} /> */}
+      <Toaster theme={"dark"} richColors={true} />
     </>
   );
 }

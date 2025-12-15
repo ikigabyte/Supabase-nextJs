@@ -1,158 +1,122 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Button } from "./ui/button";
-import { getCorrectUserColor, getNameToColor } from "@/lib/utils";
-import { DropdownAssignee } from "./dropdown";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardCopy } from "lucide-react";
-import { TableBody, TableRow, TableCell , Table} from "@/components/ui/table";
+import { Eye, Trash, Trash2 } from "lucide-react";
+import { convertToSpaces } from "@/lib/utils";
 
-
-// import {
-//   Item,
-//   ItemActions,
-//   ItemContent,
-//   ItemDescription,
-//   ItemMedia,
-//   ItemTitle,
-// } from "@/components/ui/item"
-
-const quantityColumnIndex = 3; // * Adjust this to where the quantity is
-function extractNumber(str: string) {
-  // Remove "QTY" (case-insensitive) and trim whitespace
-  const cleaned = str.replace(/qty/gi, "").trim();
-  // Extract the first number found in the string
-  const match = cleaned.match(/\d+/);
-  return match ? match[0] : "";
-}
-export function OrderViewer({
-  dragSelections,
-  isAdmin,
-  userRows,
-  currentUserSelected,
-  setCurrentUser,
-  copyPrintData,
-}: {
-  dragSelections: React.MutableRefObject<Map<HTMLTableElement, { startRow: number; endRow: number }>>;
+type OrderViewerProps = {
+  currentRow: { name_id: string } | null;
   isAdmin: boolean;
-  userRows: Map<string, string>; // key: email, value: color
-  currentUserSelected: string;
-    setCurrentUser: (user: string) => void;
-  copyPrintData: () => void;
-}) {
-  let sumValue = 0;
-  let showDifferent = false;
-  const rows: string[] = [];
-  // console.log("Current user" + currentUserSelected);
-  dragSelections.current.forEach((selection, table) => {
-    const tbody = table.querySelector("tbody");
-    if (!tbody) return;
-    const dataRows = Array.from(tbody.children).filter(
-      (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
-    );
-    const rowStart = Math.min(selection.startRow, selection.endRow);
-    const rowEnd = Math.max(selection.startRow, selection.endRow);
+  onViewZendesk: () => void;
+  onDeleteLine: () => void;
+  onDeleteAll: () => void;
+};
 
-    for (let i = rowStart; i <= rowEnd; i++) {
-      const row = dataRows[i];
-      if (!row) continue;
-      const cell = row.children[quantityColumnIndex];
-      if (cell) {
-        const cellValue = cell.textContent ?? "";
-        if (cellValue.toLowerCase().includes("tiles")) {
-          showDifferent = true;
-        }
-        rows.push(cellValue);
-      }
-    }
-  });
+export function OrderViewer({
+  currentRow,
+  isAdmin,
+  onViewZendesk,
+  onDeleteLine,
+  onDeleteAll,
+}: OrderViewerProps) {
+  const label = useMemo(() => {
+    if (!currentRow?.name_id) return "No row selected";
+    return convertToSpaces(currentRow.name_id);
+  }, [currentRow]);
 
-  if (!showDifferent) {
-    for (const value of rows) {
-      const number = parseFloat(extractNumber(value));
-      if (!isNaN(number)) {
-        sumValue += number;
-      }
-    }
-  }
-  const rowValue = showDifferent ? "N/A" : sumValue;
+  if (!currentRow) return null;
 
-  const condensedUsers = Array.from(userRows.entries()).map(([email, color]) => ({
-    email,
-    color: getCorrectUserColor(userRows, email).backgroundColor,
-  }));
+  return (
+    <div
+      data-ignore-selection="true"
+      className="
+      fixed
+      bottom-[70px]
+      left-4
+      z-50
+      bg-white/90
+      ring-1 ring-inset ring-gray-300
+      shadow-sm
+      rounded-full
+      px-3
+      h-11
+      flex items-center gap-2
+      max-w-[420px]
+      "
+    >
+      <TooltipProvider>
+      {/* Label */}
+      <div className="min-w-0">
+        <p className="text-xs text-gray-500 leading-none">Selected</p>
+        <p className="text-sm font-semibold truncate">{label}</p>
+      </div>
 
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
+        <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 rounded-full"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewZendesk();
+          }}
+          >
+          <Eye className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="center">
+          View on Zendesk
+        </TooltipContent>
+        </Tooltip>
 
+        {isAdmin && (
+        <>
+          <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 rounded-full text-red-600 hover:text-red-700"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteLine();
+            }}
+            >
+            <Trash className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            Delete line item
+          </TooltipContent>
+          </Tooltip>
 
-return (
-  <div
-  className="
-    fixed left-[20px] bottom-[80px] 
-    max-w-[300px] 
-    z-50 flex flex-
-      overflow-visible 
-
-  "
->
-    <div className="ml-4">
-     <Table
-    className="bg-white/90 rounded-full ring-1 ring-inset ring-gray-300 w-full"
-    data-ignore-selection="true"
-  >
-        <TableBody className="ml-4">
-          <TableRow>
-            <TableCell className="font-semibold pr-4 mr-4 pl-6">Total Quantity: {rowValue}</TableCell>
-            <TableCell>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="default" size="sm" onClick={copyPrintData}>
-                      <ClipboardCopy />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="center">
-                    [CTRL + C] Copy Print Data
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </TableCell>
-            {isAdmin && (
-              <TableCell>
-                <DropdownAssignee
-                  currentUser={currentUserSelected}
-                  users={condensedUsers}
-                  setCurrentUser={setCurrentUser}
-                  userRows={userRows}
-                />
-              </TableCell>
-            )}
-          </TableRow>
-        </TableBody>
-      </Table>
+          <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 rounded-full text-red-600 hover:text-red-700"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteAll();
+            }}
+            >
+            <Trash2 className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            Delete all line items
+          </TooltipContent>
+          </Tooltip>
+        </>
+        )}
+      </div>
+      </TooltipProvider>
     </div>
-  </div>
-);}
-
-
-  //  <ItemActions>
-  //         <Button variant="muted" size="sm">
-  //           Copy Print Data
-  //         </Button>
-  //  </ItemActions>
-        
-// {Array.from(userRows.entries()).map(([key, user]) => (
-//           <Button
-//             key={key}
-//             type="button"
-//             data-ignore-selection="true"
-//             style={{
-//               backgroundColor: getNameToColor(user.color ?? user.name).backgroundColor,
-//               color: "#fff",
-//             }}
-//             className="w-6 h-6 rounded-full p-0 flex items-center justify-center"
-//             title={user.name}
-//           >
-//             {user.name[0].toUpperCase()}
-//           </Button>
-//         ))}
+  );
+}
