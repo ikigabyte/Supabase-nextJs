@@ -1515,9 +1515,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     setCurrentRowClicked(null);
     setIsRowClicked(false);
     dragSelections.current.clear();
+    pendingDragSelections.current.clear(); // this clears out as well 
     ignoreUpdateIds.current.add(order.name_id);
     pendingRemovalIds.current.add(order.name_id);
-
     setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
     updateOrderStatus(order, false);
     toast.success("Order updated", {
