@@ -97,7 +97,7 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
       const noLaminationKey = keys.find((k) => k.startsWith("sheets-no-lamination"));
       if (noLaminationKey) return noLaminationKey;
     }
-    if (order.rush === true) {
+    if (order.rush === true && (order.material !== "roll")) {
       // console.log("Rush detected");
       const rushKey = keys.find((k) => k.startsWith("rush"));
       if (rushKey) return rushKey;

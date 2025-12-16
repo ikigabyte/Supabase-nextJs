@@ -141,12 +141,11 @@ export async function removeOrderLine(order: Order) {
   if (!user) {
     throw new Error("User is not logged in");
   }
-  const isAdmin = await requireAdmin(user);
+  const isAdmin = await requireAdmin(user ?? undefined);
   if (!isAdmin) {
     throw new Error("User is not an admin"); // not authorized
   }
-  console.log(isAdmin);
-
+  // console.log(isAdmin);
   addHistoryForUser(order.name_id, "deleted", order.production_status || "");
   const { error: deleteError } = await supabase.from("orders").delete().eq("name_id", order.name_id);
   if (deleteError) {
@@ -267,12 +266,16 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
     return;
   }
 
+
   const { data: existingRecord, error: historyError } = await supabase
     .from("orders")
     .select("history")
     .eq("name_id", order.name_id)
     .single();
   if (historyError) throw new Error("Error fetching history");
+  
+
+
 
   const history: string[] = Array.isArray(existingRecord?.history)
     ? existingRecord.history.filter((h: unknown): h is string => typeof h === "string")
@@ -285,6 +288,39 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
     .from("orders")
     .update({ ...order, production_status: newStatus, history, asignee: null })
     .match({ name_id: order.name_id });
+    // Always overwrite the history for order_id 0 with a single entry
+    // Check if order_id 0 exists before updating its history
+    const { data: zeroOrder, error: zeroOrderError } = await supabase
+      .from("orders")
+      .select("order_id")
+      .eq("order_id", 0)
+      .single();
+
+    if (!zeroOrderError && zeroOrder) {
+      await supabase
+      .from("orders")
+      .update({ name_id: timestamp })
+      .eq("order_id", 0);
+    }
+  // If order_id is 0, also update its history with just a timestamp
+  // if (order.order_id === 0) {
+  //   const { data: zeroOrder, error: zeroOrderError } = await supabase
+  //     .from("orders")
+  //     .select("history")
+  //     .eq("order_id", 0)
+  //     .single();
+
+  //   if (!zeroOrderError) {
+  //     const zeroHistory: string[] = Array.isArray(zeroOrder?.history)
+  //       ? zeroOrder.history.filter((h: unknown): h is string => typeof h === "string")
+  //       : [];
+  //     zeroHistory.push(`Updated at ${timestamp}`);
+  //     await supabase
+  //       .from("orders")
+  //       .update({ history: zeroHistory })
+  //       .eq("order_id", 0);
+  //   }
+  // }
 
   // Run both in parallel
   await Promise.all([addHistoryPromise, updateOrderPromise]);
@@ -380,11 +416,15 @@ export async function deleteAllOrders() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const isAdmin = await requireAdmin(user ?? undefined);
+  if (!isAdmin) {
+    throw new Error("User is not an admin"); // not authorized
+  }
   // if (true) return
   // const user = undefined;
   // const user =
   // const supabase = await requireAdmin();
-  const { error } = await supabase.from("orders").delete().neq("name_id", 0);
+  const { error } = await supabase.from("orders").delete().neq("order_id", 0);
   if (error) {
     console.error("Error deleting all orders:", error.message);
     return false;

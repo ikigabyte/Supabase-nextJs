@@ -466,7 +466,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
     }
 
-    return allOrders;
+    // Filter out any order with order_id === 0
+    return allOrders.filter((order) => order.order_id !== 0);
   }
 
   if (supabase === null) {
@@ -510,6 +511,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
+  const [selectionVersion, bumpSelectionVersion] = useState(0);
   const [isShiftDown, setIsShiftDown] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   // const shiftDown = useRef(false); // you can delete this if you don't use it elsewhere
@@ -668,11 +670,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
       const counts = { ...categoryCounts };
       delete counts["sheets"];
-      const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
+      const totalCount = Object.values(counts).reduce((sum, count) => (sum) + count, 0); // for the order tracker
       // console.log("Total count of all categories (excluding 'sheets'):", totalCount);
       const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
       if (totalCount !== totalProductionCount) {
-        console.log("There is a mismatch in counts, refreshing orders...");
+        // console.log("There is a mismatch in counts, refreshing orders...");
         const all = await fetchAllOrders();
         setOrders(all);
       }
@@ -1147,6 +1149,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // Just finalize any active drag, but do NOT clear or overwrite selection
         document.body.style.cursor = "";
         if (dragging) {
+          bumpSelectionVersion((v) => v + 1);
           dragSelections.current = new Map(pendingDragSelections.current);
           pendingDragSelections.current.clear();
           setDragging(false);
@@ -1170,6 +1173,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       document.body.style.cursor = "";
       forceUpdate((n) => n + 1); // Dummy state to re-render
       if (dragging) {
+        bumpSelectionVersion((v) => v + 1);
         dragSelections.current = new Map(pendingDragSelections.current);
         pendingDragSelections.current.clear();
         setDragging(false);
@@ -1250,6 +1254,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
         forceUpdate((n) => n + 1);
       }
+      
 
       // document.body.style.removeProperty("user-select");
       dragStartPos.current = null;
@@ -1516,7 +1521,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
     updateOrderStatus(order, false);
     toast.success("Order updated", {
-      description: `Order ${order.name_id} has been moved to ${handleNewProductionStatus(
+      description: `Order ${convertToSpaces(order.name_id)} has been moved to ${handleNewProductionStatus(
         order.production_status,
         false
       )}`,
@@ -1946,12 +1951,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           counts={categoryCounts}
           onCategoryClick={handleCategoryClick}
           categoryViewing={selectedCategory}
-          dragSelections={dragSelections}
+          dragSelections={dragSelections} // maybe change this to something else
           isAdmin={isAdmin}
           userRows={userRows}
           currentUserSelected={userSelected}
           setCurrentUser={setUserSelected}
           copyPrintData={copyPrintData}
+          selectionVersion={selectionVersion}
         />
 
         {isRowHovered && (
@@ -1971,7 +1977,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       {isRowClicked && (
         <OrderViewer
           currentRow={currentRowClicked}
+          status={orderType}
           isAdmin={isAdmin}
+          onRevertStatus={() => handleMenuOptionClick("revert")}
           onViewZendesk={() => handleMenuOptionClick("view")}
           onDeleteLine={() => handleMenuOptionClick("delete")}
           onDeleteAll={() => handleMenuOptionClick("deleteAll")}

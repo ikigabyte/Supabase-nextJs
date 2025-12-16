@@ -52,44 +52,86 @@ function extractNumber(str: string) {
   return match ? match[0] : "";
 }
 
-function computeTotalQuantity(dragSelections: React.MutableRefObject<Map<HTMLTableElement, any>>) {
+
+function computeTotalQuantity(
+  dragSelections: React.MutableRefObject<
+    Map<HTMLTableElement, { startRow: number; endRow: number; extras?: Set<number> }>
+  >
+) {
   let sumValue = 0;
   let showDifferent = false;
-  const rows: string[] = [];
 
-  dragSelections.current.forEach((selection: any, table: HTMLTableElement) => {
+  for (const [table, selection] of dragSelections.current.entries()) {
     const tbody = table.querySelector("tbody");
-    if (!tbody) return;
+    if (!tbody) continue;
 
     const dataRows = Array.from(tbody.children).filter(
       (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
-    );
+    ) as HTMLTableRowElement[];
 
     const rowStart = Math.min(selection.startRow, selection.endRow);
     const rowEnd = Math.max(selection.startRow, selection.endRow);
 
-    for (let i = rowStart; i <= rowEnd; i++) {
-      const row = dataRows[i] as HTMLTableRowElement | undefined;
+    const indices = new Set<number>();
+    for (let i = rowStart; i <= rowEnd; i++) indices.add(i);
+    if (selection.extras) for (const i of selection.extras) indices.add(i);
+
+    for (const i of indices) {
+      const row = dataRows[i];
       if (!row) continue;
 
-      const cell = row.children[quantityColumnIndex] as HTMLElement | undefined;
-      if (!cell) continue;
+      const cell = row.children[3] as HTMLElement | undefined;
+      const cellValue = cell?.textContent ?? "";
 
-      const cellValue = cell.textContent ?? "";
       if (cellValue.toLowerCase().includes("tiles")) showDifferent = true;
-      rows.push(cellValue);
-    }
-  });
 
-  if (!showDifferent) {
-    for (const value of rows) {
-      const number = parseFloat(extractNumber(value));
-      if (!isNaN(number)) sumValue += number;
+      const number = parseFloat(extractNumber(cellValue));
+      if (!Number.isNaN(number)) sumValue += number;
     }
   }
 
   return showDifferent ? "N/A" : sumValue;
 }
+
+// function computeTotalQuantity(dragSelections: React.MutableRefObject<Map<HTMLTableElement, any>>) {
+//   let sumValue = 0;
+//   let showDifferent = false;
+//   const rows: string[] = [];
+//   // console.log("Current user" + currentUserSelected);
+//   dragSelections.current.forEach((selection, table) => {
+//     const tbody = table.querySelector("tbody");
+//     if (!tbody) return;
+//     const dataRows = Array.from(tbody.children).filter(
+//       (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
+//     );
+//     const rowStart = Math.min(selection.startRow, selection.endRow);
+//     const rowEnd = Math.max(selection.startRow, selection.endRow);
+
+//     for (let i = rowStart; i <= rowEnd; i++) {
+//       const row = dataRows[i];
+//       if (!row) continue;
+//       const cell = row.children[quantityColumnIndex];
+//       if (cell) {
+//         const cellValue = cell.textContent ?? "";
+//         if (cellValue.toLowerCase().includes("tiles")) {
+//           showDifferent = true;
+//         }
+//         rows.push(cellValue);
+//       }
+//     }
+//   });
+
+//   if (!showDifferent) {
+//     for (const value of rows) {
+//       const number = parseFloat(extractNumber(value));
+//       if (!isNaN(number)) {
+//         sumValue += number;
+//       }
+//     }
+//   }
+//   const rowValue = showDifferent ? "N/A" : sumValue;
+//   return rowValue;
+// }
 
 export function ButtonOrganizer({
   categories = [],
@@ -102,6 +144,7 @@ export function ButtonOrganizer({
   currentUserSelected,
   setCurrentUser,
   copyPrintData,
+  selectionVersion,
 }: {
   categories?: string[];
   counts?: Record<string, number>;
@@ -114,16 +157,47 @@ export function ButtonOrganizer({
   userRows: Map<string, string>; // key: email, value: color
   currentUserSelected: string;
   setCurrentUser: (user: string) => void;
-  copyPrintData: () => void;
+    copyPrintData: () => void;
+    selectionVersion: number;
 }) {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  // const [rowValue, setRowValue] = useState<number>(0);
+  // const [updateCounter, setUpdateCounter] = useState<number>(0);
 
+  const dragging = useMemo(() => {
+    return dragSelections.current.size > 0;
+  }, [dragSelections]);
   const handleClick = async (category: string) => {
     setActiveCategory(category);
     onCategoryClick(category);
   };
+  // console.log(dragSelections.current);
 
-  const rowValue = useMemo(() => computeTotalQuantity(dragSelections), [dragSelections]);
+
+const hasSelection = useMemo(() => {
+  return dragSelections.current.size > 0;
+}, [selectionVersion]);
+
+const rowValue = useMemo(() => {
+  return computeTotalQuantity(dragSelections);
+}, [selectionVersion]);
+  // console.log(result);
+  // const ranOnceRef = React.useRef(false);
+
+  // React.useEffect(() => {
+  //   // only run once, the first time there is a selection
+  //   if (ranOnceRef.current) return;
+  //   if (dragSelections.current.size === 0) return;
+
+  //   ranOnceRef.current = true;
+
+  //   const total = computeTotalQuantity(dragSelections);
+  //   console.log("TEST total quantity:", total, "selections:", dragSelections.current);
+  //   // setRowValue(total);
+  // }, [updateCounter, dragging, categoryViewing]); // keep your existing deps
+  // todo this seection isn't working here how do we compute this before
+  // const rowValue = useMemo(() => computeTotalQuantity(dragSelections), [dragSelections]);
+  // console.log(rowValue);
   // console.log(dragSelections.current);
   const condensedUsers = useMemo(
     () =>
