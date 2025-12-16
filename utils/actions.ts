@@ -255,10 +255,15 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   if (!newStatus) throw new Error("No new status found");
 
   const addHistoryPromise = addHistoryForUser(order.name_id, newStatus, order.production_status || "");
-
+  // console.log(newStatus);
   if (newStatus === "completed") {
     try {
-      await supabase.rpc("move_order", { p_id: order.name_id });
+      const { data, error } = await supabase.rpc("move_order", { p_id: order.name_id });
+      if (error) {
+        console.error("move_order RPC failed:", { code: error.code, message: error.message, details: error.details });
+        return;
+      }
+      console.log("move_order RPC ok:", data);
     } catch (err) {
       console.error("Error moving order", err);
       throw new Error("Error moving order");

@@ -74,6 +74,7 @@ export default async function CompletedPage() {
             "notes",
             "Zendesk",
           ]}
+          ignoreAssignee={true}
         />
         <CompletedOrganizer orders={orders} />
       </Table>

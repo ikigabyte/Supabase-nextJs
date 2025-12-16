@@ -19,11 +19,12 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
   return (
     <>
       <TableBody>
-        {orders?.map((order) => (
+        {orders?.map((order, index) => (
           <TableRow
             key={order.name_id}
             className="[&>td]:py-1 align-top border-none  ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all"
           >
+            <TableCell>{index + 1}</TableCell>
             <TableCell>{convertToSpaces(order.name_id)}</TableCell>
             <TableCell>{order.shape}</TableCell>
             <TableCell>{order.lamination}</TableCell>
