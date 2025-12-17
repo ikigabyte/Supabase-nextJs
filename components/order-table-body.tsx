@@ -159,8 +159,11 @@ const convertToOrderTypeDate = (date: string | null, orderType: string | undefin
     case "cut":
       businessDays = 2;
       break;
-    case "pack":
+    case "prepack":
       businessDays = 1;
+      break;
+    case "pack":
+      businessDays = 0;
       break;
     default:
       return date;
@@ -455,7 +458,7 @@ export function OrderTableBody({
     setIsRowHovered(false);
     lastHoveredIdRef.current = null;
   };
-
+  // console.log("production status in body", productionStatus);
   // console.log("the notes have changed here")
   // const handleMouseMove = (event: React.MouseEvent<HTMLTableRowElement>) => {
   // };
@@ -501,7 +504,7 @@ export function OrderTableBody({
         const prev = data[i - 1];
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
         const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus);
-        const meetsProduction = meetsProductionCycle(convertedProductionDate);
+        const meetsProduction = meetsProductionCycle(convertedProductionDate) && productionStatus !== "ship";
         const getDayOfDate = convertDateToActualDay(row.due_date);
         return (
           <React.Fragment key={row.name_id}>
@@ -627,25 +630,39 @@ export function OrderTableBody({
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
-              <TableCell
-                onMouseEnter={(event) => meetsProduction ? handleMouseEnter(event, row, "production_warning") : undefined}
-                onMouseLeave={handleMouseLeave}
-              >
-                {meetsProduction
-                  ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
-                  : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
-              </TableCell>
-              <TableCell
-                className=""
-                onMouseEnter={() => setTableCellHovered(cellRefs.current[i][1])}
-                onMouseLeave={() => setTableCellHovered(null)}
-              >
-                {tableCellHovered && tableCellHovered === cellRefs.current[i][1]
-                  ? getDayOfDate
-                  : productionStatus === "ship"
-                  ? convertDateToReadableDate(row.ihd_date)
-                  : convertDateToReadableDate(row.due_date)}
-              </TableCell>
+                <TableCell
+                  onMouseEnter={(event) => {
+                    if (productionStatus === "ship") {
+                      setTableCellHovered(cellRefs.current[i][1]);
+                    } else if (meetsProduction) {
+                      handleMouseEnter(event, row, "production_warning");
+                    }
+                  }}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  {meetsProduction
+                    ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
+                    : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
+                </TableCell>
+                <TableCell
+                  className=""
+                  onMouseEnter={() => {
+                    if (productionStatus !== "ship") {
+                      setTableCellHovered(cellRefs.current[i][1]);
+                    } else {
+                      setTableCellHovered(cellRefs.current[i][2]);
+                    }
+                  }}
+                  onMouseLeave={() => setTableCellHovered(null)}
+                >
+                  {tableCellHovered &&
+                  ((productionStatus !== "ship" && tableCellHovered === cellRefs.current[i][1]) ||
+                    (productionStatus === "ship" && tableCellHovered === cellRefs.current[i][2]))
+                    ? getDayOfDate
+                    : productionStatus === "ship"
+                    ? convertDateToReadableDate(row.ihd_date)
+                    : convertDateToReadableDate(row.due_date)}
+                </TableCell>
               <TableCell
                 className=""
                 data-ignore-selection="true" // <-- new

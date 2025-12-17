@@ -16,7 +16,7 @@ export function HoverInformation({ historySteps, scrollName }: { historySteps?: 
   // Determine height based on number of steps
   let height = 120; // default
   if (stepsToDisplay.length >= 7) {
-    height = 600;
+    height = 675;
   } else if (stepsToDisplay.length >= 5) {
     height = 400;
   } else if (stepsToDisplay.length > 1) {

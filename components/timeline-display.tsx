@@ -317,7 +317,7 @@ export function TimelineOrders() {
   return (
     <>
       <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
-        <h1 className="font-bold text-3xl "> Timeline Orders </h1>
+        <h1 className="font-bold text-3xl "> Timeline Orders (Last 30 Days) </h1>
         <p className="text-left font-regular text-sm">Last Scanned Zendesk: {timeUpdated} </p>
         <div className="w-full flex justify-end gap-2">
           <Button onClick={() => setOpen(true)}>

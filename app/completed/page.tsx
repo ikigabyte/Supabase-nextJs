@@ -55,7 +55,7 @@ export default async function CompletedPage() {
   const total = count || 0;
   const pages = Math.ceil(total / limit);
   return (
-    <section className="p-2 pt-10 max-w-8xl w-[88%] flex flex-col gap-2">
+    <section className="p-1 pt-10 w-[98%] flex flex-col gap-2 mb-40 mx-auto">
       <h1 className="font-bold text-3xl">COMPLETED</h1>
       <Table>
         {/* Use the same headers styling */}
