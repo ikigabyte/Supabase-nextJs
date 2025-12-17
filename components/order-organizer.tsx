@@ -1047,7 +1047,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "c") {
+      if ((e.metaKey && e.key === "c") && orderType == "print" ) {
         // console.log("Ctrl+C detected, copying print data...");
         copyPrintData();
       }
