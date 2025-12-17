@@ -86,6 +86,12 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
       return specialKey || null;
     }
     // console.log("Rush", order.rush);
+    if (order.rush === true && order.material !== "roll") {
+      // console.log("Rush detected");
+      const rushKey = keys.find((k) => k.startsWith("rush"));
+      if (rushKey) return rushKey;
+    }
+
     if (order.shape === "sheets") {
       const lamination = order.lamination === "gloss" ? "gloss" : "matte";
       if (order.rush === true) {
@@ -97,18 +103,14 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
       const noLaminationKey = keys.find((k) => k.startsWith("sheets-no-lamination"));
       if (noLaminationKey) return noLaminationKey;
     }
-    if (order.rush === true && (order.material !== "roll")) {
-      // console.log("Rush detected");
-      const rushKey = keys.find((k) => k.startsWith("rush"));
-      if (rushKey) return rushKey;
-    }
 
-    // Convert for promo and order type here / also change the way they're coming in from the log
     if (order.orderType === 1) {
       // console.log("Promo detected");
       const promoKey = keys.find((k) => k.endsWith("-promo") && k.startsWith(`${order.material}-${order.lamination}`));
       if (promoKey) return promoKey;
     }
+
+    // Convert for promo and order type here / also change the way they're coming in from the log
 
     const suffix = order.quantity && order.quantity.includes("-") ? "tiles" : "regular";
     const key = `${order.material}-${order.lamination}-${suffix}`;

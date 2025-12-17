@@ -6,34 +6,20 @@ import { getBrowserClient } from "@/utils/supabase/client";
 import { Order } from "@/types/custom";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableRow,
-  TableCell,
-  TableHead,
-  TableHeader,
-} from "@/components/ui/table";
+import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 import { assignKeyType } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
-import {convertToSpaces} from "@/lib/utils";
-
+import { convertToSpaces } from "@/lib/utils";
 
 type fakeOrder = Order & {
   keyType?: string;
 };
 
-
 export function DialogSearch({
   open,
-  onOpenChange, // put the selected row here maybe? 
+  onOpenChange, // put the selected row here maybe?
 }: {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -57,11 +43,13 @@ export function DialogSearch({
   }, [open]);
 
   const getCorrectPage = useCallback(
-    (productionStatus: string, material: string, orderQuery: string) => {
-      const normalizedMaterial =
-        material === "regular" || material === "roll" ? material : "regular";
+    (productionStatus: string, material: string, orderQuery: string, isRush?: boolean) => {
+      const normalizedMaterial = material === "regular" || material === "roll" ? material : "regular";
       switch (productionStatus) {
         case "print":
+          if (isRush) {
+            return `toprint?rush=${encodeURIComponent(orderQuery)}`;
+          }
           return `toprint?${encodeURIComponent(material)}=${encodeURIComponent(orderQuery)}`;
         case "cut":
           return `tocut?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
@@ -132,9 +120,7 @@ export function DialogSearch({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        
-        aria-description={undefined} className="sm:max-w-xl max-w-lg">
+      <DialogContent aria-description={undefined} className="sm:max-w-xl max-w-lg">
         <DialogHeader>
           <DialogTitle>Search Orders</DialogTitle>
         </DialogHeader>
@@ -183,32 +169,37 @@ export function DialogSearch({
             <Table>
               <TableHeader>
                 <TableRow className="h-.5 [&>th]:py-0 text-xs">
-                  <TableHead className="w-[60%] border-r border-gray-200">File ID</TableHead>
+                  <TableHead className="w-[60%] border-r border-gray-200">Name ID</TableHead>
+                  {/* <TableHead className="w-[20%]">Material</TableHead> */}
                   <TableHead className="w-[20%] border-r border-gray-200">Production Status</TableHead>
-                      <TableHead className="w-[20%]">Material</TableHead>
-                      <TableHead className="w-[20%]">Category</TableHead>
+                  <TableHead className="w-[20%]">Category</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders.map((order) => (
-                    <TableRow
+                  <TableRow
                     key={order.name_id}
                     className="hover:bg-gray-50 cursor-pointer"
                     onClick={() => {
                       router.push(
-                      getCorrectPage(order.production_status ?? "", order.material ?? "", order.name_id ?? "")
+                        getCorrectPage(
+                          order.production_status ?? "",
+                          order.material ?? "",
+                          order.name_id ?? "",
+                          order.rush ? true : false
+                        )
                       );
                       // console.log("Navigating to order:", order.name_id);
                       if (onOpenChange) onOpenChange(false);
                     }}
-                    >
+                  >
                     <TableCell className="w-[60%] break-words break-all whitespace-pre-wrap text-xs">
                       {convertToSpaces(order.name_id)}
                     </TableCell>
+                    {/* <TableCell className="w-[20%] text-xs">{order.material}</TableCell> */}
                     <TableCell className="w-[20%] text-xs">{order.production_status}</TableCell>
-                    <TableCell className="w-[20%] text-xs">{order.material}</TableCell>
                     <TableCell className="w-[20%] text-xs">{order.keyType ?? ""}</TableCell>
-                    </TableRow>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>

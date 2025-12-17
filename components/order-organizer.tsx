@@ -170,42 +170,53 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
     let count = 0;
+
     if (orderType === "print") {
-      if (lowerCat === "sheets") {
-        // **Sheets count logic takes priority over rush**
+      if (lowerCat === "rush") {
+        // Rush takes priority over everything else (including sheets)
+        count = orders.filter((o) => o.production_status === orderType && o.rush === true).length;
+
+      } else if (lowerCat === "sheets") {
+        // Exclude rush sheets so they don't double-count
         count = orders.filter(
-          (order) => order.production_status === orderType && order.shape?.toLowerCase() === "sheets"
+          (o) =>
+            o.production_status === orderType &&
+            o.rush !== true &&
+            o.shape?.toLowerCase() === "sheets"
         ).length;
-      } else if (lowerCat === "rush") {
-        // Count only rush orders matching the current status
-        count = orders.filter((order) => order.production_status === orderType && order.rush === true).length;
+
       } else if (lowerCat === "special") {
-        count = orders.filter((order) => order.production_status === orderType && order.orderType === 2).length;
+        count = orders.filter((o) => o.production_status === orderType && o.orderType === 2).length;
+
       } else if (lowerCat === "regular") {
         count = orders.filter(
-          (order) =>
-            order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() !== "roll"
+          (o) =>
+            o.production_status === orderType &&
+            o.rush !== true &&
+            o.material?.toLowerCase() !== "roll" &&
+            o.shape?.toLowerCase() !== "sheets"
         ).length;
+
       } else {
         count = orders.filter(
-          (order) =>
-            order.production_status === orderType && order.rush !== true && order.material?.toLowerCase() === lowerCat
+          (o) =>
+            o.production_status === orderType &&
+            o.rush !== true &&
+            o.material?.toLowerCase() === lowerCat &&
+            o.shape?.toLowerCase() !== "sheets"
         ).length;
       }
+
     } else {
       if (lowerCat === "rush") {
-        // Ignore rush for non-print statuses
         count = 0;
       } else if (lowerCat === "regular") {
-        count = orders.filter(
-          (order) => order.production_status === orderType && order.material?.toLowerCase() !== "roll"
-        ).length;
+        count = orders.filter((o) => o.production_status === orderType && o.material?.toLowerCase() !== "roll").length;
       } else {
-        count = orders.filter(
-          (order) => order.production_status === orderType && order.material?.toLowerCase() === lowerCat
-        ).length;
+        count = orders.filter((o) => o.production_status === orderType && o.material?.toLowerCase() === lowerCat).length;
       }
     }
+
     acc[category] = count;
     return acc;
   }, {} as Record<string, number>);
@@ -1788,7 +1799,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <ul className="list-di+sc list-inside text-xs">
-                          <li>[CMD] + [SHIFT] + [F] = Find Orders through Database</li>
+                          <li>[SHIFT] + [F] = Search for Orders</li>
                           <li>[SHIFT] + [HOLD] = Multi select Rows</li>
                           <li>[CMD] + [C] = Copy File Name + Quantity for Print</li>
                         </ul>
