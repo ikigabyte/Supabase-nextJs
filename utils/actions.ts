@@ -293,20 +293,17 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
     .from("orders")
     .update({ ...order, production_status: newStatus, history, asignee: null })
     .match({ name_id: order.name_id });
-    // Always overwrite the history for order_id 0 with a single entry
-    // Check if order_id 0 exists before updating its history
-    const { data: zeroOrder, error: zeroOrderError } = await supabase
-      .from("orders")
-      .select("order_id")
-      .eq("order_id", 0)
-      .single();
+  // Always overwrite the history for order_id 0 with a single entry
+  // Check if order_id 0 exists before updating its history
+  const { data: zeroOrder, error: zeroOrderError } = await supabase
+    .from("orders")
+    .select("order_id")
+    .eq("order_id", 0)
+    .single();
 
-    if (!zeroOrderError && zeroOrder) {
-      await supabase
-      .from("orders")
-      .update({ name_id: timestamp })
-      .eq("order_id", 0);
-    }
+  if (!zeroOrderError && zeroOrder) {
+    await supabase.from("orders").update({ notes: timestamp }).eq("order_id", 0);
+  }
   // If order_id is 0, also update its history with just a timestamp
   // if (order.order_id === 0) {
   //   const { data: zeroOrder, error: zeroOrderError } = await supabase
@@ -329,9 +326,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
   // Run both in parallel
   await Promise.all([addHistoryPromise, updateOrderPromise]);
-
   // const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
-
   // // Send webhook async (non-blocking)
   // if (readyForZendeskUpdate && !ignoreZendesk) {
   //   console.log("Triggering Zendesk webhook…");
