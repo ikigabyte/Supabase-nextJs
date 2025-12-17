@@ -629,7 +629,7 @@ export function OrderTableBody({
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
               <TableCell
-                onMouseEnter={(event) => handleMouseEnter(event, row, "production_warning")}
+                onMouseEnter={(event) => meetsProduction ? handleMouseEnter(event, row, "production_warning") : undefined}
                 onMouseLeave={handleMouseLeave}
               >
                 {meetsProduction

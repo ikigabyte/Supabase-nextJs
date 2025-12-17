@@ -1624,10 +1624,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     // toast.info("Updating notes...", { duration: 2000 });
     setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, notes: newNotes } : o)));
     // Persist change
+    await updateOrderNotes(order, newNotes);
     toast(`Updated note for ${order.name_id}`, {
       description: `Note: ${newNotes}`,
     });
-    await updateOrderNotes(order, newNotes);
   }, []);
 
   const handleMenuOptionClick = useCallback(

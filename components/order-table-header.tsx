@@ -48,6 +48,8 @@ export function OrderTableHeader({
                 ? "CUT"
                 : headers[index].toUpperCase() === "ZENDESK"
                 ? "ZENDESK"
+                : headers[index].toUpperCase() === "SHIP"
+                ? "SHIPPED"
                 : index === headers.length - 1
                 ? headers[index].toUpperCase() + "ED"
                 : headers[index].toUpperCase()
