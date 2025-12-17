@@ -48,6 +48,7 @@ import { convertToSpaces } from "@/lib/utils";
 // import { UserSearchIcon } from "lucide-react";
 // import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { set } from "date-fns";
 
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
@@ -1620,8 +1621,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const handleNoteChange = useCallback(async (order: Order, newNotes: string) => {
     // console.log("Updating notes for order", order.name_id, "to", newNotes);
     // Optimistically update local state
+    // toast.info("Updating notes...", { duration: 2000 });
     setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, notes: newNotes } : o)));
     // Persist change
+    toast(`Updated note for ${order.name_id}`, {
+      description: `Note: ${newNotes}`,
+    });
     await updateOrderNotes(order, newNotes);
   }, []);
 
@@ -1686,7 +1691,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     console.error("Headers are not defined, please add some headers for these buttons here");
     return null;
   }
-
+  console.log(dragSelections.current);
   const handleAsigneeClick = useCallback(
     async (row: Order) => {
       // if (!session?.user?.email) return;

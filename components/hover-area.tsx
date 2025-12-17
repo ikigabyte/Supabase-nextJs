@@ -19,7 +19,7 @@ export function HoverInformation({ historySteps, scrollName }: { historySteps?: 
     height = 600;
   } else if (stepsToDisplay.length >= 5) {
     height = 400;
-  } else if (stepsToDisplay.length >= 3) {
+  } else if (stepsToDisplay.length > 1) {
     height = 250;
   }
 

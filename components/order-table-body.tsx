@@ -89,8 +89,8 @@ const convertToDayOfTheWeek = (dateString: string | null) => {
   const date = new Date(year, month - 1, day); // monthIndex is 0-based
   const dayNumber = date.getDay();
   if (dayNumber === 0) {
-    console.log(dateString);
-    console.log("Sunday detected, returning 0");
+    // console.log(dateString);
+    // console.log("Sunday detected, returning 0");
     return 0;
   }
   return dayNumber;
@@ -321,12 +321,11 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
   );
 }
 
-
 type dragSel = {
   startRow: number;
   endRow: number;
   extras?: Set<number>; // non-contiguous added rows
-}
+};
 export function OrderTableBody({
   data,
   productionStatus,
@@ -347,7 +346,7 @@ export function OrderTableBody({
   getRowRef,
   onAsigneeClick,
   userColors,
-  isShiftDown
+  isShiftDown,
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -367,7 +366,7 @@ export function OrderTableBody({
   dragSelections?: React.MutableRefObject<Map<HTMLTableElement, dragSel>>;
   getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void;
   onAsigneeClick: (row: Order) => void;
-    userColors: Map<string, string>;
+  userColors: Map<string, string>;
   isShiftDown: boolean;
 }) {
   // Example usage for setting userRows from data:
@@ -483,17 +482,16 @@ export function OrderTableBody({
       {data.map((row, i) => {
         const isChecked = checkedRows.has(row.name_id);
         const currentDay = convertToDayOfTheWeek(row.due_date);
+        // console.log(currentDay); // If this has n
         const safeName = convertToSpaces(row.name_id);
         const isSelected = row.name_id === selectedNameId;
-    const inRange =
-  !!dragSelection &&
-  Math.min(dragSelection.startRow, dragSelection.endRow) <= i &&
-  i <= Math.max(dragSelection.startRow, dragSelection.endRow);
-
-const inExtras = !!dragSelection?.extras?.has(i);
-
-const isHighlighted = inRange || inExtras;
-
+        const inRange =
+          !!dragSelection &&
+          Math.min(dragSelection.startRow, dragSelection.endRow) <= i &&
+          i <= Math.max(dragSelection.startRow, dragSelection.endRow);
+        const inExtras = !!dragSelection?.extras?.has(i);
+        const isHighlighted = inRange || inExtras;
+        console.log("isHighlighted", isHighlighted, "for row", row.name_id);
         differentOrderId = prevOrderId !== row.order_id;
         if (i === 0 && data.length > 1) {
           const nextOrder = data[i + 1];
@@ -520,7 +518,7 @@ const isHighlighted = inRange || inExtras;
               name-id={row.name_id}
               className={`
               [&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white
-              ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-blue-100"}
+              ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-white-100"} 
                 ${isHighlighted ? "bg-blue-100 hover:bg-blue-100" : ""}`}
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
@@ -684,8 +682,17 @@ const isHighlighted = inRange || inExtras;
                 {capitalizeFirstLetter((row.shipping_method || "").replace(/_/g, " "))}
               </TableCell>
               <TableCell className={``}>
-                {/* <Textarea ></Textarea> */}
-                <NoteInput note={row.notes ?? ""} onCommit={(value) => onNotesChange(row, value)} />
+                <NoteInput
+                  note={row.notes ?? ""}
+                  onCommit={(value) => {
+                    onNotesChange(row, value);
+                    // Blur the textarea after commit
+                    const active = document.activeElement as HTMLElement | null;
+                    if (active && active.tagName === "TEXTAREA") {
+                      active.blur();
+                    }
+                  }}
+                />
               </TableCell>
               <TableCell>
                 <Checkbox

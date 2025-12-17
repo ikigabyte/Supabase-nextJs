@@ -40,7 +40,8 @@ export function OrderViewer({
       bottom-[70px]
       left-4
       z-50
-      bg-white/90
+      bg-black/90
+      text-white
       ring-1 ring-inset ring-gray-300
       shadow-sm
       rounded-full
@@ -53,7 +54,7 @@ export function OrderViewer({
       <TooltipProvider>
         {/* Label */}
         <div className="min-w-0">
-          <p className="text-xs text-gray-500 leading-none">Selected</p>
+          <p className="text-xs text-gray-200 leading-none">Selected</p>
           <p className="text-sm font-semibold truncate">{label}</p>
         </div>
 
