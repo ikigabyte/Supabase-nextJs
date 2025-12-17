@@ -1703,6 +1703,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }
   const handleAsigneeClick = useCallback(
     async (row: Order) => {
+      // console.log(userSelected);
       // if (!session?.user?.email) return;
       // const me = session.user.email; // use this to find out if the user is an admin
       try {
@@ -1734,13 +1735,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             description: `${nameIds.length} orders changed`,
           });
           assignMultiOrderToUser(nameIds, userSelected);
-          // setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: userSelected } : o)));
+          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: userSelected } : o)));
           return;
         }; 
         //   toast(`Assigning orders to ${userSelected}`, {
         //   description: `For ${row.name_id}.`,
         // });
-        // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: userSelected } : o))); // optimistic update
+        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: userSelected } : o))); // optimistic update
         assignOrderToUser(row, userSelected);
       } catch (err) {
         console.error("assign failed", err);
