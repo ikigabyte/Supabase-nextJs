@@ -1706,6 +1706,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // if (!session?.user?.email) return;
       // const me = session.user.email; // use this to find out if the user is an admin
       try {
+        // console.log(dragSelections.current.size); 
         if (dragSelections.current.size > 0) {
           // console.log("Handling multi-row assignment");
           const nameIds: string[] = [];
@@ -1733,18 +1734,18 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             description: `${nameIds.length} orders changed`,
           });
           assignMultiOrderToUser(nameIds, userSelected);
-          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: userSelected } : o)));
+          // setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: userSelected } : o)));
           return;
-        }
+        }; 
         //   toast(`Assigning orders to ${userSelected}`, {
         //   description: `For ${row.name_id}.`,
         // });
-        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: userSelected } : o))); // optimistic update
+        // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: userSelected } : o))); // optimistic update
         assignOrderToUser(row, userSelected);
       } catch (err) {
         console.error("assign failed", err);
         // 3) (optional) roll back if it errored:
-        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
+        // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
         // toast("Couldn’t assign order", { type: "error" });
       }
     },
