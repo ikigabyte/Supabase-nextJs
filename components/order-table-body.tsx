@@ -491,7 +491,6 @@ export function OrderTableBody({
           i <= Math.max(dragSelection.startRow, dragSelection.endRow);
         const inExtras = !!dragSelection?.extras?.has(i);
         const isHighlighted = inRange || inExtras;
-        console.log("isHighlighted", isHighlighted, "for row", row.name_id);
         differentOrderId = prevOrderId !== row.order_id;
         if (i === 0 && data.length > 1) {
           const nextOrder = data[i + 1];

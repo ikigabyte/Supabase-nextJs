@@ -679,10 +679,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const all = await fetchAllOrders();
         setOrders(all);
       }
-      // console.log(rowRefs.current);
-      console.log(
-        `Category total (excluding 'sheets'): ${totalCount}, Production status total: ${totalProductionCount}`
-      );
+      // console.log(
+      //   `Category total (excluding 'sheets'): ${totalCount}, Production status total: ${totalProductionCount}`
+      // );
     }
     // Run immediately, then every 5 minutes
     checkMatchingCounts();
@@ -1691,7 +1690,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     console.error("Headers are not defined, please add some headers for these buttons here");
     return null;
   }
-  console.log(dragSelections.current);
   const handleAsigneeClick = useCallback(
     async (row: Order) => {
       // if (!session?.user?.email) return;
