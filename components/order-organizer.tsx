@@ -33,7 +33,7 @@ import { HoverInformation } from "./hover-area";
 import { orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { OptionsMenu } from "./context-menu";
-import { OrderViewer } from "./order-viewer"; 
+import { OrderViewer } from "./order-viewer";
 import { ViewersDropdown } from "./viewers";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -175,19 +175,17 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
       if (lowerCat === "rush") {
         // Rush takes priority over everything else (including sheets)
         count = orders.filter((o) => o.production_status === orderType && o.rush === true).length;
-
       } else if (lowerCat === "sheets") {
         // Exclude rush sheets so they don't double-count
         count = orders.filter(
           (o) =>
             o.production_status === orderType &&
+            o.quantity.toLowerCase().includes("tiles") &&
             o.rush !== true &&
             o.shape?.toLowerCase() === "sheets"
         ).length;
-
       } else if (lowerCat === "special") {
         count = orders.filter((o) => o.production_status === orderType && o.orderType === 2).length;
-
       } else if (lowerCat === "regular") {
         count = orders.filter(
           (o) =>
@@ -196,7 +194,6 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
             o.material?.toLowerCase() !== "roll" &&
             o.shape?.toLowerCase() !== "sheets"
         ).length;
-
       } else {
         count = orders.filter(
           (o) =>
@@ -206,14 +203,15 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
             o.shape?.toLowerCase() !== "sheets"
         ).length;
       }
-
     } else {
       if (lowerCat === "rush") {
         count = 0;
       } else if (lowerCat === "regular") {
         count = orders.filter((o) => o.production_status === orderType && o.material?.toLowerCase() !== "roll").length;
       } else {
-        count = orders.filter((o) => o.production_status === orderType && o.material?.toLowerCase() === lowerCat).length;
+        count = orders.filter(
+          (o) => o.production_status === orderType && o.material?.toLowerCase() === lowerCat
+        ).length;
       }
     }
 
@@ -682,7 +680,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
       const counts = { ...categoryCounts };
       delete counts["sheets"];
-      const totalCount = Object.values(counts).reduce((sum, count) => (sum) + count, 0); // for the order tracker
+      const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0); // for the order tracker
       // console.log("Total count of all categories (excluding 'sheets'):", totalCount);
       const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
       if (totalCount !== totalProductionCount) {
@@ -1047,7 +1045,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if ((e.metaKey && e.key === "c") && orderType == "print" ) {
+      if (e.metaKey && e.key === "c" && orderType == "print") {
         // console.log("Ctrl+C detected, copying print data...");
         copyPrintData();
       }
@@ -1265,7 +1263,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
         forceUpdate((n) => n + 1);
       }
-      
 
       // document.body.style.removeProperty("user-select");
       dragStartPos.current = null;
@@ -1457,9 +1454,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleCategoryClick = useCallback(
     (category: string, ignoreRefresh?: boolean) => {
-      console.log("Category clicked:", category);
+      // console.log("Category clicked:", category);
       const lowerCategory = category.toLowerCase();
-
       if (!ignoreRefresh) {
         // Ensure we strip any existing query from the path
         const basePath = pathname.split("?")[0];
@@ -1526,7 +1522,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     setCurrentRowClicked(null);
     setIsRowClicked(false);
     dragSelections.current.clear();
-    pendingDragSelections.current.clear(); // this clears out as well 
+    pendingDragSelections.current.clear(); // this clears out as well
     ignoreUpdateIds.current.add(order.name_id);
     pendingRemovalIds.current.add(order.name_id);
     setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
@@ -1703,55 +1699,69 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }
   const handleAsigneeClick = useCallback(
     async (row: Order) => {
-      // console.log(userSelected);
-      // if (!session?.user?.email) return;
-      // const me = session.user.email; // use this to find out if the user is an admin
+      const canOverride = !row.asignee || isAdmin;
+      if (!canOverride) {
+        toast("Cannot assign", {
+          description: "This order is already assigned. Only admins can reassign.",
+        });
+        return;
+      }
+      // Normalize once: UI and DB use the same representation
+      const nextAsignee: string | null = userSelected === "Unselect Assignee" ? null : userSelected;
       try {
-        // console.log(dragSelections.current.size); 
         if (dragSelections.current.size > 0) {
-          // console.log("Handling multi-row assignment");
           const nameIds: string[] = [];
+
           dragSelections.current.forEach((selection, table) => {
             const tbody = table.querySelector("tbody");
             if (!tbody) return;
+
             const dataRows = Array.from(tbody.children).filter(
               (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
             );
+
             const rowStart = Math.min(selection.startRow, selection.endRow);
             const rowEnd = Math.max(selection.startRow, selection.endRow);
 
             for (let i = rowStart; i <= rowEnd; i++) {
-              const row = dataRows[i];
-              if (!row) continue;
-              const nameId = row.getAttribute("name-id");
-              if (nameId) {
+              const rowEl = dataRows[i];
+              if (!rowEl) continue;
+
+              const nameId = rowEl.getAttribute("name-id");
+              const orderObj = orders.find((o) => o.name_id === nameId);
+              if (nameId && orderObj && (!orderObj.asignee || isAdmin)) {
                 nameIds.push(nameId);
               }
             }
           });
-          // console.log(colorSelected);
-          // Optimistically update the orders for all selected nameIds
-          toast(`Assigning orders to ${userSelected}`, {
-            description: `${nameIds.length} orders changed`,
-          });
-          assignMultiOrderToUser(nameIds, userSelected);
-          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: userSelected } : o)));
+
+          if (nameIds.length === 0) {
+            toast("No orders assigned", {
+              description: "All selected orders are already assigned. Only admins can reassign.",
+            });
+            return;
+          }
+
+          // Optimistic update using normalized value
+          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: nextAsignee } : o)));
+
+          // Await to avoid refresh/realtime briefly overwriting with stale data
+          await assignMultiOrderToUser(nameIds, nextAsignee ?? "N/A");
           return;
-        }; 
-        //   toast(`Assigning orders to ${userSelected}`, {
-        //   description: `For ${row.name_id}.`,
-        // });
-        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: userSelected } : o))); // optimistic update
-        assignOrderToUser(row, userSelected);
+        }
+
+        // Single row
+        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
+
+        await assignOrderToUser(row, nextAsignee ?? "N/A");
       } catch (err) {
         console.error("assign failed", err);
-        // 3) (optional) roll back if it errored:
-        // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
-        // toast("Couldn’t assign order", { type: "error" });
+        // Optional: revert by refetching, or keep a snapshot and restore it here.
       }
     },
-    [session, setOrders, userSelected]
+    [userSelected, isAdmin, orders, setOrders]
   );
+
   const handleRowClick = useCallback(
     (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {
       if (!row) {

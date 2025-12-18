@@ -40,7 +40,7 @@ export const getCorrectUserColor = (userColors: Map<string, string>, asignee: st
 
   if (!asignee) return { backgroundColor: "#000000" }; // black as default
   const color = userColors.get(asignee);
-  if (!color) return { backgroundColor: "#d22b2bff" };
+  if (!color) return { backgroundColor: "#ffffffff" };
   // If color is in "R/G/B" format, convert to rgb()
   const rgbMatch = color.match(/^(\d{1,3})\/(\d{1,3})\/(\d{1,3})$/);
   if (rgbMatch) {

@@ -45,94 +45,11 @@ export const getBorderColor = (category: string) => {
 
 const quantityColumnIndex = 3;
 
-// same behavior you had in OrderViewer
 function extractNumber(str: string) {
   const cleaned = str.replace(/qty/gi, "").trim();
   const match = cleaned.match(/\d+/);
   return match ? match[0] : "";
 }
-
-// function computeTotalQuantity(
-//   dragSelections: React.MutableRefObject<
-//     Map<HTMLTableElement, { startRow: number; endRow: number; extras?: Set<number> }>
-//   >
-// ) {
-//   let sumValue = 0;
-//   let showDifferent = false;
-
-//   for (const [table, selection] of dragSelections.current.entries()) {
-//     const tbody = table.querySelector("tbody");
-//     if (!tbody) continue;
-
-//     const dataRows = Array.from(tbody.children).filter(
-//       (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
-//     ) as HTMLTableRowElement[];
-
-//     const rowStart = Math.min(selection.startRow, selection.endRow);
-//     const rowEnd = Math.max(selection.startRow, selection.endRow);
-//     console.log("Selection extras:", selection.extras);
-//     // const extras = selection.extras || new Set<number>();
-
-//     const indices = new Set<number>();
-//     for (let i = rowStart; i <= rowEnd; i++) indices.add(i);
-//     if (selection.extras) for (const i of selection.extras) indices.add(i);
-
-//     for (const i of indices) {
-//       const row = dataRows[i];
-//       if (!row) continue;
-
-//       const cell = row.children[3] as HTMLElement | undefined;
-//       const cellValue = cell?.textContent ?? "";
-
-//       if (cellValue.toLowerCase().includes("tiles")) showDifferent = true;
-
-//       const number = parseFloat(extractNumber(cellValue));
-//       if (!Number.isNaN(number)) sumValue += number;
-//     }
-//   }
-
-//   return showDifferent ? "N/A" : sumValue;
-// }
-
-// function computeTotalQuantity(dragSelections: React.MutableRefObject<Map<HTMLTableElement, any>>) {
-//   let sumValue = 0;
-//   let showDifferent = false;
-//   const rows: string[] = [];
-//   // console.log("Current user" + currentUserSelected);
-//   dragSelections.current.forEach((selection, table) => {
-//     const tbody = table.querySelector("tbody");
-//     if (!tbody) return;
-//     const dataRows = Array.from(tbody.children).filter(
-//       (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
-//     );
-//     const rowStart = Math.min(selection.startRow, selection.endRow);
-//     const rowEnd = Math.max(selection.startRow, selection.endRow);
-
-//     for (let i = rowStart; i <= rowEnd; i++) {
-//       const row = dataRows[i];
-//       if (!row) continue;
-//       const cell = row.children[quantityColumnIndex];
-//       if (cell) {
-//         const cellValue = cell.textContent ?? "";
-//         if (cellValue.toLowerCase().includes("tiles")) {
-//           showDifferent = true;
-//         }
-//         rows.push(cellValue);
-//       }
-//     }
-//   });
-
-//   if (!showDifferent) {
-//     for (const value of rows) {
-//       const number = parseFloat(extractNumber(value));
-//       if (!isNaN(number)) {
-//         sumValue += number;
-//       }
-//     }
-//   }
-//   const rowValue = showDifferent ? "N/A" : sumValue;
-//   return rowValue;
-// }
 
 export function ButtonOrganizer({
   categories = [],
@@ -212,10 +129,13 @@ export function ButtonOrganizer({
   }
   const rowValue = showDifferent ? "N/A" : sumValue;
 
-  const condensedUsers = Array.from(userRows.entries()).map(([email, color]) => ({
-    email,
-    color: getCorrectUserColor(userRows, email).backgroundColor,
-  }));
+  const condensedUsers = [
+    { email: "Unselect Assignee", color: "white" },
+    ...Array.from(userRows.entries()).map(([email, color]) => ({
+      email,
+      color: getCorrectUserColor(userRows, email).backgroundColor,
+    })),
+  ];
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-200 shadow-lg">

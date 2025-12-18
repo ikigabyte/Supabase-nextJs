@@ -185,18 +185,24 @@ export async function removeOrderAll(orderId: number) {
 }
 
 export async function assignMultiOrderToUser(nameIds: string[], userEmail?: string) {
+
+  
   if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");
 
   const supabase = await getServerClient();
+  
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("User is not logged in");
+  const isEmptyEmail = userEmail == "N/A";
 
-  // console.log("Assigning orders to:", user.email, "for nameIds:", nameIds);
+  // Determine the value for asignee
+  const asigneeValue = isEmptyEmail ? null : (userEmail || user.email);
+
   const { data: updatedRows, error } = await supabase
     .from("orders")
-    .update({ asignee: userEmail || user.email }) // if it's passed in then use that
+    .update({ asignee: asigneeValue }) // set to null if isEmptyEmail
     .in("name_id", nameIds)
     .select("name_id"); // <- return the rows that were actually updated
 
@@ -402,7 +408,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
   const userEmail = user.email || user.id;
 
   const timeStamp = getTimeStamp();
-  updateZendeskNotes(order.order_id, "[ PRINT LOG @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
+  updateZendeskNotes(order.order_id, "[ @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
   // if (!ignore_zendesk || ignore_zendesk == "false") {
 
   // }

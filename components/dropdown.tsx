@@ -51,10 +51,8 @@ export function DropdownAssignee({
       <DropdownMenuContent className="w-56" side="right" align="end">
         <DropdownMenuLabel>Select a User</DropdownMenuLabel>
         <DropdownMenuSeparator />
-
         {/* Correct ScrollArea: must have max height */}
         <ScrollArea className="max-h-72 w-full overflow-auto">
-         
             <DropdownMenuRadioGroup data-ignore-selection="true" value={currentUser} onValueChange={setCurrentUser}>
               {users.map(({ email, color }, idx) => (
                 <DropdownMenuRadioItem key={`${email}-${idx}`} value={email} className="flex items-center gap-3">
