@@ -83,7 +83,9 @@ export function DropdownAssignee({
 
         <DropdownMenuRadioGroup value={currentUser} onValueChange={setCurrentUser}>
           {naUser && (
-            <DropdownMenuRadioItem value={naUser.email} className="flex items-center gap-3">
+            <DropdownMenuRadioItem value={naUser.email}
+              data-ignore-selection="true"
+              className="flex items-center gap-3">
               <span
                 className="flex items-center justify-center rounded-full w-6 h-6 min-w-6 min-h-6 text-white text-sm"
                 style={{ backgroundColor: naUser.color }}

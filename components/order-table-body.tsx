@@ -667,16 +667,17 @@ export function OrderTableBody({
               <TableCell
                 className=""
                 data-ignore-selection="true" // <-- new
-                onClick={(e) => {
-                  // console.log(dragSelections.current);
-                  e.stopPropagation();
-                  onAsigneeClick(row);
-                }}
+                // onClick={(e) => {
+                //   // console.log(dragSelections.current);
+                //   e.stopPropagation();
+                //   onAsigneeClick(row);
+                // }}
               >
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
+                        onClick={() => onAsigneeClick(row)} 
                         className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
                           !row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
                         }`}

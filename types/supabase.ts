@@ -42,6 +42,7 @@ export type Database = {
       completed: {
         Row: {
           asignee: string | null
+          assigneeColor: string | null
           color: string | null
           due_date: string | null
           history: Json | null
@@ -57,12 +58,13 @@ export type Database = {
           print_method: string | null
           production_status: string | null
           quantity: string
-          rush: string
+          rush: string | null
           shape: string | null
-          shipping_method: string
+          shipping_method: string | null
         }
         Insert: {
           asignee?: string | null
+          assigneeColor?: string | null
           color?: string | null
           due_date?: string | null
           history?: Json | null
@@ -78,12 +80,13 @@ export type Database = {
           print_method?: string | null
           production_status?: string | null
           quantity?: string
-          rush: string
+          rush?: string | null
           shape?: string | null
-          shipping_method?: string
+          shipping_method?: string | null
         }
         Update: {
           asignee?: string | null
+          assigneeColor?: string | null
           color?: string | null
           due_date?: string | null
           history?: Json | null
@@ -99,9 +102,9 @@ export type Database = {
           print_method?: string | null
           production_status?: string | null
           quantity?: string
-          rush?: string
+          rush?: string | null
           shape?: string | null
-          shipping_method?: string
+          shipping_method?: string | null
         }
         Relationships: []
       }
@@ -159,6 +162,7 @@ export type Database = {
           history: Json | null
           ihd_date: string | null
           ink: string | null
+          inserted_date: string | null
           lamination: string | null
           material: string | null
           name_id: string
@@ -180,6 +184,7 @@ export type Database = {
           history?: Json | null
           ihd_date?: string | null
           ink?: string | null
+          inserted_date?: string | null
           lamination?: string | null
           material?: string | null
           name_id: string
@@ -201,6 +206,7 @@ export type Database = {
           history?: Json | null
           ihd_date?: string | null
           ink?: string | null
+          inserted_date?: string | null
           lamination?: string | null
           material?: string | null
           name_id?: string
