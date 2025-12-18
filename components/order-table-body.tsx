@@ -369,7 +369,7 @@ export function OrderTableBody({
   dragSelections?: React.MutableRefObject<Map<HTMLTableElement, dragSel>>;
   getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void;
   onAsigneeClick: (row: Order) => void;
-  userColors: Map<string, string>;
+  userColors: Map<string, { color: string; position: string | null }>;
   isShiftDown: boolean;
 }) {
   // Example usage for setting userRows from data:
@@ -631,18 +631,19 @@ export function OrderTableBody({
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
                 <TableCell
-                  onMouseEnter={(event) => {
-                    if (productionStatus === "ship") {
-                      setTableCellHovered(cellRefs.current[i][1]);
-                    } else if (meetsProduction) {
-                      handleMouseEnter(event, row, "production_warning");
-                    }
-                  }}
-                  onMouseLeave={handleMouseLeave}
+                className={meetsProduction ? "text-red-500" : "text-black"}
+                onMouseEnter={(event) => {
+                  if (productionStatus === "ship") {
+                  setTableCellHovered(cellRefs.current[i][1]);
+                  } else if (meetsProduction) {
+                  handleMouseEnter(event, row, "production_warning");
+                  }
+                }}
+                onMouseLeave={handleMouseLeave}
                 >
-                  {meetsProduction
-                    ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
-                    : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
+                {meetsProduction
+                  ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
+                  : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
                 </TableCell>
                 <TableCell
                   className=""

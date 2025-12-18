@@ -36,11 +36,25 @@ export const convertToSpaces = (str: string) => {
 // };
 
 
-export const getCorrectUserColor = (userColors: Map<string, string>, asignee: string | undefined) => {
+export const convertUsableColor = (color: string) => {
+  // If color is in "R/G/B" format, convert to rgb()
+  const rgbMatch = color.match(/^(\d{1,3})\/(\d{1,3})\/(\d{1,3})$/);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return `rgb(${r},${g},${b})`;
+  }
+  // Otherwise, assume it's a valid CSS color (hex, named, etc.)
+  return color;
+};
 
+export const getCorrectUserColor = (
+  userColors: Map<string, { color: string; position: string | null }>,
+  asignee: string | undefined
+) => {
   if (!asignee) return { backgroundColor: "#000000" }; // black as default
-  const color = userColors.get(asignee);
-  if (!color) return { backgroundColor: "#ffffffff" };
+  const userData = userColors.get(asignee);
+  if (!userData || !userData.color) return { backgroundColor: "#ffffffff" };
+  const color = userData.color;
   // If color is in "R/G/B" format, convert to rgb()
   const rgbMatch = color.match(/^(\d{1,3})\/(\d{1,3})\/(\d{1,3})$/);
   if (rgbMatch) {
@@ -50,7 +64,6 @@ export const getCorrectUserColor = (userColors: Map<string, string>, asignee: st
   // Otherwise, assume it's a valid CSS color (hex, named, etc.)
   return { backgroundColor: color };
 };
-
 
 
 export const getNameToColor = (name: string | undefined) => {

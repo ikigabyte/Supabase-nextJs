@@ -85,13 +85,15 @@ export default function AdminPage() {
   // Load full history for a user (all time)
   const loadHistory = async (profile: ProfileRow) => {
     setActive(profile);
+    console.log("Loading history for", profile.identifier);
+    console.log("Loading history for", profile.id);
     setLoadingHistory(true);
     const { data, error } = await supabase
       .from("history")
       .select("id, inserted_at, name_id, production_change")
       .eq("user_id", profile.id)
       .order("inserted_at", { ascending: false });
-
+    console.log(data, error);
     if (error) {
       console.error("Failed to load history:", error);
       setFullHistory([]);

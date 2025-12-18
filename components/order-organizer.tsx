@@ -557,7 +557,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
   const [hashValue, setHashValue] = useState<string | null>(null);
   const pendingRemovalIds = useRef<Set<string>>(new Set());
-  const [userRows, setUserRows] = useState<Map<string, string>>(new Map());
+  const [userRows, setUserRows] = useState<Map<string, { color: string; position: string | null }>>(new Map());
   const [updateCounter, forceUpdate] = useState(0);
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
@@ -661,7 +661,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase.from("profiles").select("id, identifier, color, role");
+      const { data, error } = await supabase.from("profiles").select("id, identifier, color, role, position");
       if (error) {
         console.error("Failed to load profiles:", error);
         return;
@@ -669,9 +669,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (!cancelled) {
         const idMap = new Map<
           string,
-          { name: string; color?: string | null; identifier?: string | null; role?: string | null }
+          {
+            name: string;
+            color?: string | null;
+            identifier?: string | null;
+            role?: string | null;
+            position?: string | null;
+          }
         >();
-        const userColorMap = new Map<string, string>();
+        const userColorMap = new Map<string, { color: string; position: string | null }>();
 
         (data ?? []).forEach((row: any) => {
           idMap.set(row.id, {
@@ -679,8 +685,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             color: row.color ?? null,
             identifier: row.identifier ?? null,
             role: row.role ?? null,
+            position: row.position ?? null,
           });
-          userColorMap.set(row.identifier ?? "", row.color ?? "");
+          userColorMap.set(row.identifier ?? "", {
+            color: row.color ?? "",
+            position: row.position ?? null,
+          });
         });
 
         setProfilesById(idMap);
@@ -722,7 +732,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       const counts = { ...categoryCounts };
       delete counts["sheets"];
       const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0); // for the order tracker
-      console.log("Total count of all categories (excluding 'sheets'):", totalCount);
+      // console.log("Total count of all categories (excluding 'sheets'):", totalCount);
       const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
       if (totalCount !== totalProductionCount) {
         // console.log("There is a mismatch in counts, refreshing orders...");
@@ -875,19 +885,22 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase.from("profiles").select("identifier, color"); // email & color only
+      const { data, error } = await supabase.from("profiles").select("identifier, color, position"); // email, color, position
 
       if (error) {
-        console.error("Failed to load profiles:", error);
-        return;
+      console.error("Failed to load profiles:", error);
+      return;
       }
       if (!cancelled) {
-        // Store as a Map<string, string | null>
-        const userColorMap = new Map<string, string>();
-        (data ?? []).forEach((row) => {
-          userColorMap.set(row.identifier ?? "", row.color ?? "");
+      // Store as a Map<string, { color: string; position: string | null }>
+      const userColorMap = new Map<string, { color: string; position: string | null }>();
+      (data ?? []).forEach((row: any) => {
+        userColorMap.set(row.identifier ?? "", {
+        color: row.color ?? "",
+        position: row.position ?? null,
         });
-        setUserRows(userColorMap);
+      });
+      setUserRows(userColorMap);
       }
     })();
     return () => {

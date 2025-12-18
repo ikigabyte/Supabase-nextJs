@@ -72,7 +72,7 @@ export function ButtonOrganizer({
     Map<HTMLTableElement, { startRow: number; endRow: number; extras?: Set<number> }>
   >;
   isAdmin: boolean;
-  userRows: Map<string, string>; // key: email, value: color
+  userRows: Map<string, { color: string; position: string | null }>;
   currentUserSelected: string;
   setCurrentUser: (user: string) => void;
   copyPrintData: () => void;
@@ -110,11 +110,11 @@ export function ButtonOrganizer({
       if (!row) continue;
       const cell = row.children[quantityColumnIndex];
       if (cell) {
-      const cellValue = cell.textContent ?? "";
-      if (cellValue.toLowerCase().includes("tiles")) {
-        showDifferent = true;
-      }
-      rows.push(cellValue);
+        const cellValue = cell.textContent ?? "";
+        if (cellValue.toLowerCase().includes("tiles")) {
+          showDifferent = true;
+        }
+        rows.push(cellValue);
       }
     }
   });
@@ -130,13 +130,14 @@ export function ButtonOrganizer({
   const rowValue = showDifferent ? "N/A" : sumValue;
 
   const condensedUsers = [
-    { email: "N/A", color: "white" },
+    { email: "N/A", color: "white", position: "" },
     ...Array.from(userRows.entries()).map(([email, color]) => ({
       email,
       color: getCorrectUserColor(userRows, email).backgroundColor,
+      position: userRows.get(email)?.position || "",
+      
     })),
   ];
-
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-200 shadow-lg">
       {/* Make both sides the same height */}
