@@ -65,7 +65,7 @@ async function requireAdmin(user ?: { id: string; email?: string }) : Promise<bo
     .eq("role", "admin")
     .single();
 
-  console.log("Admin check data:", data, "error:", error);
+  // console.log("Admin check data:", data, "error:", error);
 
   if (error && error.code !== "PGRST116") throw new Error("Admin check failed");
   if (!data) throw new Error("Not authorized");
@@ -195,10 +195,13 @@ export async function assignMultiOrderToUser(nameIds: string[], userEmail?: stri
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("User is not logged in");
-  const isEmptyEmail = userEmail == "N/A";
+  const isAdmin = await requireAdmin(user); // * to integrate this with overriding the assignee
+  // if (!isAdmin) {
+    // throw new Error("User is not an admin"); // not authorized
+  const removeAssignee = userEmail == "N/A";
 
   // Determine the value for asignee
-  const asigneeValue = isEmptyEmail ? null : (userEmail || user.email);
+  const asigneeValue = removeAssignee ? null : (userEmail || user.email);
 
   const { data: updatedRows, error } = await supabase
     .from("orders")
@@ -231,9 +234,14 @@ export async function assignOrderToUser(order: Order, userEmail?: string) {
 
   if (!user) throw new Error("User is not logged in");
 
+    const removeAssignee = userEmail == "N/A";
+  
+  // Determine the value for asignee
+  const asigneeValue = removeAssignee ? null : (userEmail || user.email);
+  // console.log("Assigning to:", asigneeValue);
   const { error } = await supabase
     .from("orders")
-    .update({ ...order, asignee: userEmail || user.email })
+    .update({ ...order, asignee: asigneeValue })
     .match({ name_id: order.name_id });
 
   if (error) {

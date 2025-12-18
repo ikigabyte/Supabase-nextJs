@@ -49,6 +49,7 @@ import { convertToSpaces } from "@/lib/utils";
 // import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { set } from "date-fns";
+import { NEXT_HMR_REFRESH_HASH_COOKIE } from "next/dist/client/components/app-router-headers";
 
 type Counts = Record<OrderTypes, number>;
 type UserProfileRow = { id: string; role: string; color: string | null };
@@ -165,6 +166,44 @@ export const getTextColor = (category: string) => {
       return "text-black";
   }
 };
+
+function collectSelectedNameIds(
+  dragSelections: React.MutableRefObject<Map<HTMLTableElement, DragSel>>,
+  orders: Order[],
+  isAdmin: boolean
+) {
+  const ids: string[] = [];
+
+  dragSelections.current.forEach((selection, table) => {
+    const tbody = table.querySelector("tbody");
+    if (!tbody) return;
+
+    const dataRows = Array.from(tbody.children).filter(
+      (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
+    );
+
+    const rowStart = Math.min(selection.startRow, selection.endRow);
+    const rowEnd = Math.max(selection.startRow, selection.endRow);
+
+    for (let i = rowStart; i <= rowEnd; i++) {
+      const rowEl = dataRows[i];
+      if (!rowEl) continue;
+
+      const nameId = rowEl.getAttribute("name-id");
+      if (!nameId) continue;
+
+      const orderObj = orders.find((o) => o.name_id === nameId);
+      if (!orderObj) continue;
+
+      // Only include if unassigned, unless admin
+      if (!orderObj.asignee || isAdmin) ids.push(nameId);
+    }
+  });
+
+  return ids;
+}
+
+
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -1697,70 +1736,89 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     console.error("Headers are not defined, please add some headers for these buttons here");
     return null;
   }
-  const handleAsigneeClick = useCallback(
-    async (row: Order) => {
-      const canOverride = !row.asignee || isAdmin;
-      if (!canOverride) {
-        toast("Cannot assign", {
-          description: "This order is already assigned. Only admins can reassign.",
+ 
+const handleAsigneeClick = useCallback(
+  async (row: Order) => {
+    const canOverride = !row.asignee || isAdmin;
+    if (!canOverride) {
+      toast("Cannot assign", {
+        description: "This order is already assigned. Only admins can reassign.",
+      });
+      return;
+    }
+
+    const nextAsignee: string | null = userSelected === "N/A" ? null : userSelected;
+
+    try {
+      const selectedIds = collectSelectedNameIds(dragSelections, orders, isAdmin);
+      // If there is a selection but it DOES NOT include this row, treat as single assign:
+      if (selectedIds.length > 0 && !selectedIds.includes(row.name_id)) {
+        pendingDragSelections.current.clear();
+        dragSelections.current.clear();
+        bumpSelectionVersion((v) => v + 1);
+        forceUpdate((n) => n + 1); // re-render selection UI immediately
+        toast(`Assigning order to ${userSelected}`, {
+          description: `1 order changed`,
+          action: {
+            label: "Undo",
+            onClick: () => {
+              // revert only this row
+              console.log(nextAsignee);
+              console.log("Reverting assignee for order", row.name_id);
+              // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
+              assignOrderToUser(row, "N/A");
+            },
+          },
         });
+        // Single assign (only this row)
+        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
+        await assignOrderToUser(row, nextAsignee ?? "N/A");
         return;
       }
-      // Normalize once: UI and DB use the same representation
-      const nextAsignee: string | null = userSelected === "Unselect Assignee" ? null : userSelected;
-      try {
-        if (dragSelections.current.size > 0) {
-          const nameIds: string[] = [];
 
-          dragSelections.current.forEach((selection, table) => {
-            const tbody = table.querySelector("tbody");
-            if (!tbody) return;
-
-            const dataRows = Array.from(tbody.children).filter(
-              (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
-            );
-
-            const rowStart = Math.min(selection.startRow, selection.endRow);
-            const rowEnd = Math.max(selection.startRow, selection.endRow);
-
-            for (let i = rowStart; i <= rowEnd; i++) {
-              const rowEl = dataRows[i];
-              if (!rowEl) continue;
-
-              const nameId = rowEl.getAttribute("name-id");
-              const orderObj = orders.find((o) => o.name_id === nameId);
-              if (nameId && orderObj && (!orderObj.asignee || isAdmin)) {
-                nameIds.push(nameId);
-              }
-            }
-          });
-
-          if (nameIds.length === 0) {
-            toast("No orders assigned", {
-              description: "All selected orders are already assigned. Only admins can reassign.",
-            });
-            return;
-          }
-
-          // Optimistic update using normalized value
-          setOrders((prev) => prev.map((o) => (nameIds.includes(o.name_id) ? { ...o, asignee: nextAsignee } : o)));
-
-          // Await to avoid refresh/realtime briefly overwriting with stale data
-          await assignMultiOrderToUser(nameIds, nextAsignee ?? "N/A");
-          return;
-        }
-
-        // Single row
-        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
-
-        await assignOrderToUser(row, nextAsignee ?? "N/A");
-      } catch (err) {
-        console.error("assign failed", err);
-        // Optional: revert by refetching, or keep a snapshot and restore it here.
+      // Multi assign (selection exists and includes this row)
+      if (selectedIds.length > 0) {
+        toast(`Assigning orders to ${userSelected}`, {
+          description: `${selectedIds.length} orders changed`,
+          action: {
+            label: "Undo",
+            onClick: () => {
+              // revert only selected rows
+              console.log("Reverting assignee for orders", selectedIds);
+              // setOrders((prev) =>
+              //   prev.map((o) =>
+              //     selectedIds.includes(o.name_id) ? { ...o, asignee: orders.find((orig) => orig.name_id === o.name_id)?.asignee || "N/A" } : o
+              //   )
+              // );
+              assignMultiOrderToUser(selectedIds, "N/A");
+            },
+          },
+        });
+        setOrders((prev) => prev.map((o) => (selectedIds.includes(o.name_id) ? { ...o, asignee: nextAsignee } : o)));
+        assignMultiOrderToUser(selectedIds, nextAsignee ?? "N/A");
+        return;
       }
-    },
-    [userSelected, isAdmin, orders, setOrders]
-  );
+
+      // No selection at all: single assign
+      setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
+      assignOrderToUser(row, nextAsignee ?? "N/A");
+      toast(`Assigning order to ${userSelected}`, {
+        description: `1 order changed`,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            // revert only this row
+            // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: "N/A" } : o)));
+            assignOrderToUser(row, "N/A");
+          },
+        },
+      });
+    } catch (err) {
+      console.error("assign failed", err);
+    }
+  },
+  [userSelected, isAdmin, orders, setOrders]
+);
 
   const handleRowClick = useCallback(
     (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {

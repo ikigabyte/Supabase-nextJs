@@ -130,7 +130,7 @@ export function ButtonOrganizer({
   const rowValue = showDifferent ? "N/A" : sumValue;
 
   const condensedUsers = [
-    { email: "Unselect Assignee", color: "white" },
+    { email: "N/A", color: "white" },
     ...Array.from(userRows.entries()).map(([email, color]) => ({
       email,
       color: getCorrectUserColor(userRows, email).backgroundColor,
