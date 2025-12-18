@@ -1763,8 +1763,6 @@ const handleAsigneeClick = useCallback(
             label: "Undo",
             onClick: () => {
               // revert only this row
-              console.log(nextAsignee);
-              console.log("Reverting assignee for order", row.name_id);
               // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
               assignOrderToUser(row, "N/A");
             },
@@ -1784,7 +1782,7 @@ const handleAsigneeClick = useCallback(
             label: "Undo",
             onClick: () => {
               // revert only selected rows
-              console.log("Reverting assignee for orders", selectedIds);
+              // console.log("Reverting assignee for orders", selectedIds);
               // setOrders((prev) =>
               //   prev.map((o) =>
               //     selectedIds.includes(o.name_id) ? { ...o, asignee: orders.find((orig) => orig.name_id === o.name_id)?.asignee || "N/A" } : o
