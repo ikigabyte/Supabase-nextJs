@@ -491,6 +491,7 @@ type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; 
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = getBrowserClient();
+  
   async function fetchAllOrders() {
     const allOrders = [];
     let from = 0;
@@ -501,6 +502,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       const { data, error, count } = await supabase
         .from("orders")
         .select("*", { count: "exact" })
+        .eq("production_status", orderType)
         .range(from, from + chunkSize - 1);
 
       if (error) {
@@ -720,7 +722,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       const counts = { ...categoryCounts };
       delete counts["sheets"];
       const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0); // for the order tracker
-      // console.log("Total count of all categories (excluding 'sheets'):", totalCount);
+      console.log("Total count of all categories (excluding 'sheets'):", totalCount);
       const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
       if (totalCount !== totalProductionCount) {
         // console.log("There is a mismatch in counts, refreshing orders...");
@@ -732,10 +734,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // );
     }
     // Run immediately, then every 5 minutes
-    checkMatchingCounts();
-    const interval = setInterval(checkMatchingCounts, TIME_BETWEEN_FORCED_REFRESHES);
+    checkMatchingCounts(); // without the interval 
+    // const interval = setInterval(checkMatchingCounts, TIME_BETWEEN_FORCED_REFRESHES);
 
-    return () => clearInterval(interval);
+    return () => {
+      // clearInterval(interval);
+    };
   }, [orders, supabase, orderType]);
 
   // 4) ----- subscribe to order_viewers + initial load -----
@@ -1736,87 +1740,87 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     console.error("Headers are not defined, please add some headers for these buttons here");
     return null;
   }
- 
-const handleAsigneeClick = useCallback(
-  async (row: Order) => {
-    const canOverride = !row.asignee || isAdmin;
-    if (!canOverride) {
-      toast("Cannot assign", {
-        description: "This order is already assigned. Only admins can reassign.",
-      });
-      return;
-    }
 
-    const nextAsignee: string | null = userSelected === "N/A" ? null : userSelected;
+  const handleAsigneeClick = useCallback(
+    async (row: Order) => {
+      const canOverride = !row.asignee || isAdmin;
+      if (!canOverride) {
+        toast("Cannot assign", {
+          description: "This order is already assigned. Only admins can reassign.",
+        });
+        return;
+      }
 
-    try {
-      const selectedIds = collectSelectedNameIds(dragSelections, orders, isAdmin);
-      // If there is a selection but it DOES NOT include this row, treat as single assign:
-      if (selectedIds.length > 0 && !selectedIds.includes(row.name_id)) {
-        pendingDragSelections.current.clear();
-        dragSelections.current.clear();
-        bumpSelectionVersion((v) => v + 1);
-        forceUpdate((n) => n + 1); // re-render selection UI immediately
+      const nextAsignee: string | null = userSelected === "N/A" ? null : userSelected;
+
+      try {
+        const selectedIds = collectSelectedNameIds(dragSelections, orders, isAdmin);
+        // If there is a selection but it DOES NOT include this row, treat as single assign:
+        if (selectedIds.length > 0 && !selectedIds.includes(row.name_id)) {
+          pendingDragSelections.current.clear();
+          dragSelections.current.clear();
+          bumpSelectionVersion((v) => v + 1);
+          forceUpdate((n) => n + 1); // re-render selection UI immediately
+          toast(`Assigning order to ${userSelected}`, {
+            description: `1 order changed`,
+            action: {
+              label: "Undo",
+              onClick: () => {
+                // revert only this row
+                // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
+                assignOrderToUser(row, "N/A");
+              },
+            },
+          });
+          // Single assign (only this row)
+          setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
+          await assignOrderToUser(row, nextAsignee ?? "N/A");
+          return;
+        }
+
+        // Multi assign (selection exists and includes this row)
+        if (selectedIds.length > 0) {
+          toast(`Assigning orders to ${userSelected}`, {
+            description: `${selectedIds.length} orders changed`,
+            action: {
+              label: "Undo",
+              onClick: () => {
+                // revert only selected rows
+                // console.log("Reverting assignee for orders", selectedIds);
+                // setOrders((prev) =>
+                //   prev.map((o) =>
+                //     selectedIds.includes(o.name_id) ? { ...o, asignee: orders.find((orig) => orig.name_id === o.name_id)?.asignee || "N/A" } : o
+                //   )
+                // );
+                assignMultiOrderToUser(selectedIds, "N/A");
+              },
+            },
+          });
+          setOrders((prev) => prev.map((o) => (selectedIds.includes(o.name_id) ? { ...o, asignee: nextAsignee } : o)));
+          assignMultiOrderToUser(selectedIds, nextAsignee ?? "N/A");
+          return;
+        }
+
+        // No selection at all: single assign
+        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
+        assignOrderToUser(row, nextAsignee ?? "N/A");
         toast(`Assigning order to ${userSelected}`, {
           description: `1 order changed`,
           action: {
             label: "Undo",
             onClick: () => {
               // revert only this row
-              // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
+              // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: "N/A" } : o)));
               assignOrderToUser(row, "N/A");
             },
           },
         });
-        // Single assign (only this row)
-        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
-        await assignOrderToUser(row, nextAsignee ?? "N/A");
-        return;
+      } catch (err) {
+        console.error("assign failed", err);
       }
-
-      // Multi assign (selection exists and includes this row)
-      if (selectedIds.length > 0) {
-        toast(`Assigning orders to ${userSelected}`, {
-          description: `${selectedIds.length} orders changed`,
-          action: {
-            label: "Undo",
-            onClick: () => {
-              // revert only selected rows
-              // console.log("Reverting assignee for orders", selectedIds);
-              // setOrders((prev) =>
-              //   prev.map((o) =>
-              //     selectedIds.includes(o.name_id) ? { ...o, asignee: orders.find((orig) => orig.name_id === o.name_id)?.asignee || "N/A" } : o
-              //   )
-              // );
-              assignMultiOrderToUser(selectedIds, "N/A");
-            },
-          },
-        });
-        setOrders((prev) => prev.map((o) => (selectedIds.includes(o.name_id) ? { ...o, asignee: nextAsignee } : o)));
-        assignMultiOrderToUser(selectedIds, nextAsignee ?? "N/A");
-        return;
-      }
-
-      // No selection at all: single assign
-      setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
-      assignOrderToUser(row, nextAsignee ?? "N/A");
-      toast(`Assigning order to ${userSelected}`, {
-        description: `1 order changed`,
-        action: {
-          label: "Undo",
-          onClick: () => {
-            // revert only this row
-            // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: "N/A" } : o)));
-            assignOrderToUser(row, "N/A");
-          },
-        },
-      });
-    } catch (err) {
-      console.error("assign failed", err);
-    }
-  },
-  [userSelected, isAdmin, orders, setOrders]
-);
+    },
+    [userSelected, isAdmin, orders, setOrders]
+  );
 
   const handleRowClick = useCallback(
     (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => {

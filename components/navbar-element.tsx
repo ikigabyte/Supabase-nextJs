@@ -7,7 +7,7 @@ import { DialogSearch } from "./search-dialog";
 // import SearchResults from "@/components/searchresults";
 import type { Session } from "@supabase/supabase-js";
 
-const DELAY_BETWEEN_UPDATES = 1500; // 1.5 seconds
+const DELAY_BETWEEN_UPDATES = 2000; // 1.5 seconds
 
 export function NavBarElement() {
   // const router = useRouter();
@@ -79,6 +79,7 @@ export function NavBarElement() {
   const timeoutRef = useRef<number | null>(null);
   const fetchCounts = useCallback(async () => {
     const statuses = ["print", "cut", "pack", "prepack", "ship"] as const;
+
     const newCounts: Record<(typeof statuses)[number], number> = {
       print: 0,
       cut: 0,
@@ -87,22 +88,20 @@ export function NavBarElement() {
       ship: 0,
     };
 
-    await Promise.all(
-      statuses.map(async (status) => {
-        const { count } = await supabase
-          .from("orders")
-          .select("*", { count: "exact", head: true }) // no rows returned
-          .eq("production_status", status);
-        newCounts[status] = count ?? 0;
-      })
-    );
+    const { data, error } = await supabase.from("orders").select("production_status").in("production_status", statuses);
+
+    if (error) {
+      console.error(error);
+    } else {
+      for (const row of data ?? []) {
+        const s = row.production_status as (typeof statuses)[number];
+        if (s in newCounts) newCounts[s] += 1;
+      }
+    }
 
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
-    timeoutRef.current = window.setTimeout(() => {
-      setCounts(newCounts);
-    }, DELAY_BETWEEN_UPDATES);
+    timeoutRef.current = window.setTimeout(() => setCounts(newCounts), DELAY_BETWEEN_UPDATES);
   }, [supabase]);
-
   // Counts + channel effect; depends on supabase and session
   useEffect(() => {
     if (session === null) return;
@@ -125,7 +124,7 @@ export function NavBarElement() {
   // Open DialogSearch on Ctrl+F or Cmd+F
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.shiftKey) && e.key.toLowerCase() === "f") {
+      if (e.shiftKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
         setDialogOpen(true);
       }
