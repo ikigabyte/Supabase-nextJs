@@ -492,13 +492,10 @@ type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; 
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = useMemo(() => getBrowserClient(), []);
-
   const fetchCount = useRef(0);
-
   async function fetchAllOrders() {
     fetchCount.current += 1;
     console.log("fetchAllOrders call #", fetchCount.current);
-
     const allOrders = [];
     let from = 0;
     const chunkSize = 1000; // at one time
@@ -522,8 +519,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         from += chunkSize;
       }
     }
-    // console.log("")
-    console.log(`Fetched total ${allOrders.length} orders for status ${orderType}`);
+
     // Filter out any order with order_id === 0
     return allOrders.filter((order) => order.order_id !== 0);
   }
@@ -533,18 +529,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     redirect("/login");
     return null; // or handle the error as needed
   }
-  console.log("render", { supabaseSame: supabase });
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       // console.log("Session:", session, "Error:", error);
-      const email = session?.user?.email ?? "";
-      if (!email) return;
-      // setUserSelected((prev) => (prev ? prev : email));
       setSession(session);
     });
-  }, [session]);
+  }, []);
 
+  // const me = session?.user?.email || "";
   const ignoreUpdateIds = useRef<Set<string>>(new Set());
   const ignoreRushIds = useRef<Set<string>>(new Set());
   const router = useRouter();
@@ -664,7 +657,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
     // console.log("Now tick updated:", nowTick);
-    const id = setInterval(() => setNowTick(Date.now()), 5 * 60_000); // every 5 min
+    const id = setInterval(() => setNowTick(Date.now()), 5 * 60_000); // every 1 min
     return () => clearInterval(id);
   }, []);
 
@@ -706,7 +699,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         setProfilesById(idMap);
         setUserRows(userColorMap);
         setMe(session?.user?.email ?? "");
-        // setUserSelected(session?.user?.email ?? "");
+        setUserSelected(session?.user?.email ?? "");
 
         // derive isAdmin from session email and idMap
         const myEmail = session?.user?.email ?? null;
@@ -832,7 +825,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     active.sort((a, b) => b.last.getTime() - a.last.getTime());
     idle.sort((a, b) => b.last.getTime() - a.last.getTime());
     return { activeViewers: active, idleViewers: idle };
-  }, [viewersByUser, nowTick]); // thj
+  }, [viewersByUser, nowTick]);
 
   const totalRecentViewers = activeViewers.length + idleViewers.length;
 
@@ -885,7 +878,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         endRow: rowIndex,
       });
       console.log("Selected row", nameId, "at index", rowIndex);
-      bumpSelectionVersion((v) => v + 1);
+      bumpSelectionVersion((n) => n + 1);
       // forceUpdate((n) => n + 1); // trigger re-render so highlight applies
     },
     [bumpSelectionVersion]
@@ -1135,7 +1128,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       })
       .subscribe();
 
-    return () => {
+   return () => {
       cancelled = true;
       supabase.removeChannel(channel);
       setLoading(false);
@@ -1262,7 +1255,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           pendingDragSelections.current.clear();
           setDragging(false);
           bumpSelectionVersion((v) => v + 1);
-          // forceUpdate((n) => n + 1);
         }
 
         dragStartPos.current = null;
@@ -1281,13 +1273,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
       document.body.style.cursor = "";
       bumpSelectionVersion((v) => v + 1);
-      // forceUpdate((n) => n + 1); // Dummy state to re-render
       if (dragging) {
         bumpSelectionVersion((v) => v + 1);
         dragSelections.current = new Map(pendingDragSelections.current);
         pendingDragSelections.current.clear();
         setDragging(false);
-        // bumpSelectionVersion((v) => v + 1);
+        bumpSelectionVersion((v) => v + 1);
         // handleDragging(null, false);
       } else {
         if (!e.shiftKey) {
@@ -1298,18 +1289,18 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
         const cell = (e.target as HTMLElement).closest("td");
         if (!cell) {
-          // forceUpdate((n) => n + 1);
+          bumpSelectionVersion((n) => n + 1);
           // console.log("No cell found on click");
           return;
         }
         const row = cell.parentElement as HTMLTableRowElement | null;
         if (!row) {
-          // forceUpdate((n) => n + 1);
+          bumpSelectionVersion((n) => n + 1);
           return;
         }
         const table = row.closest("table") as HTMLTableElement | null;
         if (!table) {
-          // forceUpdate((n) => n + 1);
+          bumpSelectionVersion((n) => n + 1);
           return;
         }
 
@@ -1362,9 +1353,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             dragSelections.current.set(table, { startRow: rowIndex, endRow: rowIndex, extras: new Set() });
           }
         }
-
-        bumpSelectionVersion((v) => v + 1);
-        // forceUpdate((n) => n + 1);
+        bumpSelectionVersion((n) => n + 1);
       }
 
       // document.body.style.removeProperty("user-select");
@@ -1444,32 +1433,31 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, [dragging]);
 
   useEffect(() => {
+    // console.log("Drag selections changed:", dragSelections.current);
     const selectedNameIds: string[] = [];
-
     dragSelections.current.forEach((selection, table) => {
       const tbody = table.querySelector("tbody");
       if (!tbody) return;
-
       const dataRows = Array.from(tbody.children).filter(
         (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
       );
-
       const rowStart = Math.min(selection.startRow, selection.endRow);
       const rowEnd = Math.max(selection.startRow, selection.endRow);
 
-      const picked = new Set<number>();
-      for (let i = rowStart; i <= rowEnd; i++) picked.add(i);
-      (selection.extras ?? new Set()).forEach((i) => picked.add(i));
-
-      picked.forEach((i) => {
+      for (let i = rowStart; i <= rowEnd; i++) {
         const row = dataRows[i];
-        if (!row) return;
+        // console.log("Selected row:", row.key);
+        if (!row) continue;
         const nameId = row.getAttribute("name-id");
-        if (nameId) selectedNameIds.push(nameId);
-      });
+        // console.log("Selected row name_id:", nameId);
+        if (nameId) {
+          selectedNameIds.push(nameId);
+        }
+      }
     });
-
+    // console.log("Selected name_ids:", selectedNameIds);
     if (selectedNameIds.length > 0) {
+      // console.log("Selected name_ids:", selectedNameIds);
       addOrderViewer(selectedNameIds);
     }
   }, [selectionVersion]);
