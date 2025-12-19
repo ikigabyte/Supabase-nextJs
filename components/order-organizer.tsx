@@ -2012,7 +2012,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 profilesById={profilesById}
               />
             </div>
-            <Button
+            {/* <Button
               onClick={async () => {
                 if (refreshed) return;
                 setRefreshed(true);
@@ -2029,7 +2029,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                 <RefreshCcw className="w-5 h-5" />
               )}
               Force Refresh
-            </Button>
+            </Button> */}
             <Button onClick={() => setOpen(true)}>
               <Info />
             </Button>
