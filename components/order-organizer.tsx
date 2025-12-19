@@ -674,16 +674,16 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   //   return () => clearInterval(id);
   // }, []);
 
-  useEffect(() => {
-    if (!hasLoadedOnce.current) return;
-    if (orders.length === 0) {
-      setDisplayWarning(
-        "⚠️ Orders are unable to be loaded - Please check your internet connection or contact support."
-      );
-    } else {
-      setDisplayWarning("");
-    }
-  }, [orders]);
+  // useEffect(() => {
+  //   if (!hasLoadedOnce.current) return;
+  //   if (orders.length === 0) {
+  //     setDisplayWarning(
+  //       "⚠️ Orders are unable to be loaded - Please check your internet connection or contact support."
+  //     );
+  //   } else {
+  //     setDisplayWarning("");
+  //   }
+  // }, [orders]);
 
   useEffect(() => {
     let cancelled = false;
