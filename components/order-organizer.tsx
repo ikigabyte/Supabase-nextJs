@@ -491,9 +491,14 @@ export function updateOrderCountersDom(counts: Counts, attempt = 0) {
 type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; user_email: string };
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
-  const supabase = getBrowserClient();
+  const supabase = useMemo(() => getBrowserClient(), []);
+
+  const fetchCount = useRef(0);
 
   async function fetchAllOrders() {
+    fetchCount.current += 1;
+    console.log("fetchAllOrders call #", fetchCount.current);
+
     const allOrders = [];
     let from = 0;
     const chunkSize = 1000; // at one time
@@ -517,7 +522,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         from += chunkSize;
       }
     }
-
+    // console.log("")
+    console.log(`Fetched total ${allOrders.length} orders for status ${orderType}`);
     // Filter out any order with order_id === 0
     return allOrders.filter((order) => order.order_id !== 0);
   }
@@ -527,15 +533,18 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     redirect("/login");
     return null; // or handle the error as needed
   }
+  console.log("render", { supabaseSame: supabase });
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       // console.log("Session:", session, "Error:", error);
+      const email = session?.user?.email ?? "";
+      if (!email) return;
+      // setUserSelected((prev) => (prev ? prev : email));
       setSession(session);
     });
-  }, []);
+  }, [session]);
 
-  // const me = session?.user?.email || "";
   const ignoreUpdateIds = useRef<Set<string>>(new Set());
   const ignoreRushIds = useRef<Set<string>>(new Set());
   const router = useRouter();
@@ -559,7 +568,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [hashValue, setHashValue] = useState<string | null>(null);
   const pendingRemovalIds = useRef<Set<string>>(new Set());
   const [userRows, setUserRows] = useState<Map<string, { color: string; position: string | null }>>(new Map());
-  const [updateCounter, forceUpdate] = useState(0);
+  // const [updateCounter, forceUpdate] = useState(0);
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
@@ -655,7 +664,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
     // console.log("Now tick updated:", nowTick);
-    const id = setInterval(() => setNowTick(Date.now()), 60_000); // every 1 min
+    const id = setInterval(() => setNowTick(Date.now()), 5 * 60_000); // every 5 min
     return () => clearInterval(id);
   }, []);
 
@@ -697,7 +706,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         setProfilesById(idMap);
         setUserRows(userColorMap);
         setMe(session?.user?.email ?? "");
-        setUserSelected(session?.user?.email ?? "");
+        // setUserSelected(session?.user?.email ?? "");
 
         // derive isAdmin from session email and idMap
         const myEmail = session?.user?.email ?? null;
@@ -724,34 +733,34 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [supabase, session]); // <- depend on session, not me/userSelected
 
-  useEffect(() => {
-    async function checkMatchingCounts() {
-      if (!orders || orders.length === 0) {
-        // console.log("Orders are not loaded yet, waiting...");
-        return;
-      }
-      const counts = { ...categoryCounts };
-      delete counts["sheets"];
-      const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0); // for the order tracker
-      // console.log("Total count of all categories (excluding 'sheets'):", totalCount);
-      const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
-      if (totalCount !== totalProductionCount) {
-        // console.log("There is a mismatch in counts, refreshing orders...");
-        const all = await fetchAllOrders();
-        setOrders(all);
-      }
-      // console.log(
-      //   `Category total (excluding 'sheets'): ${totalCount}, Production status total: ${totalProductionCount}`
-      // );
-    }
-    // Run immediately, then every 5 minutes
-    checkMatchingCounts(); // without the interval
-    // const interval = setInterval(checkMatchingCounts, TIME_BETWEEN_FORCED_REFRESHES);
+  // useEffect(() => {
+  //   async function checkMatchingCounts() {
+  //     if (!orders || orders.length === 0) {
+  //       // console.log("Orders are not loaded yet, waiting...");
+  //       return;
+  //     }
+  //     const counts = { ...categoryCounts };
+  //     delete counts["sheets"];
+  //     const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0); // for the order tracker
+  //     // console.log("Total count of all categories (excluding 'sheets'):", totalCount);
+  //     const totalProductionCount = await checkTotalCountsForStatus({ orders, supabase }, orderType);
+  //     if (totalCount !== totalProductionCount) {
+  //       // console.log("There is a mismatch in counts, refreshing orders...");
+  //       const all = await fetchAllOrders();
+  //       setOrders(all);
+  //     }
+  //     // console.log(
+  //     //   `Category total (excluding 'sheets'): ${totalCount}, Production status total: ${totalProductionCount}`
+  //     // );
+  //   }
+  //   // Run immediately, then every 5 minutes
+  //   checkMatchingCounts(); // without the interval
+  //   // const interval = setInterval(checkMatchingCounts, TIME_BETWEEN_FORCED_REFRESHES);
 
-    return () => {
-      // clearInterval(interval);
-    };
-  }, [orders, supabase, orderType]);
+  //   return () => {
+  //     // clearInterval(interval);
+  //   };
+  // }, [orders, supabase, orderType]);
 
   // 4) ----- subscribe to order_viewers + initial load -----
   // ---- 3) subscribe to INSERT + UPDATE (replace your current order_viewers channel) ----
@@ -823,7 +832,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     active.sort((a, b) => b.last.getTime() - a.last.getTime());
     idle.sort((a, b) => b.last.getTime() - a.last.getTime());
     return { activeViewers: active, idleViewers: idle };
-  }, [viewersByUser, nowTick]);
+  }, [viewersByUser, nowTick]); // thj
 
   const totalRecentViewers = activeViewers.length + idleViewers.length;
 
@@ -876,9 +885,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         endRow: rowIndex,
       });
       console.log("Selected row", nameId, "at index", rowIndex);
-      forceUpdate((n) => n + 1); // trigger re-render so highlight applies
+      bumpSelectionVersion((v) => v + 1);
+      // forceUpdate((n) => n + 1); // trigger re-render so highlight applies
     },
-    [forceUpdate]
+    [bumpSelectionVersion]
   );
 
   // any deps that change once tables/rows are in place
@@ -927,10 +937,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   useEffect(() => {
     // Initial load
+    let cancelled = false;
+
     setLoading(true);
     fetchAllOrders().then((allOrders) => {
-      // const takeOutOrderIds = allOrders.filter(order => order.production_status === "to_take_out").map(order => order.id);
-      setOrders(allOrders);
+      if (!cancelled) setOrders(allOrders);
     });
 
     const channel = supabase
@@ -1125,10 +1136,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
       setLoading(false);
     };
-  }, [orderType, currentRowClicked, isRowHovered]);
+  }, [orderType, supabase]);
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -1249,7 +1261,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           dragSelections.current = new Map(pendingDragSelections.current);
           pendingDragSelections.current.clear();
           setDragging(false);
-          forceUpdate((n) => n + 1);
+          bumpSelectionVersion((v) => v + 1);
+          // forceUpdate((n) => n + 1);
         }
 
         dragStartPos.current = null;
@@ -1267,13 +1280,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         setCurrentRowClicked(null);
       }
       document.body.style.cursor = "";
-      forceUpdate((n) => n + 1); // Dummy state to re-render
+      bumpSelectionVersion((v) => v + 1);
+      // forceUpdate((n) => n + 1); // Dummy state to re-render
       if (dragging) {
         bumpSelectionVersion((v) => v + 1);
         dragSelections.current = new Map(pendingDragSelections.current);
         pendingDragSelections.current.clear();
         setDragging(false);
-        forceUpdate((n) => n + 1);
+        // bumpSelectionVersion((v) => v + 1);
         // handleDragging(null, false);
       } else {
         if (!e.shiftKey) {
@@ -1284,18 +1298,18 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
         const cell = (e.target as HTMLElement).closest("td");
         if (!cell) {
-          forceUpdate((n) => n + 1);
+          // forceUpdate((n) => n + 1);
           // console.log("No cell found on click");
           return;
         }
         const row = cell.parentElement as HTMLTableRowElement | null;
         if (!row) {
-          forceUpdate((n) => n + 1);
+          // forceUpdate((n) => n + 1);
           return;
         }
         const table = row.closest("table") as HTMLTableElement | null;
         if (!table) {
-          forceUpdate((n) => n + 1);
+          // forceUpdate((n) => n + 1);
           return;
         }
 
@@ -1348,7 +1362,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             dragSelections.current.set(table, { startRow: rowIndex, endRow: rowIndex, extras: new Set() });
           }
         }
-        forceUpdate((n) => n + 1);
+
+        bumpSelectionVersion((v) => v + 1);
+        // forceUpdate((n) => n + 1);
       }
 
       // document.body.style.removeProperty("user-select");
@@ -1428,34 +1444,35 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, [dragging]);
 
   useEffect(() => {
-    // console.log("Drag selections changed:", dragSelections.current);
     const selectedNameIds: string[] = [];
+
     dragSelections.current.forEach((selection, table) => {
       const tbody = table.querySelector("tbody");
       if (!tbody) return;
+
       const dataRows = Array.from(tbody.children).filter(
         (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
       );
+
       const rowStart = Math.min(selection.startRow, selection.endRow);
       const rowEnd = Math.max(selection.startRow, selection.endRow);
 
-      for (let i = rowStart; i <= rowEnd; i++) {
+      const picked = new Set<number>();
+      for (let i = rowStart; i <= rowEnd; i++) picked.add(i);
+      (selection.extras ?? new Set()).forEach((i) => picked.add(i));
+
+      picked.forEach((i) => {
         const row = dataRows[i];
-        // console.log("Selected row:", row.key);
-        if (!row) continue;
+        if (!row) return;
         const nameId = row.getAttribute("name-id");
-        // console.log("Selected row name_id:", nameId);
-        if (nameId) {
-          selectedNameIds.push(nameId);
-        }
-      }
+        if (nameId) selectedNameIds.push(nameId);
+      });
     });
-    // console.log("Selected name_ids:", selectedNameIds);
+
     if (selectedNameIds.length > 0) {
-      // console.log("Selected name_ids:", selectedNameIds);
       addOrderViewer(selectedNameIds);
     }
-  }, [updateCounter]);
+  }, [selectionVersion]);
 
   // Hash values
   useEffect(() => {
