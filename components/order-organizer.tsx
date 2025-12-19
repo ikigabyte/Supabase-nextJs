@@ -1037,8 +1037,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // if (!payload.new.order_id)
         const oldRow = payload.old as Order;
         const updated = payload.new as Order;
-        if (updated.order_id === 0) {
-          console.log("update now on order_id 0");
+        if (updated.order_id === 0 && oldRow.name_id !== updated.name_id) {
+          // console.log(oldRow.notes, "->", updated.notes);
+          console.log("update now on order_id 0 that isn't notes");
           setDisplayWarning("New update on the website, please refresh the page.");
           return;
         }
