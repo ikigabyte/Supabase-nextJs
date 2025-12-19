@@ -524,6 +524,17 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return allOrders.filter((order) => order.order_id !== 0);
   }
 
+  async function fetchOrderZero() {
+    const { data, error } = await supabase.from("orders").select("*").eq("order_id", 0).maybeSingle();
+
+    if (error) {
+      console.error("Error fetching order with order_id 0:", error);
+      return null;
+    }
+    console.log(data);
+    return data;
+  }
+
   if (supabase === null) {
     console.error("Supabase client is null");
     redirect("/login");
@@ -554,6 +565,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const containerRef = useRef<HTMLDivElement>(null);
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
   const [userSelected, setUserSelected] = useState<string>("");
+  const [displayWarning, setDisplayWarning] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const rowRefs = useRef<{ [name_id: string]: HTMLTableRowElement | null }>({});
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
@@ -565,6 +577,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
+  const hasLoadedOnce = useRef(false);
   const [selectionVersion, bumpSelectionVersion] = useState(0);
   const [isShiftDown, setIsShiftDown] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -660,6 +673,17 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   //   const id = setInterval(() => setNowTick(Date.now()), 5 * 60_000); // every 1 min
   //   return () => clearInterval(id);
   // }, []);
+
+  useEffect(() => {
+    if (!hasLoadedOnce.current) return;
+    if (orders.length === 0) {
+      setDisplayWarning(
+        "⚠️ Orders are unable to be loaded - Please check your internet connection or contact support."
+      );
+    } else {
+      setDisplayWarning("");
+    }
+  }, [orders]);
 
   useEffect(() => {
     let cancelled = false;
@@ -933,10 +957,23 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   useEffect(() => {
     // Initial load
     let cancelled = false;
-
     setLoading(true);
     fetchAllOrders().then((allOrders) => {
-      if (!cancelled) setOrders(allOrders);
+      if (!cancelled) hasLoadedOnce.current = true;
+      setOrders(allOrders);
+      fetchOrderZero().then((orderZero) => {
+        // If orderZero exists, set the version id with orderZero.name_id
+        if (orderZero) {
+          const versionEl = document.getElementById("version-p");
+          if (versionEl) {
+            versionEl.textContent = `SB Database ${orderZero.name_id}`;
+          }
+        }
+        // if (orderZero) {
+        //   setOrders((prev) => [orderZero, ...prev]);
+        // }
+      });
+      // setLoading(false);
     });
 
     const channel = supabase
@@ -997,10 +1034,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
         // const oldStatus = (payload.old as Order).production_status as OrderTypes | null;
-
+        // if (!payload.new.order_id)
         const oldRow = payload.old as Order;
         const updated = payload.new as Order;
-
+        if (updated.order_id === 0) {
+          console.log("update now on order_id 0");
+          setDisplayWarning("New update on the website, please refresh the page.");
+          return;
+        }
         const norm = (v: string | null | undefined) => {
           const s = (v ?? "").trim();
           if (!s) return null;
@@ -1897,6 +1938,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // console.log(dragSelections);
   return (
     <>
+      {displayWarning !== "" && <div className="bg-red-900 text-white font-bold p-2 rounded">{displayWarning}</div>}
       <div className="relative" ref={containerRef}>
         <div className="flex flex-row items-start justify-between w-full">
           <div className="flex-shrink-0">
@@ -2001,11 +2043,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             // <OrderInputter tableHeaders={headers} onSubmit={createNewOrder}></OrderInputter>
           )}
         </div>
-        {!loading && orders.length === 0 && (
-          <div className="mb-4 text-yellow-700 bg-yellow-100 p-2 rounded">
-            ⚠️ Orders are unable to be loaded - Please check your internet connection or contact support.
-          </div>
-        )}
+
         <Fragment>
           {allKeys.map((key) => {
             // console.log("this is the key", key);

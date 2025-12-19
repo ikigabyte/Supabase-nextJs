@@ -43,7 +43,7 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
     }
   }
 };
-async function requireAdmin(user ?: { id: string; email?: string }) : Promise<boolean> {
+async function requireAdmin(user?: { id: string; email?: string }): Promise<boolean> {
   const supabase = await getServerClient();
   // const {
   //   data: { user },
@@ -70,11 +70,11 @@ async function requireAdmin(user ?: { id: string; email?: string }) : Promise<bo
   if (error && error.code !== "PGRST116") throw new Error("Admin check failed");
   if (!data) throw new Error("Not authorized");
   // return supabase;
-  return true
+  return true;
 }
-
 const getTimeStamp = () => {
   const timestamp = new Date().toLocaleString("en-US", {
+    timeZone: "America/Toronto",
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -160,7 +160,6 @@ export async function removeOrderLine(order: Order) {
 export async function removeOrderAll(orderId: number) {
   const supabase = await getServerClient();
 
-  
   // const {remove}
   const {
     data: { user },
@@ -202,26 +201,21 @@ export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: str
     console.error("Error fetching orders", fetchError);
     throw new Error("Error fetching orders");
   }
+  const isAdmin = await requireAdmin(user);
 
   // If asigneeValue is null, update all rows and bypass admin check
   let idsToUpdate: string[];
-  if (asigneeValue === null) {
+  if (asigneeValue === null || isAdmin) {
+    // Admin can unassign anyone or assign anyone no problem
     idsToUpdate = (rows ?? []).map((row) => row.name_id);
   } else {
     // Find rows that do NOT have an assignee
     const rowsWithoutAssignee = (rows ?? []).filter((row) => !row.asignee);
-
     if (rowsWithoutAssignee.length === 0) {
       console.warn("All selected orders already have an assignee");
       return;
     }
-
-    // Only admin can assign
-    const isAdmin = await requireAdmin(user);
-    if (!isAdmin) {
-      throw new Error("User is not an admin");
-    }
-    idsToUpdate = rowsWithoutAssignee.map((row) => row.name_id);
+    idsToUpdate = rowsWithoutAssignee.map((row) => row.name_id); // only update rows without assignee if you're not an admin
   }
 
   // const idsToUpdate = rowsWithoutAssignee.map((row) => row.name_id);
@@ -238,12 +232,12 @@ export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: str
   }
 
   // updatedRows is an array of { name_id: string } for rows that existed
-  const updatedIds = new Set((updatedRows ?? []).map((r) => r.name_id));
-  const missingIds = idsToUpdate.filter((id) => !updatedIds.has(id));
+  // const updatedIds = new Set((updatedRows ?? []).map((r) => r.name_id));
+  // const missingIds = idsToUpdate.filter((id) => !updatedIds.has(id));
 
-  if (missingIds.length > 0) {
-    console.warn("No matching orders found for name_id(s):", missingIds);
-  }
+  // if (missingIds.length > 0) {
+  //   console.warn("No matching orders found for name_id(s):", missingIds);
+  // }
 }
 
 // export async function assignOrderToUser(order: Order, asigneeValue?: string | null) {
@@ -256,7 +250,6 @@ export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: str
 
 //   if (!user) throw new Error("User is not logged in");
 
-  
 //   // Determine the value for asignee
 //   // console.log("Assigning to:", asigneeValue);
 //   const { error } = await supabase
@@ -305,16 +298,12 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
     return;
   }
 
-
   const { data: existingRecord, error: historyError } = await supabase
     .from("orders")
     .select("history")
     .eq("name_id", order.name_id)
     .single();
   if (historyError) throw new Error("Error fetching history");
-  
-
-
 
   const history: string[] = Array.isArray(existingRecord?.history)
     ? existingRecord.history.filter((h: unknown): h is string => typeof h === "string")

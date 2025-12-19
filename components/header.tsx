@@ -40,6 +40,21 @@ export default function Header() {
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [myColor, setMyColor] = useState<string | null>(null);
+  const [databaseVersion, setDatabaseVersion] = useState<string | null>(null);
+
+  // const { data, error } = await supabase.from("profiles").select("id, identifier, color, role, position");supabase
+  // const { data: ordersData, error: ordersError } = await supabase
+  //   .from("orders")
+  //   .select("*")
+  //   .eq("order_id", 0)
+  //   .maybeSingle();
+
+  // console.log("Orders data in Header:", ordersData, ordersError);
+  // useEffect(() => {
+  //   if (ordersData && ordersData.name_id) {
+  //     setDatabaseVersion(ordersData.name_id);
+  //   }
+  // }, [ordersData]);
 
   // Keep session/email in sync
   useEffect(() => {
@@ -91,7 +106,7 @@ export default function Header() {
         <nav className="flex items-center space-x-4 lg:space-x-3">
           <a className="mr-3 flex items-center space-x-2" href="/">
             <img src="/stickerbeat-logo.png" alt="Stickerbeat Logo" className="h-8 w-8" />
-            <p className="text-xs">v.22</p>
+            <p id="version-p" className="text-xs font-bold">SB Database</p>
           </a>
           <div className="flex items-center justify-end space-x-12">
             {session ? <NavBarElement /> : <Link href="/login" />}
