@@ -1848,12 +1848,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // setOrders((prev) =>
         //   prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
         // );
-        await assignAssigneeToRows([row], chosen);
+        await assignAssigneeToRows([row.name_id], chosen);
         toast(`Assigning order to ${chosen ?? "N/A"}`, {
           description: `1 order changed`,
           action: {
             label: "Undo",
-            onClick: () => assignAssigneeToRows([row], null),
+            onClick: () => assignAssigneeToRows([row.name_id], null),
           },
         });
       } catch (err) {
