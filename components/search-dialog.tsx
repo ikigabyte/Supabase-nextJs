@@ -55,6 +55,8 @@ export function DialogSearch({
           return `tocut?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
         case "pack":
           return `topack?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
+        case "prepack":
+          return `toprepack?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
         case "ship":
           return `toship?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
         default:

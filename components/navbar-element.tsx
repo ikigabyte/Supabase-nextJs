@@ -6,6 +6,7 @@ import { getBrowserClient } from "@/utils/supabase/client";
 import { DialogSearch } from "./search-dialog";
 // import SearchResults from "@/components/searchresults";
 import type { Session } from "@supabase/supabase-js";
+import { Search } from "lucide-react";
 
 const DELAY_BETWEEN_UPDATES = 2000; // 1.5 seconds
 
@@ -161,8 +162,9 @@ export function NavBarElement() {
           Admin
         </Link>
       )}
-      <Link href="#" onClick={() => setDialogOpen(true)}>
-        Search (Shift+F)
+      <Link href="#" onClick={() => setDialogOpen(true)} className="flex items-center gap-1">
+        <Search size={14} className="cursor-pointer" />
+        <span>Search Log</span>
       </Link>
       <DialogSearch open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>

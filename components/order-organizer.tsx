@@ -24,8 +24,7 @@ import {
   removeOrderAll,
   createCustomOrder,
   addOrderViewer,
-  assignOrderToUser,
-  assignMultiOrderToUser,
+  assignAssigneeToRows,
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -173,7 +172,6 @@ function collectSelectedNameIds(
   isAdmin: boolean
 ) {
   const ids: string[] = [];
-
   dragSelections.current.forEach((selection, table) => {
     const tbody = table.querySelector("tbody");
     if (!tbody) return;
@@ -184,26 +182,29 @@ function collectSelectedNameIds(
 
     const rowStart = Math.min(selection.startRow, selection.endRow);
     const rowEnd = Math.max(selection.startRow, selection.endRow);
+    // console.log("Collecting rows from", rowStart, "to", rowEnd);
+    // Collect all indices: range plus extras
+    const picked = new Set<number>();
+    for (let i = rowStart; i <= rowEnd; i++) picked.add(i);
+    (selection.extras ?? new Set()).forEach((i) => picked.add(i));
 
-    for (let i = rowStart; i <= rowEnd; i++) {
+    picked.forEach((i) => {
       const rowEl = dataRows[i];
-      if (!rowEl) continue;
+      if (!rowEl) return;
 
       const nameId = rowEl.getAttribute("name-id");
-      if (!nameId) continue;
+      if (!nameId) return;
 
       const orderObj = orders.find((o) => o.name_id === nameId);
-      if (!orderObj) continue;
+      if (!orderObj) return;
 
       // Only include if unassigned, unless admin
       if (!orderObj.asignee || isAdmin) ids.push(nameId);
-    }
+    });
   });
 
   return ids;
 }
-
-
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -491,7 +492,7 @@ type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; 
 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = getBrowserClient();
-  
+
   async function fetchAllOrders() {
     const allOrders = [];
     let from = 0;
@@ -744,7 +745,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // );
     }
     // Run immediately, then every 5 minutes
-    checkMatchingCounts(); // without the interval 
+    checkMatchingCounts(); // without the interval
     // const interval = setInterval(checkMatchingCounts, TIME_BETWEEN_FORCED_REFRESHES);
 
     return () => {
@@ -888,19 +889,19 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       const { data, error } = await supabase.from("profiles").select("identifier, color, position"); // email, color, position
 
       if (error) {
-      console.error("Failed to load profiles:", error);
-      return;
+        console.error("Failed to load profiles:", error);
+        return;
       }
       if (!cancelled) {
-      // Store as a Map<string, { color: string; position: string | null }>
-      const userColorMap = new Map<string, { color: string; position: string | null }>();
-      (data ?? []).forEach((row: any) => {
-        userColorMap.set(row.identifier ?? "", {
-        color: row.color ?? "",
-        position: row.position ?? null,
+        // Store as a Map<string, { color: string; position: string | null }>
+        const userColorMap = new Map<string, { color: string; position: string | null }>();
+        (data ?? []).forEach((row: any) => {
+          userColorMap.set(row.identifier ?? "", {
+            color: row.color ?? "",
+            position: row.position ?? null,
+          });
         });
-      });
-      setUserRows(userColorMap);
+        setUserRows(userColorMap);
       }
     })();
     return () => {
@@ -990,8 +991,38 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
         // const oldStatus = (payload.old as Order).production_status as OrderTypes | null;
+
         const oldRow = payload.old as Order;
         const updated = payload.new as Order;
+
+        const norm = (v: string | null | undefined) => {
+          const s = (v ?? "").trim();
+          if (!s) return null;
+          if (s.toLowerCase() === "n/a") return null;
+          return s;
+        };
+
+        const same = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+
+        // Assignee-only update: update row, but do not clear hover/click selection UI
+        const assigneeChanged = norm(oldRow.asignee) !== norm(updated.asignee);
+        // console.log(assigneeChanged);
+        // Define "assignee-only" as: only asignee changed, everything else same
+        // If JSON stringify is too heavy, compare a short whitelist of fields you care about.
+        if (
+          assigneeChanged &&
+          oldRow.name_id === updated.name_id &&
+          oldRow.production_status === updated.production_status &&
+          oldRow.notes === updated.notes &&
+          same(oldRow.history, updated.history) &&
+          oldRow.order_id === updated.order_id
+        ) {
+          setOrders((prev) =>
+            prev.map((o) => (o.name_id === updated.name_id ? { ...o, asignee: updated.asignee } : o)).slice()
+          );
+          return;
+        }
+
         // const oldStatus = oldRow.production_status as OrderTypes | null;
         // const newStatus = updated.production_status as OrderTypes | null;
         if (multiSelectedRows.has(updated.name_id)) {
@@ -1642,6 +1673,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     [orderType, session]
   );
 
+  const normalizeAssignee = (v: string | null) => {
+    const s = (v ?? "").trim();
+    if (!s) return null;
+    if (s.toLowerCase() === "n/a") return null;
+    return s;
+  };
+
   const handleDoubleClick = useCallback(
     async (fileName: string) => {
       if (orderType === "print") {
@@ -1756,7 +1794,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const handleAsigneeClick = useCallback(
     async (row: Order) => {
-      const canOverride = !row.asignee || isAdmin;
+      const current = normalizeAssignee(row.asignee);
+      const chosen = normalizeAssignee(userSelected);
+
+      const canOverride = !current || isAdmin;
       if (!canOverride) {
         toast("Cannot assign", {
           description: "This order is already assigned. Only admins can reassign.",
@@ -1764,68 +1805,50 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         return;
       }
 
-      const nextAsignee: string | null = userSelected === "N/A" ? null : userSelected;
-
       try {
         const selectedIds = collectSelectedNameIds(dragSelections, orders, isAdmin);
-        // If there is a selection but it DOES NOT include this row, treat as single assign:
+        // console.log(selectedIds);
+        // If there is a selection but it DOES NOT include this row, treat as single assign
         if (selectedIds.length > 0 && !selectedIds.includes(row.name_id)) {
           pendingDragSelections.current.clear();
           dragSelections.current.clear();
           bumpSelectionVersion((v) => v + 1);
-          forceUpdate((n) => n + 1); // re-render selection UI immediately
-          toast(`Assigning order to ${userSelected}`, {
+          // setOrders((prev) =>
+          //   prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
+          // );
+          await assignAssigneeToRows([row.name_id], chosen); // <-- chosen is null or a real name
+          toast(`Assigning order to ${chosen ?? "N/A"}`, {
             description: `1 order changed`,
             action: {
               label: "Undo",
-              onClick: () => {
-                // revert only this row
-                // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: row.asignee } : o)));
-                assignOrderToUser(row, "N/A");
-              },
+              onClick: () => assignAssigneeToRows([row.name_id], current), // revert to previous normalized value
             },
           });
-          // Single assign (only this row)
-          setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
-          await assignOrderToUser(row, nextAsignee ?? "N/A");
           return;
         }
-
-        // Multi assign (selection exists and includes this row)
+        // Multi assign
         if (selectedIds.length > 0) {
-          toast(`Assigning orders to ${userSelected}`, {
+          setOrders((prev) => prev.map((o) => (selectedIds.includes(o.name_id) ? { ...o, asignee: chosen } : o)));
+          await assignAssigneeToRows(selectedIds, chosen); // <-- chosen is null or real
+          toast(`Assigning orders to ${chosen ?? "N/A"}`, {
             description: `${selectedIds.length} orders changed`,
             action: {
               label: "Undo",
-              onClick: () => {
-                // revert only selected rows
-                // console.log("Reverting assignee for orders", selectedIds);
-                // setOrders((prev) =>
-                //   prev.map((o) =>
-                //     selectedIds.includes(o.name_id) ? { ...o, asignee: orders.find((orig) => orig.name_id === o.name_id)?.asignee || "N/A" } : o
-                //   )
-                // );
-                assignMultiOrderToUser(selectedIds, "N/A");
-              },
+              onClick: () => assignAssigneeToRows(selectedIds, null),
             },
           });
-          setOrders((prev) => prev.map((o) => (selectedIds.includes(o.name_id) ? { ...o, asignee: nextAsignee } : o)));
-          assignMultiOrderToUser(selectedIds, nextAsignee ?? "N/A");
           return;
         }
-
-        // No selection at all: single assign
-        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: nextAsignee } : o)));
-        assignOrderToUser(row, nextAsignee ?? "N/A");
-        toast(`Assigning order to ${userSelected}`, {
+        // No selection: single assign
+        // setOrders((prev) =>
+        //   prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
+        // );
+        await assignAssigneeToRows([row], chosen);
+        toast(`Assigning order to ${chosen ?? "N/A"}`, {
           description: `1 order changed`,
           action: {
             label: "Undo",
-            onClick: () => {
-              // revert only this row
-              // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: "N/A" } : o)));
-              assignOrderToUser(row, "N/A");
-            },
+            onClick: () => assignAssigneeToRows([row], null),
           },
         });
       } catch (err) {

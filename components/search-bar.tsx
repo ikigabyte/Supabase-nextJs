@@ -26,7 +26,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
   return (
     <div className="flex items-center space-x-2">
       <Input
-        placeholder="🔍 Search Orders"
+        placeholder="🔍 Search Entire Log"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}

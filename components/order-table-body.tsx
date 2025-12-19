@@ -181,6 +181,14 @@ const convertToOrderTypeDate = (date: string | null, orderType: string | undefin
   return formatted;
 };
 
+const normalizeAssignee = (v: string | null | undefined) => {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  if (s.toLowerCase() === "n/a") return null;
+  return s;
+};
+
+
 const isSectionIgnored = (material: string | null, section: string): boolean => {
   if (!material || material == null) return false;
   const lowerCaseMaterial = material.toLowerCase();
@@ -504,6 +512,8 @@ export function OrderTableBody({
         const prev = data[i - 1];
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
         const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus);
+        const assignee = normalizeAssignee(row.asignee);
+
         const meetsProduction = meetsProductionCycle(convertedProductionDate) && productionStatus !== "ship";
         const getDayOfDate = convertDateToActualDay(row.due_date);
         return (
@@ -630,40 +640,40 @@ export function OrderTableBody({
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
-                <TableCell
+              <TableCell
                 className={meetsProduction ? "text-red-500" : "text-black"}
                 onMouseEnter={(event) => {
                   if (productionStatus === "ship") {
-                  setTableCellHovered(cellRefs.current[i][1]);
+                    setTableCellHovered(cellRefs.current[i][1]);
                   } else if (meetsProduction) {
-                  handleMouseEnter(event, row, "production_warning");
+                    handleMouseEnter(event, row, "production_warning");
                   }
                 }}
                 onMouseLeave={handleMouseLeave}
-                >
+              >
                 {meetsProduction
                   ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
                   : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
-                </TableCell>
-                <TableCell
-                  className=""
-                  onMouseEnter={() => {
-                    if (productionStatus !== "ship") {
-                      setTableCellHovered(cellRefs.current[i][1]);
-                    } else {
-                      setTableCellHovered(cellRefs.current[i][2]);
-                    }
-                  }}
-                  onMouseLeave={() => setTableCellHovered(null)}
-                >
-                  {tableCellHovered &&
-                  ((productionStatus !== "ship" && tableCellHovered === cellRefs.current[i][1]) ||
-                    (productionStatus === "ship" && tableCellHovered === cellRefs.current[i][2]))
-                    ? getDayOfDate
-                    : productionStatus === "ship"
-                    ? convertDateToReadableDate(row.ihd_date)
-                    : convertDateToReadableDate(row.due_date)}
-                </TableCell>
+              </TableCell>
+              <TableCell
+                className=""
+                onMouseEnter={() => {
+                  if (productionStatus !== "ship") {
+                    setTableCellHovered(cellRefs.current[i][1]);
+                  } else {
+                    setTableCellHovered(cellRefs.current[i][2]);
+                  }
+                }}
+                onMouseLeave={() => setTableCellHovered(null)}
+              >
+                {tableCellHovered &&
+                ((productionStatus !== "ship" && tableCellHovered === cellRefs.current[i][1]) ||
+                  (productionStatus === "ship" && tableCellHovered === cellRefs.current[i][2]))
+                  ? getDayOfDate
+                  : productionStatus === "ship"
+                  ? convertDateToReadableDate(row.ihd_date)
+                  : convertDateToReadableDate(row.due_date)}
+              </TableCell>
               <TableCell
                 className=""
                 data-ignore-selection="true" // <-- new
@@ -677,22 +687,26 @@ export function OrderTableBody({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        onClick={() => onAsigneeClick(row)} 
+                        type="button"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onAsigneeClick(row);
+                        }}
                         className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
-                          !row.asignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
+                          !assignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
                         }`}
-                        style={row.asignee ? getCorrectUserColor(userColors, row.asignee) : undefined}
+                        style={assignee ? getCorrectUserColor(userColors, assignee) : undefined}
                       >
-                        {row.asignee && row.asignee.length >= 2
-                          ? row.asignee.slice(0, 2).toUpperCase()
-                          : row.asignee && row.asignee.length === 1
-                          ? row.asignee[0].toUpperCase()
+                        {assignee
+                          ? assignee.length >= 2
+                            ? assignee.slice(0, 2).toUpperCase()
+                            : assignee[0].toUpperCase()
                           : "N/A"}
                       </Button>
-                      {/* <Button variant="outline">Hover</Button> */}
                     </TooltipTrigger>
-
-                    <TooltipContent>{row.asignee}</TooltipContent>
+                    {assignee && <TooltipContent>{assignee}</TooltipContent>}
                   </Tooltip>
                 </TooltipProvider>
               </TableCell>

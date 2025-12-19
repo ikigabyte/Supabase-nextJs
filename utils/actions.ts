@@ -184,30 +184,53 @@ export async function removeOrderAll(orderId: number) {
   revalidatePath("/toprint");
 }
 
-export async function assignMultiOrderToUser(nameIds: string[], userEmail?: string) {
-
-  
+export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: string | null) {
   if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");
-
   const supabase = await getServerClient();
-  
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("User is not logged in");
-  const isAdmin = await requireAdmin(user); // * to integrate this with overriding the assignee
-  // if (!isAdmin) {
-    // throw new Error("User is not an admin"); // not authorized
-  const removeAssignee = userEmail == "N/A";
 
-  // Determine the value for asignee
-  const asigneeValue = removeAssignee ? null : (userEmail || user.email);
+  // Fetch the rows first
+  const { data: rows, error: fetchError } = await supabase
+    .from("orders")
+    .select("name_id, asignee")
+    .in("name_id", nameIds);
+
+  if (fetchError) {
+    console.error("Error fetching orders", fetchError);
+    throw new Error("Error fetching orders");
+  }
+
+  // If asigneeValue is null, update all rows and bypass admin check
+  let idsToUpdate: string[];
+  if (asigneeValue === null) {
+    idsToUpdate = (rows ?? []).map((row) => row.name_id);
+  } else {
+    // Find rows that do NOT have an assignee
+    const rowsWithoutAssignee = (rows ?? []).filter((row) => !row.asignee);
+
+    if (rowsWithoutAssignee.length === 0) {
+      console.warn("All selected orders already have an assignee");
+      return;
+    }
+
+    // Only admin can assign
+    const isAdmin = await requireAdmin(user);
+    if (!isAdmin) {
+      throw new Error("User is not an admin");
+    }
+    idsToUpdate = rowsWithoutAssignee.map((row) => row.name_id);
+  }
+
+  // const idsToUpdate = rowsWithoutAssignee.map((row) => row.name_id);
 
   const { data: updatedRows, error } = await supabase
     .from("orders")
-    .update({ asignee: asigneeValue }) // set to null if isEmptyEmail
-    .in("name_id", nameIds)
-    .select("name_id"); // <- return the rows that were actually updated
+    .update({ asignee: asigneeValue })
+    .in("name_id", idsToUpdate)
+    .select("name_id");
 
   if (error) {
     console.error("Error assigning orders", error);
@@ -216,42 +239,39 @@ export async function assignMultiOrderToUser(nameIds: string[], userEmail?: stri
 
   // updatedRows is an array of { name_id: string } for rows that existed
   const updatedIds = new Set((updatedRows ?? []).map((r) => r.name_id));
-  const missingIds = nameIds.filter((id) => !updatedIds.has(id));
+  const missingIds = idsToUpdate.filter((id) => !updatedIds.has(id));
 
   if (missingIds.length > 0) {
     console.warn("No matching orders found for name_id(s):", missingIds);
   }
-  // console.log("Orders assigned successfully for:", Array.from(updatedIds));
 }
 
-export async function assignOrderToUser(order: Order, userEmail?: string) {
-  if (!order) throw new Error("No order provided");
+// export async function assignOrderToUser(order: Order, asigneeValue?: string | null) {
+//   if (!order) throw new Error("No order provided");
 
-  const supabase = await getServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+//   const supabase = await getServerClient();
+//   const {
+//     data: { user },
+//   } = await supabase.auth.getUser();
 
-  if (!user) throw new Error("User is not logged in");
+//   if (!user) throw new Error("User is not logged in");
 
-    const removeAssignee = userEmail == "N/A";
   
-  // Determine the value for asignee
-  const asigneeValue = removeAssignee ? null : (userEmail || user.email);
-  // console.log("Assigning to:", asigneeValue);
-  const { error } = await supabase
-    .from("orders")
-    .update({ ...order, asignee: asigneeValue })
-    .match({ name_id: order.name_id });
+//   // Determine the value for asignee
+//   // console.log("Assigning to:", asigneeValue);
+//   const { error } = await supabase
+//     .from("orders")
+//     .update({ ...order, asignee: asigneeValue })
+//     .match({ name_id: order.name_id });
 
-  if (error) {
-    console.error("Error assigning order", error);
-    throw new Error("Error assigning order");
-  }
+//   if (error) {
+//     console.error("Error assigning order", error);
+//     throw new Error("Error assigning order");
+//   }
 
-  // Optionally revalidate if needed
-  // revalidatePath("/toprint");
-}
+//   // Optionally revalidate if needed
+//   // revalidatePath("/toprint");
+// }
 
 export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {
   // const ignoreZendesk = process.env.IGNORE_ZENDESK === "true"
