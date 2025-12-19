@@ -45,10 +45,6 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
 };
 async function requireAdmin(user?: { id: string; email?: string }): Promise<boolean> {
   const supabase = await getServerClient();
-  // const {
-  //   data: { user },
-  // } = await supabase.auth.getUser();
-  // if (!user) throw new Error("User is not logged in");
 
   if (!user) {
     const {
@@ -61,15 +57,17 @@ async function requireAdmin(user?: { id: string; email?: string }): Promise<bool
   const { data, error } = await supabase
     .from("profiles")
     .select<"role", AdminRow>("role")
-    .eq("id", user?.id) // column must store auth user id
+    .eq("id", user?.id)
     .eq("role", "admin")
     .single();
 
-  // console.log("Admin check data:", data, "error:", error);
-
-  if (error && error.code !== "PGRST116") throw new Error("Admin check failed");
-  if (!data) throw new Error("Not authorized");
-  // return supabase;
+  if (error && error.code !== "PGRST116") {
+    // Unexpected error
+    console.error("Error checking admin role:", error);
+    return false;
+  }
+  // If no data found, user is not admin
+  if (!data) return false;
   return true;
 }
 const getTimeStamp = () => {

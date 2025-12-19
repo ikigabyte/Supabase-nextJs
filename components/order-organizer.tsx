@@ -1844,7 +1844,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     async (row: Order) => {
       const current = normalizeAssignee(row.asignee);
       const chosen = normalizeAssignee(userSelected);
-
       const canOverride = !current || isAdmin;
       if (!canOverride) {
         toast("Cannot assign", {
@@ -1852,18 +1851,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         });
         return;
       }
-
       try {
+        // console.log("Assigning", row.name_id, "from", current, "to", chosen);
         const selectedIds = collectSelectedNameIds(dragSelections, orders, isAdmin);
-        // console.log(selectedIds);
+        // console.log(selectedIds); // ignore the whole admin for thing 
         // If there is a selection but it DOES NOT include this row, treat as single assign
         if (selectedIds.length > 0 && !selectedIds.includes(row.name_id)) {
           pendingDragSelections.current.clear();
           dragSelections.current.clear();
+          setOrders((prev) =>
+            prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
+          );
+          // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o)));
+          // console.log("returning here")
+          // console.log(row.name_id, chosen);
           bumpSelectionVersion((v) => v + 1);
-          // setOrders((prev) =>
-          //   prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
-          // );
           await assignAssigneeToRows([row.name_id], chosen); // <-- chosen is null or a real name
           toast(`Assigning order to ${chosen ?? "N/A"}`, {
             description: `1 order changed`,
@@ -1891,6 +1893,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // setOrders((prev) =>
         //   prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
         // );
+        setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o)));
+        // console.log(row.name_id, chosen);
+        bumpSelectionVersion((v) => v + 1);
         await assignAssigneeToRows([row.name_id], chosen);
         toast(`Assigning order to ${chosen ?? "N/A"}`, {
           description: `1 order changed`,
