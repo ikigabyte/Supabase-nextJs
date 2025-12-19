@@ -655,11 +655,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [viewersByUser, setViewersByUser] = useState<Map<string, Date>>(new Map());
 
   const [nowTick, setNowTick] = useState(() => Date.now());
-  useEffect(() => {
-    // console.log("Now tick updated:", nowTick);
-    const id = setInterval(() => setNowTick(Date.now()), 5 * 60_000); // every 1 min
-    return () => clearInterval(id);
-  }, []);
+  // useEffect(() => {
+  //   // console.log("Now tick updated:", nowTick);
+  //   const id = setInterval(() => setNowTick(Date.now()), 5 * 60_000); // every 1 min
+  //   return () => clearInterval(id);
+  // }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -783,6 +783,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           if (!prev || d > prev) map.set(key, d);
         });
         setViewersByUser(map);
+        setNowTick(Date.now());
       } else if (error) {
         console.error("order_viewers init error:", error);
       }
@@ -794,6 +795,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         "postgres_changes",
         { event: "*", schema: "public", table: "order_viewers" }, // INSERT + UPDATE (+ DELETE if you ever need)
         (payload) => {
+          // setNowTick(Date.now()); // refresh nowTick on any viewer activity to be able to check what time it is
           // console.log("order_viewers change:", payload.eventType, payload.new || payload.old);
           if (payload.new) upsert(payload.new as OrderViewerRow);
         }
@@ -811,7 +813,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // Viewer activity thresholds (in ms)
 
   const { activeViewers, idleViewers } = useMemo(() => {
-    const now = nowTick;
+    const now = nowTick; // this should compute when nowTick changes, i think
     const active: { user_id: string; last: Date }[] = [];
     const idle: { user_id: string; last: Date }[] = [];
 
@@ -1128,7 +1130,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       })
       .subscribe();
 
-   return () => {
+    return () => {
       cancelled = true;
       supabase.removeChannel(channel);
       setLoading(false);
