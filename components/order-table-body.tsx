@@ -188,7 +188,6 @@ const normalizeAssignee = (v: string | null | undefined) => {
   return s;
 };
 
-
 const isSectionIgnored = (material: string | null, section: string): boolean => {
   if (!material || material == null) return false;
   const lowerCaseMaterial = material.toLowerCase();
@@ -305,7 +304,7 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
 
   const handleBlur = () => {
     if (value !== note) {
-      console.log("Committing note change:", value);
+      // console.log("Committing note change:", value);
       onCommit(value);
     } else {
     }
@@ -377,7 +376,7 @@ export function OrderTableBody({
   dragSelections?: React.MutableRefObject<Map<HTMLTableElement, dragSel>>;
   getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void;
   onAsigneeClick: (row: Order) => void;
-  userColors: Map<string, { color: string; position: string | null }>;
+  userColors: Map<string, { color: string; position: string | null; initials?: string | null }>;
   isShiftDown: boolean;
 }) {
   // Example usage for setting userRows from data:
@@ -421,7 +420,7 @@ export function OrderTableBody({
   // console.log(hoveredCells?.current ? Array.from(hoveredCells.current) : "No hovered cells");
   const handleShiftClickRows = (selectedRows: Array<Order>) => {
     selectedRows.forEach((row) => {
-      console.log(row.quantity);
+      // console.log(row.quantity);
     });
   };
   // console.log("user colors" , userColors);
@@ -513,7 +512,23 @@ export function OrderTableBody({
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
         const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus);
         const assignee = normalizeAssignee(row.asignee);
-
+        // Try to find initials for the assignee from userColors map
+        let assigneeInitials: string | null = null;
+        if (assignee && assignee.toLowerCase() !== "n/a") {
+          // console.log(userColors.get(assignee)?.initials);
+          // Try to use initials from userColors if available, else fallback to first 2 letters
+          if (userColors.has(assignee)) {
+            const user = userColors.get(assignee);
+            assigneeInitials = user?.initials
+              ? user.initials.toUpperCase()
+              : assignee.length >= 2
+              ? assignee.slice(0, 2).toUpperCase()
+              : assignee[0].toUpperCase();
+          } else {
+            assigneeInitials = assignee.length >= 2 ? assignee.slice(0, 2).toUpperCase() : assignee[0].toUpperCase();
+          }
+        }
+        // Example: assigneeInitials will be "kr" if found, otherwise null
         const meetsProduction = meetsProductionCycle(convertedProductionDate) && productionStatus !== "ship";
         const getDayOfDate = convertDateToActualDay(row.due_date);
         return (
@@ -595,7 +610,7 @@ export function OrderTableBody({
                   // console.log("Clicked on row", row.color);
                   const now = Date.now();
                   if (now - lastClickTime.current < 350) {
-                    console.log("Double click detected on", safeName);
+                    // console.log("Double click detected on", safeName);
                     // 350ms threshold for double click
                     if (clickTimeout.current) clearTimeout(clickTimeout.current);
                     lastClickTime.current = 0;
@@ -699,11 +714,7 @@ export function OrderTableBody({
                         }`}
                         style={assignee ? getCorrectUserColor(userColors, assignee) : undefined}
                       >
-                        {assignee
-                          ? assignee.length >= 2
-                            ? assignee.slice(0, 2).toUpperCase()
-                            : assignee[0].toUpperCase()
-                          : "N/A"}
+                        {assigneeInitials || (assignee ? truncate(assignee, 2) : "N/A")}
                       </Button>
                     </TooltipTrigger>
                     {assignee && <TooltipContent>{assignee}</TooltipContent>}

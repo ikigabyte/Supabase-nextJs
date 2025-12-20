@@ -42,7 +42,7 @@ export type Database = {
       completed: {
         Row: {
           asignee: string | null
-          assigneeColor: string | null
+          quantityColor: string | null
           color: string | null
           due_date: string | null
           history: Json | null
@@ -64,7 +64,7 @@ export type Database = {
         }
         Insert: {
           asignee?: string | null
-          assigneeColor?: string | null
+          quantityColor?: string | null
           color?: string | null
           due_date?: string | null
           history?: Json | null
@@ -86,7 +86,7 @@ export type Database = {
         }
         Update: {
           asignee?: string | null
-          assigneeColor?: string | null
+          quantityColor?: string | null
           color?: string | null
           due_date?: string | null
           history?: Json | null
@@ -156,7 +156,7 @@ export type Database = {
       orders: {
         Row: {
           asignee: string | null
-          assigneeColor: string | null
+          quantityColor: string | null
           color: string | null
           due_date: string
           history: Json | null
@@ -178,7 +178,7 @@ export type Database = {
         }
         Insert: {
           asignee?: string | null
-          assigneeColor?: string | null
+          quantityColor?: string | null
           color?: string | null
           due_date: string
           history?: Json | null
@@ -200,7 +200,7 @@ export type Database = {
         }
         Update: {
           asignee?: string | null
-          assigneeColor?: string | null
+          quantityColor?: string | null
           color?: string | null
           due_date?: string
           history?: Json | null

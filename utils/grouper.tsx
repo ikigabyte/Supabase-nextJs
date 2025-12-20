@@ -25,6 +25,15 @@ function secondarySort(a: Order, b: Order) {
   return dateDiff;
 }
 
+
+function insertedSort(a: Order, b: Order) {
+  const aDate = a.inserted_date ? new Date(a.inserted_date).getTime() : 0;
+  const bDate = b.inserted_date ? new Date(b.inserted_date).getTime() : 0;
+  return aDate - bDate;
+}
+
+
+
 export function groupOrdersByOrderType(orderType: OrderTypes, orders: Order[]) {
   // Filter to just the orders for this type
   const filtered = orders.filter((order) => order.production_status === orderType);
@@ -33,7 +42,9 @@ export function groupOrdersByOrderType(orderType: OrderTypes, orders: Order[]) {
   const byGroup = filtered.slice().sort(primarySort);
 
   // Second sort: by due_date (this is a stable sort, so order_id and dash-number order are kept within ties)
-  const fullySorted = byGroup.slice().sort(secondarySort);
+  const secondarySorted = byGroup.slice().sort(secondarySort);
+
+  const fullySorted = secondarySorted.slice().sort(insertedSort);
 
   // Now group by order_id
   const grouped: Record<string, Order[]> = {};

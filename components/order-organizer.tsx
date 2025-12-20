@@ -662,7 +662,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   // 2) ----- inside OrderOrganizer component state block -----
   const [profilesById, setProfilesById] = useState<
-    Map<string, { name: string; color?: string | null; identifier?: string | null }>
+    Map<string, { name: string; color?: string | null; identifier?: string | null, forcedInitials ?: string | null }>
   >(new Map());
 
   const [viewersByUser, setViewersByUser] = useState<Map<string, Date>>(new Map());
@@ -688,7 +688,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase.from("profiles").select("id, identifier, color, role, position");
+      const { data, error } = await supabase.from("profiles").select("id, identifier, color, role, position, initials");
       if (error) {
         console.error("Failed to load profiles:", error);
         return;
@@ -702,9 +702,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             identifier?: string | null;
             role?: string | null;
             position?: string | null;
+            initials?: string | null;
           }
         >();
-        const userColorMap = new Map<string, { color: string; position: string | null }>();
+        const userColorMap = new Map<string, { color: string; position: string | null, initials?: string | null }>();
 
         (data ?? []).forEach((row: any) => {
           idMap.set(row.id, {
@@ -713,10 +714,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             identifier: row.identifier ?? null,
             role: row.role ?? null,
             position: row.position ?? null,
+            initials: row.initials ?? null, // trying this here
           });
           userColorMap.set(row.identifier ?? "", {
             color: row.color ?? "",
             position: row.position ?? null,
+            initials: row.initials ?? null,
           });
         });
 
@@ -729,7 +732,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const myEmail = session?.user?.email ?? null;
         if (myEmail) {
           let meProfile = undefined as
-            | { name: string; color?: string | null; identifier?: string | null; role?: string | null }
+            | { name: string; color?: string | null; identifier?: string | null; role?: string | null, initials?: string | null }
             | undefined;
 
           for (const profile of idMap.values()) {
@@ -1040,8 +1043,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (updated.order_id === 0 && oldRow.name_id !== updated.name_id) {
           // console.log(oldRow.notes, "->", updated.notes);
           console.log("update now on order_id 0 that isn't notes");
-          setDisplayWarning("New update on the website, please refresh the page.");
-          return;
+          if (updated.name_id == "0") { // maintenance mode
+            console.log("Sheet is under maintenance, ignoring update.");
+            // return;
+            setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
+          } else {
+            setDisplayWarning("New update on the website, please refresh the page.");
+          }
+          // return;
         }
         const norm = (v: string | null | undefined) => {
           const s = (v ?? "").trim();
