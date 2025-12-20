@@ -531,7 +531,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       console.error("Error fetching order with order_id 0:", error);
       return null;
     }
-    console.log(data);
+    if (data && data.name_id == "0") {
+      setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
+    }
+    // console.log(data);
     return data;
   }
 
@@ -1042,7 +1045,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const updated = payload.new as Order;
         if (updated.order_id === 0 && oldRow.name_id !== updated.name_id) {
           // console.log(oldRow.notes, "->", updated.notes);
-          console.log("update now on order_id 0 that isn't notes");
+          // console.log("update now on order_id 0 that isn't notes");
           if (updated.name_id == "0") { // maintenance mode
             console.log("Sheet is under maintenance, ignoring update.");
             // return;
@@ -1060,7 +1063,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         };
 
         const same = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
-
         // Assignee-only update: update row, but do not clear hover/click selection UI
         const assigneeChanged = norm(oldRow.asignee) !== norm(updated.asignee);
         // console.log(assigneeChanged);
