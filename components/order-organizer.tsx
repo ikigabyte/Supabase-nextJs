@@ -25,6 +25,7 @@ import {
   createCustomOrder,
   addOrderViewer,
   assignAssigneeToRows,
+  assignColorToQuantityRow
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -168,8 +169,7 @@ export const getTextColor = (category: string) => {
 
 function collectSelectedNameIds(
   dragSelections: React.MutableRefObject<Map<HTMLTableElement, DragSel>>,
-  orders: Order[],
-  isAdmin: boolean
+  orders: Order[]
 ) {
   const ids: string[] = [];
   dragSelections.current.forEach((selection, table) => {
@@ -194,17 +194,39 @@ function collectSelectedNameIds(
 
       const nameId = rowEl.getAttribute("name-id");
       if (!nameId) return;
-
-      const orderObj = orders.find((o) => o.name_id === nameId);
+      // console.log("Found selected row with nameId:", nameId);
+      const orderObj = orders.find((o) => o.name_id === nameId); // why is orders empty
       if (!orderObj) return;
-
+      ids.push(nameId);
       // Only include if unassigned, unless admin
-      if (!orderObj.asignee || isAdmin) ids.push(nameId);
+      // if (!orderObj.assignee) ids.push(nameId);
     });
   });
+  // console.log(orders);
 
   return ids;
 }
+// Map keyCode ("g1", "g2", "g3", "m1", "m2", "m3") to a color hex
+const switchKeyCodeForColor = (keyCode: string | null): string => {
+  if (!keyCode) return "";
+  switch (keyCode.toLowerCase()) {
+    case "g1":
+      return "#cfe2f3";
+    case "g2":
+      return "#b1d2efff";
+    case "g3":
+      return "#90c5f3ff";
+    case "m1":
+      return "#ead1dc";
+    case "m2":
+      return "#e8b8cdff";
+    case "m3":
+      return "#e39ebcff";
+    default:
+      return "";
+  }
+};
+
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -577,6 +599,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const pendingRemovalIds = useRef<Set<string>>(new Set());
   const [userRows, setUserRows] = useState<Map<string, { color: string; position: string | null }>>(new Map());
   // const [updateCounter, forceUpdate] = useState(0);
+  const pressedRef = useRef<Set<string>>(new Set());
+  const ordersRef = useRef(orders);
+  
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
@@ -944,21 +969,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [supabase]);
 
-  const refreshOrders = useCallback(async () => {
-    // setLoading(true);
-    try {
-      toast("Orders refreshed", {
-        description: "The orders have been successfully refreshed.",
-      });
-      // console.log("Manual refresh triggered");
-      const all = await fetchAllOrders();
-      setOrders(all);
-      // optional: keep navbar counters in sync
-      // const counts = await filterOutOrderCounts({ supabase });
-      // updateOrderCountersDom(counts);
-    } finally {
-    }
-  }, [supabase]);
+  // const refreshOrders = useCallback(async () => {
+  //   // setLoading(true);
+  //   try {
+  //     toast("Orders refreshed", {
+  //       description: "The orders have been successfully refreshed.",
+  //     });
+  //     // console.log("Manual refresh triggered");
+  //     const all = await fetchAllOrders();
+  //     setOrders(all);
+  //     // optional: keep navbar counters in sync
+  //     // const counts = await filterOutOrderCounts({ supabase });
+  //     // updateOrderCountersDom(counts);
+  //   } finally {
+  //   }
+  // }, [supabase]);
 
   useEffect(() => {
     // Initial load
@@ -1190,20 +1215,90 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     };
   }, [orderType, supabase]);
 
+  // useEffect(() => {
+  //   const handleKeyDown = async (e: KeyboardEvent) => {
+  //     if (orderType == "print") {
+  //       if (e.metaKey && e.key === "c") {
+  //         // console.log("Ctrl+C detected, copying print data...");
+  //         copyPrintData();
+  //       }
+  //       // Modular color assignment for keys 1-6
+  //     }
+    
+  //   };
+  //   document.addEventListener("keydown", handleKeyDown);
+  //   return () => {
+  //     document.removeEventListener("keydown", handleKeyDown);
+  //   };
+  // }, [orders, dragSelections, orderType]);
+
   useEffect(() => {
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "c" && orderType == "print") {
-        // console.log("Ctrl+C detected, copying print data...");
+    if (orderType !== "print") return; // skip for non print orders
+
+    const pressed = new Set<string>();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === "c") {
         copyPrintData();
+        return;
       }
+      pressed.add(e.code);
+      // console.log("Pressed keys:", Array.from(pressed).join(", "));
+      if (!e.shiftKey) return;
+
+      // If just Shift + 0, clear color (set to null)
+      if (pressed.has("Digit0") && pressed.size === 2 && pressed.has("ShiftLeft") || pressed.has("ShiftRight")) {
+        const collection = collectSelectedNameIds(dragSelections, orders);
+        if (collection.length === 0) {
+          toast.error("No orders selected for color removal.", {
+        duration: 3000,
+          });
+          return;
+        }
+        assignColorToQuantityRow(collection, null);
+        toast.success(`Removed color from ${collection.length} selected orders.`, {
+          duration: 3000,
+        });
+        return;
+      }
+
+      const hasG = pressed.has("KeyG");
+      const hasM = pressed.has("KeyM");
+      const number = pressed.has("Digit1") ? "1" : pressed.has("Digit2") ? "2" : pressed.has("Digit3") ? "3" : null;
+
+      if (number && (hasG || hasM)) {
+        // console.log("Triggered:", hasG ? "G" : "M", number);
+        const combinedKeyAndNumber = (hasG ? "G" : "M") + number;
+        const color = switchKeyCodeForColor(combinedKeyAndNumber);
+        // console.log(color);
+        const collection = collectSelectedNameIds(dragSelections, orders);
+        if (collection.length === 0) {
+          toast.error("No orders selected for color assignment.", {
+        duration: 3000,
+          });
+          return;
+        }
+        assignColorToQuantityRow(collection, color);
+        toast.success(`Assigned color ${color} to ${collection.length} selected orders.`, {
+          duration: 3000,
+        });
+      }
+
+        // e.preventDefault();
     };
 
-    document.addEventListener("keydown", handleKeyDown);
+    const onKeyUp = (e: KeyboardEvent) => {
+      pressed.delete(e.code);
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keyup", onKeyUp);
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keyup", onKeyUp);
     };
-  }, []);
+  }, [orders, dragSelections, orderType]);
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -1540,6 +1635,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     () => getCategoryCounts(orders, designatedCategories, orderType),
     [orders, designatedCategories]
   );
+  // Change "roll" to "roll-label" in designatedCategories
 
   if (!designatedCategories) {
     console.error("designatedCategories is undefined");
@@ -1852,6 +1948,80 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return null;
   }
 
+  // const assignQuantityColor = useCallback(
+  // async (hexCode : string) => {
+  //   // const current = normalizeAssignee(row.asignee);
+  //   // const chosen = normalizeAssignee(userSelected);
+  //   // const isAdmin = !current || isAdmin;
+  //   if (!isAdmin) {
+  //     toast("Cannot assign color", {
+  //       description: "You can't assign a color unless you're admin",
+  //     });
+  //     return;
+  //   }
+  //   try {
+  //     // console.log("Assigning", row.name_id, "from", current, "to", chosen);
+  //     const selectedIds = collectSelectedNameIds(dragSelections, orders, isAdmin);
+  //     // console.log(selectedIds); // ignore the whole admin for thing
+  //     // If there is a selection but it DOES NOT include this row, treat as single assign
+  //     // if (selectedIds.length > 0 && !selectedIds.includes(row.name_id)) {
+  //     //   pendingDragSelections.current.clear();
+  //     //   dragSelections.current.clear();
+  //     //   setOrders((prev) =>
+  //     //     prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
+  //     //   );
+  //     //   // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o)));
+  //     //   // console.log("returning here")
+  //     //   // console.log(row.name_id, chosen);
+  //     //   bumpSelectionVersion((v) => v + 1);
+  //     //   await assignAssigneeToRows([row.name_id], chosen); // <-- chosen is null or a real name
+  //     //   toast(`Assigning order to ${chosen ?? "N/A"}`, {
+  //     //     description: `1 order changed`,
+  //     //     action: {
+  //     //       label: "Undo",
+  //     //       onClick: () => assignAssigneeToRows([row.name_id], current), // revert to previous normalized value
+  //     //     },
+  //     //   });
+  //     //   return;
+  //     // }
+  //     // Multi assign
+  //     if (selectedIds.length > 0) {
+  //       console.log(selectedIds);
+  //       await assignColorToQuantityRow(selectedIds, hexCode); // <-- chosen is null or real
+  //       // setOrders((prev) => prev.map((o) => (selectedIds.includes(o.name_id) ? { ...o, asignee: chosen } : o)));
+  //       // await assignAssigneeToRows(selectedIds, chosen); // <-- chosen is null or real
+
+  //       toast(`Assigning orders `, {
+  //         description: `${selectedIds.length} orders changed`,
+  //         action: {
+  //           label: "Undo",
+  //           onClick: () => assignAssigneeToRows(selectedIds, null),
+  //         },
+  //       });
+  //       return;
+  //     }
+  //     // No selection: single assign
+  //     // setOrders((prev) =>
+  //     //   prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
+  //     // );
+  //     // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o)));
+  //     // // console.log(row.name_id, chosen);
+  //     // bumpSelectionVersion((v) => v + 1);
+  //     // await assignAssigneeToRows([row.name_id], chosen);
+  //     // toast(`Assigning order to ${chosen ?? "N/A"}`, {
+  //     //   description: `1 order changed`,
+  //     //   action: {
+  //     //     label: "Undo",
+  //     //     onClick: () => assignAssigneeToRows([row.name_id], null),
+  //     //   },
+  //     // });
+  //   } catch (err) {
+  //     console.error("assign failed", err);
+  //   }
+  // },
+  // [userSelected, isAdmin, orders, setOrders]
+  // );
+
   const handleAsigneeClick = useCallback(
     async (row: Order) => {
       const current = normalizeAssignee(row.asignee);
@@ -1865,15 +2035,22 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       }
       try {
         // console.log("Assigning", row.name_id, "from", current, "to", chosen);
-        const selectedIds = collectSelectedNameIds(dragSelections, orders, isAdmin);
-        // console.log(selectedIds); // ignore the whole admin for thing 
+        const selectedIds = collectSelectedNameIds(dragSelections, orders); // ignore the whole admin thing for now
+
+        if (!isAdmin) {
+          selectedIds.filter((id) => {
+            const o = orders.find((ord) => ord.name_id === id);
+            return o?.asignee == null || o?.asignee == "";
+          });
+        }
+
+        // todo filter out the ones that already have an assignee
+        // console.log(selectedIds); // ignore the whole admin for thing
         // If there is a selection but it DOES NOT include this row, treat as single assign
         if (selectedIds.length > 0 && !selectedIds.includes(row.name_id)) {
           pendingDragSelections.current.clear();
           dragSelections.current.clear();
-          setOrders((prev) =>
-            prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o))
-          );
+          setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o)));
           // setOrders((prev) => prev.map((o) => (o.name_id === row.name_id ? { ...o, asignee: chosen } : o)));
           // console.log("returning here")
           // console.log(row.name_id, chosen);

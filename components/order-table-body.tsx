@@ -635,6 +635,7 @@ export function OrderTableBody({
                 {capitalizeFirstLetter(row.shape) || "-"}
               </TableCell>
               <TableCell
+                style={{ backgroundColor: row.quantityColor || "transparent" }}
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
                 onMouseLeave={handleMouseLeave}
               >

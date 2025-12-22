@@ -180,6 +180,52 @@ export async function removeOrderAll(orderId: number) {
   console.log(`Orders with order_id ${orderId} deleted successfully`);
   revalidatePath("/toprint");
 }
+export async function assignColorToQuantityRow(nameIds: string[], colorValue?: string | null) { // this should be in a hexcode format
+  if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("User is not logged in");
+
+  // Fetch the rows first
+  const { data: rows, error: fetchError } = await supabase
+    .from("orders")
+    .select("name_id, quantityColor")
+    .in("name_id", nameIds);
+
+  if (fetchError) {
+    console.error("Error fetching orders", fetchError);
+    throw new Error("Error fetching orders");
+  }
+  // const isAdmin = await requireAdmin(user);
+  // if (isAdmin)
+  // If asigneeValue is null, update all rows and bypass admin check
+  let idsToUpdate = (rows ?? []).map((row) => row.name_id);
+  
+  // const idsToUpdate = rowsWithoutAssignee.map((row) => row.name_id);
+
+  const { data: updatedRows, error } = await supabase
+    .from("orders")
+    .update({ quantityColor: colorValue })
+    .in("name_id", idsToUpdate)
+    .select("name_id");
+
+  if (error) {
+    console.error("Error assigning orders", error);
+    throw new Error("Error assigning orders");
+  }
+
+  // updatedRows is an array of { name_id: string } for rows that existed
+  // const updatedIds = new Set((updatedRows ?? []).map((r) => r.name_id));
+  // const missingIds = idsToUpdate.filter((id) => !updatedIds.has(id));
+
+  // if (missingIds.length > 0) {
+  //   console.warn("No matching orders found for name_id(s):", missingIds);
+  // }
+}
+
+
 
 export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: string | null) {
   if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");

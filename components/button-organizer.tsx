@@ -157,7 +157,9 @@ export function ButtonOrganizer({
                 `}
                   onClick={() => handleClick(category)}
                 >
-                  {category.toUpperCase()} ({counts[category] || 0})
+                  {category.toLowerCase() === "roll"
+                  ? `${category.toUpperCase()}-LABEL`
+                  : category.toUpperCase()} ({counts[category] || 0})
                 </Button>
               );
             })}
