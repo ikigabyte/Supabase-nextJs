@@ -26,7 +26,7 @@ import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
-const STATUS_ORDER = ["print", "cut", "ship", "pack"] as const;
+const STATUS_ORDER = ["print", "cut", "prepack", "ship", "pack"] as const;
 type StatusType = (typeof STATUS_ORDER)[number];
 
 function getStatusIndex(status: string): number {
@@ -234,6 +234,7 @@ export function TimelineOrders() {
       pack: 0,
       cut: 0,
       ship: 0,
+      prepack: 0,
     };
 
     for (const order of orders) {
@@ -328,7 +329,7 @@ export function TimelineOrders() {
               <DialogHeader>
                 <DialogTitle>Timeline</DialogTitle>
                 <DialogDescription className="text-sm">
-                  This scans Zendesk categories: To Print, To Cut, To Pack and To Ship every hour on Zendesk. It
+                  This scans Zendesk categories: To Print, To Cut, To Pack, ToPrePack and To Ship every hour on Zendesk. It
                   organizes all the orders by due date and displays them here. Orders with ship dates longer then 30
                   days are not shown here
                 </DialogDescription>
