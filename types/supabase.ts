@@ -282,7 +282,7 @@ export type Database = {
       scheduler_deleter: { Args: never; Returns: undefined }
     }
     Enums: {
-      user_role: "user" | "admin"
+      user_role: "user" | "admin" | "manager"
     }
     CompositeTypes: {
       [_ in never]: never

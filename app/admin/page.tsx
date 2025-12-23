@@ -9,19 +9,16 @@ import { getBrowserClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import {
-  Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
-} from "@/components/ui/table";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
-import {
-  deleteAllOrders,
-} from "@/utils/actions";
-type Role = "user" | "admin";
+import { deleteAllOrders } from "@/utils/actions";
+type Role = "user" | "admin" | "manager";
 
 type ProfileRow = {
-  id: string;         // auth.users.id
+  id: string; // auth.users.id
   identifier: string; // email
   role: Role;
+  position: string | null;
 };
 
 type HistoryRow = {
@@ -57,16 +54,23 @@ export default function AdminPage() {
 
       const { data: me, error: meErr } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, position")
         .eq("id", user.id)
         .single();
-      if (meErr || me?.role !== "admin") return router.replace("/");
+      if (meErr || (me?.role !== "admin" && me?.role !== "manager")) return router.replace("/");
+      const isManager = me?.role === "manager";
+      const position = me?.position as string | null;
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("profiles")
-        .select("id, identifier, role")
+        .select("id, identifier, role, position")
         .order("identifier", { ascending: true });
 
+      if (isManager && position) {
+        query = query.eq("position", position);
+      }
+
+      const { data, error } = await query;
       if (!cancelled) {
         if (error) {
           console.error("Failed to load users:", error);
@@ -79,21 +83,53 @@ export default function AdminPage() {
     };
 
     boot();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [router, supabase]);
+
+  // Helper: start/end of a day in local time
+  function getDayRange(date: Date) {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 1);
+    return { start, end };
+  }
+
+  // The “active” day for the counter label and count
+  const activeDay = selectedDate ?? new Date();
+
+  const clicksOnActiveDay = useMemo(() => {
+    const { start, end } = getDayRange(activeDay);
+    return fullHistory.filter((h) => {
+      const t = new Date(h.inserted_at);
+      return t >= start && t < end;
+    }).length;
+  }, [fullHistory, activeDay]);
+
+  const clicksAllTime = fullHistory.length;
+
+  // Label text
+  const clicksDayLabel = useMemo(() => {
+    // If no date selected, show Today (optional)
+    if (!selectedDate) return "Clicked today";
+    return `Clicked ${format(selectedDate, "PPP")}`;
+  }, [selectedDate]);
 
   // Load full history for a user (all time)
   const loadHistory = async (profile: ProfileRow) => {
     setActive(profile);
-    console.log("Loading history for", profile.identifier);
-    console.log("Loading history for", profile.id);
+    // console.log("Loading history for", profile.identifier);
+    // console.log("Loading history for", profile.id);
+    // consolel.
     setLoadingHistory(true);
     const { data, error } = await supabase
       .from("history")
       .select("id, inserted_at, name_id, production_change")
       .eq("user_id", profile.id)
       .order("inserted_at", { ascending: false });
-    console.log(data, error);
+    // console.log(data, error);
     if (error) {
       console.error("Failed to load history:", error);
       setFullHistory([]);
@@ -121,12 +157,11 @@ export default function AdminPage() {
   }
 
   // Counters: today and all-time (always based on fullHistory)
-  const clicksAllTime = fullHistory.length;
-  const clicksToday = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return fullHistory.filter((h) => new Date(h.inserted_at) >= start).length;
-  }, [fullHistory]);
+  // const clicksToday = useMemo(() => {
+  //   const start = new Date();
+  //   start.setHours(0, 0, 0, 0);
+  //   return fullHistory.filter((h) => new Date(h.inserted_at) >= start).length;
+  // }, [fullHistory]);
 
   // Apply/Clear actions
   const onApplyDate = () => setHistory(applyDateFilter(fullHistory, selectedDate));
@@ -137,18 +172,22 @@ export default function AdminPage() {
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
 
-  return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Admin • Users</h1>
+  // useEffect(() => {
+  //   setHistory(applyDateFilter(fullHistory, selectedDate));
+  // }, [fullHistory, selectedDate]);
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  return (
+    <div className="p-10 space-y-6">
+      <h1 className="text-3xl font-semibold">User History</h1>
+      <div className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.2fr] gap-6">
         {/* Users (Email + Role) */}
-        <div className="overflow-x-auto border rounded">
-          <Table className="min-w-[560px]">
+        <div className="min-w-0 overflow-x-auto border rounded">
+          <Table className="w-full table-fixed text-sm">
             <TableHeader>
               <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead className="w-[60%]">Email</TableHead>
+                <TableHead className="w-[18%]">Role</TableHead>
+                <TableHead className="w-[22%]">Position</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -163,17 +202,24 @@ export default function AdminPage() {
                 >
                   <TableCell className="font-mono">{u.identifier}</TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${
-                      u.role === "admin" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"
-                    }`}>
+                    <span
+                      className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${
+                        u.role === "admin"
+                          ? "bg-red-100 text-red-800"
+                          : u.role === "manager"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
                       {u.role}
                     </span>
                   </TableCell>
+                  <TableCell>{!u.position ? "unassigned" : u.position}</TableCell>
                 </TableRow>
               ))}
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={2} className="text-sm text-muted-foreground">
+                  <TableCell colSpan={3} className="text-sm text-muted-foreground">
                     No users.
                   </TableCell>
                 </TableRow>
@@ -195,11 +241,11 @@ export default function AdminPage() {
               {/* Counters + Date filter toolbar */}
               <div className="flex flex-wrap items-center gap-3 mb-3">
                 <div className="rounded border px-4 py-3 bg-emerald-50 text-emerald-700">
-                  <div className="text-xs uppercase tracking-wide">Clicked today</div>
-                  <div className="text-2xl font-bold">{clicksToday}</div>
+                  <div className="text-xs uppercase tracking-wide">{clicksDayLabel}</div>
+                  <div className="text-2xl font-bold">{clicksOnActiveDay}</div>
                 </div>
                 <div className="rounded border px-4 py-3 bg-slate-50">
-                  <div className="text-xs uppercase tracking-wide text-slate-600">Clicked all time</div>
+                  <div className="text-xs uppercase tracking-wide text-slate-600 border-none">Clicked all time</div>
                   <div className="text-2xl font-bold">{clicksAllTime}</div>
                 </div>
 
@@ -216,17 +262,20 @@ export default function AdminPage() {
                       mode="single"
                       selected={selectedDate ?? undefined}
                       onSelect={(d) => setSelectedDate(d ?? null)}
-                      initialFocus
                     />
                   </PopoverContent>
                 </Popover>
 
-                <Button variant="secondary" onClick={onApplyDate}>Apply</Button>
-                <Button variant="ghost" onClick={onClearDate}>Clear</Button>
+                <Button variant="secondary" onClick={onApplyDate}>
+                  Apply
+                </Button>
+                <Button variant="ghost" onClick={onClearDate}>
+                  Clear
+                </Button>
               </div>
 
               {/* Orders table (filtered by date if selected) */}
-              <div className="overflow-x-auto border rounded">
+              <div className="min-w-0 overflow-x-auto border rounded">
                 {loadingHistory ? (
                   <div className="p-4 text-sm text-muted-foreground">Loading history…</div>
                 ) : (
@@ -265,7 +314,7 @@ export default function AdminPage() {
           )}
         </div>
       </div>
-      <Button
+      {/* <Button
         variant="destructive"
         disabled={loadingHistory}
         onClick={async () => {
@@ -276,7 +325,7 @@ export default function AdminPage() {
         }}
       >
         Reset Log
-      </Button>
-        </div>
+      </Button> */}
+    </div>
   );
 }

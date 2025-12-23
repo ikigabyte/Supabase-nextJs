@@ -65,10 +65,8 @@ export function NavBarElement() {
         if (!cancelled) setIsAdmin(false);
         return;
       }
-
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", userRes.user.id).single();
-
-      if (!cancelled) setIsAdmin(profile?.role === "admin");
+      if (!cancelled) setIsAdmin(profile?.role === "admin" || profile?.role === "manager");
     })();
 
     return () => {
