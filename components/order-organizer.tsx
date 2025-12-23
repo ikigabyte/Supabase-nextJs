@@ -213,7 +213,7 @@ const switchKeyCodeForColor = (keyCode: string | null): string => {
     case "g1":
       return "#cfe2f3";
     case "g2":
-      return "#b1d2efff";
+      return "#a5e6f6ff";
     case "g3":
       return "#90c5f3ff";
     case "m1":
@@ -1270,7 +1270,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // console.log("Triggered:", hasG ? "G" : "M", number);
         const combinedKeyAndNumber = (hasG ? "G" : "M") + number;
         const color = switchKeyCodeForColor(combinedKeyAndNumber);
-        // console.log(color);
         const collection = collectSelectedNameIds(dragSelections, orders);
         if (collection.length === 0) {
           toast.error("No orders selected for color assignment.", {
