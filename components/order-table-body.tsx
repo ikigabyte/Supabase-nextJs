@@ -443,9 +443,10 @@ export function OrderTableBody({
         }
         const quantityPart = splitPart[0];
         const sizePart = splitPart[2];
-        const multiplication = parseInt(quantityPart) * parseInt(sizePart);
-        const multiplicationInFeet = Math.round((multiplication / 12) * 100) / 100;
-        const combinedString = `${quantityPart} x ${sizePart}" H = ${multiplication}" or ${multiplicationInFeet}" ft`;
+        const multiplication = Number(quantityPart) * Number(sizePart); // 
+        // const multiplicationFinal = Math.round(multiplication * 100) / 100;
+        const multiplicationInFeet = (multiplication / 12);
+        const combinedString = `${quantityPart} x ${sizePart}" H = ${multiplication.toFixed(2)}" or ${multiplicationInFeet.toFixed(2)}" ft`;
         setRowHistory([combinedString]);
         setScrollAreaName("Tile Size");
         lastHoveredIdRef.current = row.name_id;
