@@ -25,7 +25,8 @@ import {
   createCustomOrder,
   addOrderViewer,
   assignAssigneeToRows,
-  assignColorToQuantityRow
+  assignColorToQuantityRow,
+  createReprint
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -997,7 +998,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (orderZero) {
           const versionEl = document.getElementById("version-p");
           if (versionEl) {
-            versionEl.textContent = `SB Database ${orderZero.name_id}`;
+            versionEl.textContent = `SB [BETA] Database ${orderZero.name_id}`;
           }
         }
         // if (orderZero) {
@@ -2343,6 +2344,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           onViewZendesk={() => handleMenuOptionClick("view")}
           onDeleteLine={() => handleMenuOptionClick("delete")}
           onDeleteAll={() => handleMenuOptionClick("deleteAll")}
+          onReprint={createReprint}
         />
       )}
       <Toaster theme={"dark"} richColors={true} />

@@ -18,6 +18,7 @@ import { Download } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Info, ExternalLink } from "lucide-react";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
+import { convertToSpaces } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 // const supabase = createClientComponentClient();
 // import { Toaster } from "@/components/ui/sonner";
@@ -342,6 +343,18 @@ export function TimelineOrders() {
           </Button>
         </div>
         {/* Orders Due */}
+        <Table className="w-full table-fixed min-w-0 mb-2 bg-black">
+          <TableHeader className="bg-black">
+            <TableRow className="">
+              <TableHead className="w-[20%] px-3 py-2 font-bold text-white">Order ID</TableHead>
+              <TableHead className="w-[20%] px-3 py-2 font-bold text-white">Shipping Method</TableHead>
+              <TableHead className="w-[20%] px-3 py-2 font-bold text-white">Due Date</TableHead>
+              <TableHead className="w-[20%] px-3 py-2 font-bold text-white">IHD Date</TableHead>
+              <TableHead className="w-[15%] px-3 py-2 font-bold text-white">Status</TableHead>
+              <TableHead className="w-[5%] px-3 py-2 font-bold text-white">Zendesk</TableHead>
+            </TableRow>
+          </TableHeader>
+        </Table>
         {combinedOrders.map((order) => {
           const orderIdNum = Number(order.order_id);
           const rows = ordersById[orderIdNum] ?? [];
@@ -398,7 +411,7 @@ export function TimelineOrders() {
                           <TableBody>
                             {rows.map((o) => (
                               <TableRow key={`${orderIdNum}-${o.name_id}`}>
-                                <TableCell className="text-xs truncate">{o.name_id}</TableCell>
+                                <TableCell className="text-xs truncate">{convertToSpaces(o.name_id)}</TableCell>
                                 <TableCell className="text-xs w-[20%] text-left">
                                   To {capitalizeFirstLetter(o.production_status)}
                                 </TableCell>

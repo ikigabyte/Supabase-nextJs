@@ -7,7 +7,6 @@ import { OrderTypes } from "./orderTypes";
 
 import { updateZendeskNotes } from "@/utils/google-functions";
 import { GoTrueAdminApi } from "@supabase/supabase-js";
-// import { order } from "tailwindcss/defaultTheme";
 
 type AdminRow = { role: "admin" | string };
 const getNewStatus = (currentStatus: string, revert: boolean) => {
@@ -309,6 +308,84 @@ export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: str
 //   // Optionally revalidate if needed
 //   // revalidatePath("/toprint");
 // }
+
+
+
+export async function createReprint(nameId: string, quantity: number) {
+  if (!nameId || !quantity) return;
+  // Ensure quantity is an integer (no decimals)
+  const intQuantity = Math.floor(quantity);
+  if (!Number.isInteger(intQuantity) || intQuantity <= 0) {
+    throw new Error("Quantity must be a positive integer");
+  }
+
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("User is not logged in");
+
+  console.log(`Creating reprint for ${nameId} with quantity ${quantity}`);
+  const { data: originalOrder, error: fetchError } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("name_id", nameId)
+    .single();
+
+  if (fetchError || !originalOrder) {
+    console.error("Original order not found", fetchError);
+    throw new Error("Original order not found");
+  }
+
+  // Find the next available -R{n} suffix for the new name_id
+  let reprintNumber = 1;
+  let newNameId = `${nameId}-R${reprintNumber}`;
+  // Fetch all name_ids that start with the base nameId + "-R"
+  const { data: reprints, error: reprintsError } = await supabase
+    .from("orders")
+    .select("name_id")
+    .like("name_id", `${nameId}-R%`);
+
+  if (reprintsError) {
+    console.error("Error checking for existing reprints", reprintsError);
+    throw new Error("Error checking for existing reprints");
+  }
+
+  const existingReprintNumbers = (reprints ?? [])
+    .map((row) => {
+      const match = row.name_id.match(new RegExp(`^${nameId}-R(\\d+)$`));
+      return match ? parseInt(match[1], 10) : null;
+    })
+    .filter((n): n is number => n !== null);
+
+  while (existingReprintNumbers.includes(reprintNumber)) {
+    reprintNumber++;
+    newNameId = `${nameId}-R${reprintNumber}`;
+  }
+
+  // Prepare the new order object
+  const reprintOrder = {
+    ...originalOrder,
+    name_id: newNameId,
+    quantity: intQuantity,
+    production_status: "print",
+    asignee: null,
+    rush: true,
+    notes: `IGNORE THIS ORDER`,
+    history: [`${user.email || user.id} created reprint on ${getTimeStamp()}`],
+  };
+
+  // Insert the reprint order
+  const { error: insertError } = await supabase.from("orders").insert(reprintOrder);
+
+  if (insertError) {
+    console.error("Error creating reprint order", insertError);
+    throw new Error("Error creating reprint order");
+  }
+
+  console.log("Reprint order created:", newNameId);
+}
 
 export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {
   // const ignoreZendesk = process.env.IGNORE_ZENDESK === "true"
