@@ -998,7 +998,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         if (orderZero) {
           const versionEl = document.getElementById("version-p");
           if (versionEl) {
-            versionEl.textContent = `SB [BETA] Database ${orderZero.name_id}`;
+            versionEl.textContent = `SB Database ${orderZero.name_id}`;
           }
         }
         // if (orderZero) {
