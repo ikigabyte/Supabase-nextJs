@@ -372,7 +372,7 @@ export async function createReprint(nameId: string, quantity?: number) {
     production_status: "print",
     asignee: null,
     rush: true,
-    notes: `IGNORE THIS ORDER`,
+    notes: `AUTOMATIC REPRINT FOR QUANTITY ${intQuantity}`,
     history: [`${user.email || user.id} created reprint on ${getTimeStamp()}`],
   };
 
