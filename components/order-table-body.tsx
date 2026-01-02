@@ -635,13 +635,18 @@ export function OrderTableBody({
               >
                 {capitalizeFirstLetter(row.shape) || "-"}
               </TableCell>
-              <TableCell
-                style={{ backgroundColor: row.quantityColor || "transparent" }}
+                <TableCell
+                style={{
+                  backgroundColor:
+                  row.production_status === "print" && row.quantityColor
+                    ? row.quantityColor
+                    : "transparent",
+                }}
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
                 onMouseLeave={handleMouseLeave}
-              >
+                >
                 {displayCorrectQuantity(row.quantity) || "-"}
-              </TableCell>
+                </TableCell>
 
               <TableCell>{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
               <TableCell

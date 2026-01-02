@@ -103,6 +103,7 @@ async function getSiblingOrders(orderId: number, newStatus: string): Promise<boo
   return false;
 }
 
+
 async function addHistoryForUser(nameid: string, newStatus: string, previousStatus: string) {
   const supabase = await getServerClient();
   const {
@@ -123,9 +124,7 @@ async function addHistoryForUser(nameid: string, newStatus: string, previousStat
     console.error("Error adding history", error);
     throw new Error("Error adding history");
   }
-
   return true;
-
   // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
 }
 
@@ -311,7 +310,8 @@ export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: str
 
 
 
-export async function createReprint(nameId: string, quantity: number) {
+export async function createReprint(nameId: string, quantity?: number) {
+  if (!quantity) return;
   if (!nameId || !quantity) return;
   // Ensure quantity is an integer (no decimals)
   const intQuantity = Math.floor(quantity);
@@ -383,8 +383,21 @@ export async function createReprint(nameId: string, quantity: number) {
     console.error("Error creating reprint order", insertError);
     throw new Error("Error creating reprint order");
   }
-
   console.log("Reprint order created:", newNameId);
+
+
+  const { error } = await supabase.from("history").insert({ // * little history stamp
+    user_id: user.id,
+    name_id: nameId,
+    production_change: `Created reprint ${newNameId} for quantity ${intQuantity}`,
+  }); // * It time stamps automatically
+
+  
+  if (error) {
+    console.error("Error adding history for reprint", error);
+    throw new Error("Error adding history for reprint");
+  }
+  
 }
 
 export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {

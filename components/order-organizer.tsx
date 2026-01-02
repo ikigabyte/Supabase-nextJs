@@ -1886,12 +1886,32 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     });
   }, []);
 
+
+  const handleReprintCreate = useCallback(
+    async (nameId: string, quantity: number) => {
+      await createReprint(nameId, quantity);
+      // console.log("Creating reprint for", nameId, "quantity", quantity);
+      toast("Reprint created", {
+        description: `Created reprint for ${nameId} (Quantity: ${quantity})`,
+      });
+    },
+    []
+  );
+
   const handleMenuOptionClick = useCallback(
-    async (option: string) => {
+    async (option: string, quantity?: number) => {
       if (currentRowClicked == null) {
         console.warn("No row clicked, skipping menu option handling.");
         return;
       }
+      // if (option == "reprint") {
+      //   createReprint(currentRowClicked!.name_id, quantity ?? 1);
+      //   // await markOrderAsReprint(currentRowClicked!);
+      //   toast("Order marked as reprint", {
+      //     description: `Order ${currentRowClicked!.name_id} has been marked as a reprint.`,
+      //   });
+      //   return;
+      // }
       if (option == "revert") {
         await updateOrderStatus(currentRowClicked!, true);
         toast(
@@ -2344,7 +2364,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           onViewZendesk={() => handleMenuOptionClick("view")}
           onDeleteLine={() => handleMenuOptionClick("delete")}
           onDeleteAll={() => handleMenuOptionClick("deleteAll")}
-          onReprint={createReprint}
+          onCreateReprint={(nameId, quantity) => handleReprintCreate(nameId, quantity)}
         />
       )}
       <Toaster theme={"dark"} richColors={true} />

@@ -15,7 +15,7 @@ type OrderViewerProps = {
   onViewZendesk: () => void;
   onDeleteLine: () => void;
   onDeleteAll: () => void;
-  onReprint: (nameId: string, quantity: number) => void;
+  onCreateReprint: (nameId: string, quantity: number) => void;
 };
 
 export function OrderViewer({
@@ -26,7 +26,7 @@ export function OrderViewer({
   onViewZendesk,
   onDeleteLine,
   onDeleteAll,
-  onReprint,
+  onCreateReprint
 }: OrderViewerProps) {
   const label = useMemo(() => {
     if (!currentRow?.name_id) return "No row selected";
@@ -44,7 +44,7 @@ export function OrderViewer({
   return (
     <>
       <div>
-        <ReprintDialog open={reprintOpen} onOpenChange={setReprintOpen} nameId={currentRow.name_id} onReprint={onReprint} />
+        <ReprintDialog open={reprintOpen} onOpenChange={setReprintOpen} nameId={currentRow.name_id} onReprint={onCreateReprint} />
       </div>
       <div
         data-ignore-selection="true"
