@@ -15,6 +15,7 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "white-matte-regular",
     "white-matte-tiles",
     "white-matte-promo",
+    "white-no-lamination",
     "holographic-gloss-regular",
     "holographic-gloss-tiles",
     "holographic-gloss-promo",
@@ -104,6 +105,11 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
       const noLaminationKey = keys.find((k) => k.startsWith("sheets-no-lamination"));
       if (noLaminationKey) return noLaminationKey;
     }
+
+    if (order.lamination === "no-lam" && order.material === "white") {
+      const noLamKey = keys.find((k) => k.startsWith("white-no-lamination"));
+      if (noLamKey) return noLamKey;
+    } // force return white no lam
 
     if (order.orderType === 1) {
       // console.log("Promo detected");
