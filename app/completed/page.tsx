@@ -1,64 +1,71 @@
 "use server";
 
-// import { ButtonOrganizer } from "@/components/button-organizer";
-import { OrderOrganizer } from "@/components/order-organizer";
-// import { Separator } from "@/components/ui/separator";
 import { getServerClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { Table } from "@/components/ui/table";
 import { OrderTableHeader } from "@/components/order-table-header";
-import { Eye } from "lucide-react";
-import { Button } from "@/components/ui/button";
-
 import { CompletedOrganizer } from "@/components/completed-organizer";
+import { CompletedOrderLookup } from "@/components/completed-order-lookup";
 
-export default async function CompletedPage() {
+export default async function CompletedPage({
+  searchParams,
+}: {
+  searchParams?: { page?: string; order?: string };
+}) {
   const supabase = await getServerClient();
-  // console.log("Creating Supabase client", supabase);
 
-  // console.log("Creating Supabase client", supabase);
   const {
     data: { user },
-    error,
   } = await supabase.auth.getUser();
-  // console.log("Fetched user:", user, "Error:", error);
 
-  // if (!user) {
-  //   console.log("User not found, redirecting to login");
-  //   return redirect("/login");
-  // }
-  // console.log("User found:", user);
+  if (!user) return redirect("/login");
 
-  // Paginated fetch from "Completed" table
-  const page = 1; // Default to page 1
+  const orderParamRaw = (searchParams?.order ?? "").replace(/\D/g, "").slice(0, 7);
+  const orderId = orderParamRaw ? Number(orderParamRaw) : null;
+
+  const pageRaw = searchParams?.page ?? "1";
+  const page = Math.max(parseInt(pageRaw, 10) || 1, 1);
+
   const limit = 100;
   const from = (page - 1) * limit;
   const to = page * limit - 1;
-  const { data: orders, count } = await supabase
+
+  let q = supabase
     .from("completed")
     .select("*", { count: "exact" })
-    .order("inserted_date", { ascending: false })
-    .range(from, to);
-  // console.log(orders);
+    .order("inserted_date", { ascending: false });
 
-  // console.log("Fetched Completed orders:", orders);
+  if (orderId !== null && Number.isFinite(orderId)) {
+    q = q.eq("order_id", orderId);
+  }
+
+  const { data: orders, count } = await q.range(from, to);
 
   const total = count || 0;
-  const pages = Math.ceil(total / limit);
+  const pages = Math.max(Math.ceil(total / limit), 1);
+
+  const hrefFor = (p: number) => {
+    const params = new URLSearchParams();
+    params.set("page", String(p));
+    if (orderParamRaw) params.set("order", orderParamRaw);
+    return `?${params.toString()}`;
+  };
+
   return (
-    <section className="p-1 pt-10 w-[98%] flex flex-col gap-2 mb-40 mx-auto">
+    <section className="p-1 pt-10 w-[95%] flex flex-col gap-2 mb-40 mx-auto">
       <h1 className="font-bold text-3xl">COMPLETED</h1>
+
+      <CompletedOrderLookup />
+
       <Table>
-        {/* Use the same headers styling */}
         <OrderTableHeader
           tableHeaders={[
             "file name",
@@ -80,19 +87,22 @@ export default async function CompletedPage() {
         />
         <CompletedOrganizer orders={orders} />
       </Table>
+
       <Pagination>
-        <PaginationPrevious href={`?page=${Math.max(page - 1, 1)}`}>Previous</PaginationPrevious>
+        <PaginationPrevious href={hrefFor(Math.max(page - 1, 1))}>Previous</PaginationPrevious>
+
         <PaginationContent>
           {Array.from({ length: pages }).map((_, idx) => {
             const p = idx + 1;
             return (
               <PaginationItem key={p} className={p === page ? "active" : ""}>
-                <PaginationLink href={`?page=${p}`}>{p}</PaginationLink>
+                <PaginationLink href={hrefFor(p)}>{p}</PaginationLink>
               </PaginationItem>
             );
           })}
         </PaginationContent>
-        <PaginationNext href={`?page=${Math.min(page + 1, pages)}`}>Next</PaginationNext>
+
+        <PaginationNext href={hrefFor(Math.min(page + 1, pages))}>Next</PaginationNext>
       </Pagination>
     </section>
   );
