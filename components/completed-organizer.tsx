@@ -1,21 +1,23 @@
 'use client'
 
+import React, { useState } from "react";
 import { TableCell, TableBody, TableRow } from "./ui/table";
-import { Eye } from "lucide-react";
+import { HistoryIcon } from "lucide-react";
 import { convertToSpaces } from "@/lib/utils";
-
-// import { Button } from "./ui/button";
-
-const openZendeskTicket = (orderId: string) => {
-  const url = `https://stickerbeat.zendesk.com/agent/tickets/${orderId}`;
-  window.open(url, "_blank");
-};
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { capitalizeFirstLetter } from "@/utils/stringfunctions";
 interface CompletedOrganizerProps {
   orders: any[] | null;
 }
 
+const convertInsertedDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+}
+
 export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
+  const [openDialogIndex, setOpenDialogIndex] = useState<number | null>(null);
+
   return (
     <>
       <TableBody>
@@ -24,27 +26,43 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
             key={order.name_id}
             className="[&>td]:py-1 align-top border-none  ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all"
           >
-            <TableCell>{index + 1}</TableCell>
+            {/* ...other TableCells... */}
             <TableCell>{convertToSpaces(order.name_id)}</TableCell>
-            <TableCell>{order.shape}</TableCell>
-            <TableCell>{order.lamination}</TableCell>
-            <TableCell>{order.material}</TableCell>
+            <TableCell>{capitalizeFirstLetter(order.shape)}</TableCell>
+            <TableCell>{capitalizeFirstLetter(order.lamination)}</TableCell>
+            <TableCell>{capitalizeFirstLetter(order.material)}</TableCell>
             <TableCell>{order.quantity}</TableCell>
-            <TableCell>{order.ink}</TableCell>
-            <TableCell>{order.print_method}</TableCell>
+            <TableCell>{capitalizeFirstLetter(order.ink)}</TableCell>
+            <TableCell>{capitalizeFirstLetter(order.print_method)}</TableCell>
             <TableCell>{order.due_date}</TableCell>
             <TableCell>{order.ihd_date}</TableCell>
-            <TableCell>{order.shipping_method}</TableCell>
-            <TableCell>{order.notes}</TableCell>
+            <TableCell>{capitalizeFirstLetter(order.shipping_method)}</TableCell>
+            <TableCell>{capitalizeFirstLetter(order.notes)}</TableCell>
+            <TableCell>{convertInsertedDate(order.inserted_date)}</TableCell>
+            
             <TableCell className="p-0">
-              <a
-                href={`https://stickerbeat.zendesk.com/agent/tickets/${order.order_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block p-2 bg-transparent"
+              <Dialog
+                open={openDialogIndex === index}
+                onOpenChange={(open) => setOpenDialogIndex(open ? index : null)}
               >
-                <Eye className="mr-3 text-black" />
-              </a>
+                <DialogHeader>
+                  <DialogTitle>
+                    <button
+                      type="button"
+                      className="flex items-center bg-transparent border-none cursor-pointer"
+                      aria-label="View History"
+                      onClick={() => setOpenDialogIndex(index)}
+                    >
+                      <HistoryIcon className="mr-3 text-black" />
+                    </button>
+                  </DialogTitle>
+                </DialogHeader>
+                <DialogContent>
+                  <div className="text-sm whitespace-pre-wrap">
+                    {order.history ? order.history : "No history available."}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </TableCell>
           </TableRow>
         ))}

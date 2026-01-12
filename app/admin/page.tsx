@@ -28,6 +28,7 @@ type HistoryRow = {
   production_change: string | null;
 };
 
+
 export default function AdminPage() {
   const supabase = getBrowserClient();
   const router = useRouter();
@@ -87,6 +88,46 @@ export default function AdminPage() {
       cancelled = true;
     };
   }, [router, supabase]);
+  
+
+  async function fetchAllHistoryForUser(params: {
+  supabase: ReturnType<typeof getBrowserClient>;
+  userId: string;
+  chunkSize?: number;
+}): Promise<HistoryRow[]> {
+  const { supabase, userId, chunkSize = 1000 } = params;
+
+  const all: HistoryRow[] = [];
+  let from = 0;
+  let more = true;
+
+  while (more) {
+    const { data, error } = await supabase
+      .from("history")
+      .select("id, inserted_at, name_id, production_change")
+      .eq("user_id", userId)
+      .order("inserted_at", { ascending: false })
+      .order("id", { ascending: false }) // tie-breaker
+      .range(from, from + chunkSize - 1);
+
+    if (error) {
+      console.error("Error fetching history:", error);
+      break;
+    }
+
+    const page = (data ?? []) as HistoryRow[];
+    all.push(...page);
+
+    if (page.length < chunkSize) {
+      more = false;
+    } else {
+      from += chunkSize;
+    }
+  }
+
+  return all;
+}
+
 
   // Helper: start/end of a day in local time
   function getDayRange(date: Date) {
@@ -118,31 +159,18 @@ export default function AdminPage() {
   }, [selectedDate]);
 
   // Load full history for a user (all time)
-  const loadHistory = async (profile: ProfileRow) => {
-    setActive(profile);
-    // console.log("Loading history for", profile.identifier);
-    // console.log("Loading history for", profile.id);
-    // consolel.
-    setLoadingHistory(true);
-    const { data, error } = await supabase
-      .from("history")
-      .select("id, inserted_at, name_id, production_change")
-      .eq("user_id", profile.id)
-      .order("inserted_at", { ascending: false });
-    // console.log(data, error);
-    if (error) {
-      console.error("Failed to load history:", error);
-      setFullHistory([]);
-      setHistory([]);
-    } else {
-      const rows = (data ?? []) as HistoryRow[];
-      setFullHistory(rows);
-      // apply current date filter immediately
-      setHistory(applyDateFilter(rows, selectedDate));
-    }
-    setLoadingHistory(false);
-  };
+const loadHistory = async (profile: ProfileRow) => {
+  setActive(profile);
+  setLoadingHistory(true);
 
+  try {
+    const rows = await fetchAllHistoryForUser({ supabase, userId: profile.id, chunkSize: 1000 });
+    setFullHistory(rows);
+    setHistory(applyDateFilter(rows, selectedDate));
+  } finally {
+    setLoadingHistory(false);
+  }
+};
   // Helper: filter by selected date (midnight..next midnight in local time)
   function applyDateFilter(rows: HistoryRow[], date: Date | null) {
     if (!date) return rows;

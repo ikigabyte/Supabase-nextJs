@@ -1,26 +1,24 @@
 import React from "react";
 import { TableHead, TableRow, TableHeader } from "@/components/ui/table";
 
-const widths: string[] = ["18%", "4%", "4%", "5%", "5%", "5%", "5%", "6%", "6%", "6%", "25%", "5%"];
+const widths: string[] = ["18%", "4%", "4%", "5%", "5%", "5%", "5%", "6%", "6%", "6%", "25%", "5%", "5%"];
 
-// const laminationHeaderColors = {
-//   matte: "bg-purple-500",
-//   gloss: "bg-blue-500",
-// };
 export function OrderTableHeader({
   tableHeaders,
-  ignoreAssignee
+  ignoreAssignee,
+  ignoreIndex,
 }: {
     tableHeaders: string[];
     ignoreAssignee?: boolean;
+    ignoreIndex?: boolean;
 }) {
   var laminationColor = "";
-  // console.log("Table Headers:", tableHeaders);
-  // Add an extra header if productionStatus is 'print'
-  let headers = ["#", ...tableHeaders];
-  let headerWidths = ["1%", ...widths];
+  let headers = ignoreIndex ? [...tableHeaders] : ["#", ...tableHeaders];
+  let headerWidths = ignoreIndex ? [...widths] : ["1%", ...widths];
 
+  console.log(tableHeaders);
   if (!ignoreAssignee) {
+    console.log("ADDING ASSIGNEE");
     headers = [...headers.slice(0, 10), "ASSIGNEE", ...headers.slice(10)];
 
     // Find the index of the 25% width and reduce it by 3%
@@ -40,12 +38,14 @@ export function OrderTableHeader({
             key={index}
             className={`border-r border-gray-200 font-bold text-white truncate text-[11px]${
               headers[index]?.toLowerCase() === "lamination" && laminationColor ? laminationColor : ""
-            }${index === 0 ? " text-center" : ""}`}
+            }${index === 0 && !ignoreIndex ? " text-center" : ""}`}
             style={{ width: w }}
           >
             {headers[index]
               ? headers[index].toUpperCase() === "CUT"
-                ? "CUT"
+                ? "CUT": 
+                    headers[index].toUpperCase() === "HISTORY"
+                ? "HISTORY" 
                 : headers[index].toUpperCase() === "ZENDESK"
                 ? "ZENDESK"
                 : headers[index].toUpperCase() === "SHIP"

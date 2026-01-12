@@ -72,9 +72,11 @@ export default async function CompletedPage() {
             "ihd_date",
             "shipping speed",
             "notes",
-            "Zendesk",
+            "completed_at",
+            "history",
           ]}
           ignoreAssignee={true}
+          ignoreIndex={true}
         />
         <CompletedOrganizer orders={orders} />
       </Table>
