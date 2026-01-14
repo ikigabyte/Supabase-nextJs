@@ -50,9 +50,8 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
         <TableRow
           key={order.name_id}
           className="[&>td]:py-1 align-top border-none ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all hover:bg-gray-50 cursor-pointer"
-          onClick={() => openUpZendeskTicket(order.order_id)}
         >
-          <TableCell>{convertToSpaces(order.name_id)}</TableCell>
+          <TableCell onClick={() => openUpZendeskTicket(order.order_id)}>{convertToSpaces(order.name_id)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.shape)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.lamination)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.material)}</TableCell>
@@ -66,10 +65,7 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
           <TableCell>{convertInsertedDate(order.inserted_date)}</TableCell>
 
           <TableCell className="p-0">
-            <Dialog
-              open={openDialogIndex === index}
-              onOpenChange={(open) => setOpenDialogIndex(open ? index : null)}
-            >
+            <Dialog open={openDialogIndex === index} onOpenChange={(open) => setOpenDialogIndex(open ? index : null)}>
               <DialogHeader>
                 <DialogTitle>
                   <button
@@ -83,9 +79,7 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
                 </DialogTitle>
               </DialogHeader>
               <DialogContent>
-                <div className="text-sm whitespace-pre-wrap">
-                  {breakHistoryByComma(order.history)}
-                </div>
+                <div className="text-sm whitespace-pre-wrap">{breakHistoryByComma(order.history)}</div>
               </DialogContent>
             </Dialog>
           </TableCell>

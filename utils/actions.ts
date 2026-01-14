@@ -169,11 +169,34 @@ export async function removeOrderAll(orderId: number) {
     throw new Error("User is not an admin"); // not authorized
   }
 
+  // Get all name_ids that belong to this order_id before deleting
+  const { data: orderRows, error: fetchError } = await supabase
+    .from("orders")
+    .select("name_id, production_status")
+    .eq("order_id", orderId);
+
+  if (fetchError) {
+    console.error("Error fetching name_ids for order_id", orderId, fetchError);
+    throw new Error("Error fetching name_ids for order");
+  }
+
+  const nameIds = (orderRows ?? []).map((row) => row.name_id);
+  // Update the history for each name_id based on its production_status before deletion
+  if (orderRows && orderRows.length > 0) {
+    await Promise.all(
+      orderRows.map((row) =>
+        addHistoryForUser(row.name_id, "deleted", row.production_status || "")
+      )
+    );
+  }
+  
   const { error } = await supabase.from("orders").delete().eq("order_id", orderId);
   if (error) {
     console.error("Error deleting orders", error);
     throw new Error("Error deleting orders");
   }
+
+  await Promise.all(nameIds.map((nameId) => addHistoryForUser(nameId, "deleted", "N/A")));
 
   console.log(`Orders with order_id ${orderId} deleted successfully`);
   revalidatePath("/toprint");

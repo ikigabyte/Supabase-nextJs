@@ -73,7 +73,7 @@ export default async function CompletedPage({
       <Table>
         <OrderTableHeader
           tableHeaders={[
-            "file name",
+            "file name (click to view on zendesk)",
             "shape",
             "lamination",
             "material",
