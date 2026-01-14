@@ -7,6 +7,7 @@ import { convertToSpaces } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
 import { off } from "process";
+import { order } from "tailwindcss/defaultTheme";
 
 interface CompletedOrganizerProps {
   orders: any[] | null;
@@ -17,18 +18,27 @@ const convertInsertedDate = (dateString: string) => {
   return date.toLocaleDateString() + " " + date.toLocaleTimeString();
 };
 
+const fixQuantityString = (quantity: string | number) => {
+  if (typeof quantity === "number") return quantity;
+  // Remove anything after the second '-' (including the dash itself)
+  const parts = quantity.split("-");
+  if (parts.length > 2) {
+    quantity = parts.slice(0, 2).join("-");
+  }
+  const num = parseInt(quantity, 10);
+  return isNaN(num) ? quantity : num;
+};
+
+const openUpZendeskTicket = (orderId: number) => {
+  window.open(`https://stickerbeat.zendesk.com/agent/tickets/${orderId}`, "_blank");
+};
+
 const breakHistoryByComma = (history: unknown) => {
-  if (!history || typeof history !== "object") return "No history available.";
-  // Try to find a string property in the object (commonly 'history' or 'value')
-  const historyStr =
-    (history as any).history ||
-    (history as any).value ||
-    Object.values(history as any).find((v) => typeof v === "string");
-
-  if (!historyStr || typeof historyStr !== "string" || !historyStr.trim())
-    return "No history available.";
-
-  return historyStr.split(",").map((step) => step.trim()).join("\n");
+  if (!Array.isArray(history)) return "No history available.";
+  return history
+    .map((entry) => (typeof entry === "string" && entry.trim().length > 0 ? `• ${entry}` : ""))
+    .filter((entry) => entry.length > 0)
+    .join("\n");
 };
 
 export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
@@ -39,13 +49,14 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
       {orders?.map((order, index) => (
         <TableRow
           key={order.name_id}
-          className="[&>td]:py-1 align-top border-none ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all"
+          className="[&>td]:py-1 align-top border-none ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all hover:bg-gray-50 cursor-pointer"
+          onClick={() => openUpZendeskTicket(order.order_id)}
         >
           <TableCell>{convertToSpaces(order.name_id)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.shape)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.lamination)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.material)}</TableCell>
-          <TableCell>{order.quantity}</TableCell>
+          <TableCell>{fixQuantityString(order.quantity)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.ink)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.print_method)}</TableCell>
           <TableCell>{order.due_date}</TableCell>

@@ -62,7 +62,7 @@ export default async function CompletedPage({
   return (
     <section className="p-1 pt-10 w-[95%] flex flex-col gap-2 mb-40 mx-auto">
       <h1 className="font-bold text-3xl">COMPLETED</h1>
-
+      <p>Click on a row to open the corresponding Zendesk ticket.</p>
       <CompletedOrderLookup />
 
       <Table>
@@ -87,10 +87,8 @@ export default async function CompletedPage({
         />
         <CompletedOrganizer orders={orders} />
       </Table>
-
       <Pagination>
         <PaginationPrevious href={hrefFor(Math.max(page - 1, 1))}>Previous</PaginationPrevious>
-
         <PaginationContent>
           {Array.from({ length: pages }).map((_, idx) => {
             const p = idx + 1;

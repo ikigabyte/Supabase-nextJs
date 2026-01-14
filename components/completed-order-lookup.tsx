@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { SearchIcon } from "lucide-react";
 
 export function CompletedOrderLookup() {
   const router = useRouter();
@@ -46,36 +47,35 @@ export function CompletedOrderLookup() {
   };
 
   return (
-    <>
-      <textarea
-        className="w-full min-h-[44px] max-h-[120px] resize-y rounded border p-2 font-mono text-sm"
-        placeholder="Search Order Number"
-        value={orderCode}
-        onChange={(e) => onChange(e.target.value)}
-      />
-
-      <div className="flex items-center gap-2">
-        <div className="text-xs text-muted-foreground">{orderCode.length}/7 digits</div>
-
+    <div className="flex justify-end">
+      <div className="flex w-[30%] min-w-[120px] items-center gap-2">
+        <textarea
+          className="w-full h-[44px] resize-none rounded border p-2 font-mono text-sm"
+          placeholder="Search Order Number"
+          value={orderCode}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ minHeight: 44, maxHeight: 44 }}
+        />
         <Button
           type="button"
           variant="default"
-          className="ml-auto"
+          className="h-[44px]"
           onClick={search}
           disabled={!orderCode}
         >
+          <SearchIcon className="mr-2 h-4 w-4" />
           Search
         </Button>
-
         <Button
           type="button"
           variant="secondary"
+          className="h-[44px]"
           onClick={clear}
           disabled={!orderCode}
         >
           Clear
         </Button>
       </div>
-    </>
+    </div>
   );
 }
