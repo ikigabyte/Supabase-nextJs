@@ -1,5 +1,3 @@
-"use server";
-
 import { getServerClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import {
@@ -15,11 +13,18 @@ import { OrderTableHeader } from "@/components/order-table-header";
 import { CompletedOrganizer } from "@/components/completed-organizer";
 import { CompletedOrderLookup } from "@/components/completed-order-lookup";
 
+type CompletedSearchParams = {
+  page?: string;
+  order?: string;
+};
+
 export default async function CompletedPage({
   searchParams,
 }: {
-  searchParams?: { page?: string; order?: string };
+  searchParams?: Promise<CompletedSearchParams>;
 }) {
+  const sp = (await searchParams) ?? {};
+
   const supabase = await getServerClient();
 
   const {
@@ -28,10 +33,10 @@ export default async function CompletedPage({
 
   if (!user) return redirect("/login");
 
-  const orderParamRaw = (searchParams?.order ?? "").replace(/\D/g, "").slice(0, 7);
+  const orderParamRaw = (sp.order ?? "").replace(/\D/g, "").slice(0, 7);
   const orderId = orderParamRaw ? Number(orderParamRaw) : null;
 
-  const pageRaw = searchParams?.page ?? "1";
+  const pageRaw = sp.page ?? "1";
   const page = Math.max(parseInt(pageRaw, 10) || 1, 1);
 
   const limit = 100;
@@ -87,8 +92,12 @@ export default async function CompletedPage({
         />
         <CompletedOrganizer orders={orders} />
       </Table>
+
       <Pagination>
-        <PaginationPrevious href={hrefFor(Math.max(page - 1, 1))}>Previous</PaginationPrevious>
+        <PaginationPrevious href={hrefFor(Math.max(page - 1, 1))}>
+          Previous
+        </PaginationPrevious>
+
         <PaginationContent>
           {Array.from({ length: pages }).map((_, idx) => {
             const p = idx + 1;
@@ -100,7 +109,9 @@ export default async function CompletedPage({
           })}
         </PaginationContent>
 
-        <PaginationNext href={hrefFor(Math.min(page + 1, pages))}>Next</PaginationNext>
+        <PaginationNext href={hrefFor(Math.min(page + 1, pages))}>
+          Next
+        </PaginationNext>
       </Pagination>
     </section>
   );
