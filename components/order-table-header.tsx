@@ -1,7 +1,7 @@
 import React from "react";
 import { TableHead, TableRow, TableHeader } from "@/components/ui/table";
 
-const widths: string[] = ["18%", "4%", "4%", "5%", "5%", "5%", "5%", "6%", "6%", "6%", "25%", "5%", "5%"];
+const widths: string[] = ["18%", "4%", "4%", "5%", "5%", "5%", "5%", "6%", "6%", "6%", "25%", "5%"];
 
 export function OrderTableHeader({
   tableHeaders,
@@ -16,9 +16,13 @@ export function OrderTableHeader({
   let headers = ignoreIndex ? [...tableHeaders] : ["#", ...tableHeaders];
   let headerWidths = ignoreIndex ? [...widths] : ["1%", ...widths];
 
-  console.log(tableHeaders);
+  // If there are more headers than widths, fill with "5%"
+  if (headers.length > headerWidths.length) {
+    const diff = headers.length - headerWidths.length;
+    headerWidths = [...headerWidths, ...Array(diff).fill("5%")];
+  }
+
   if (!ignoreAssignee) {
-    console.log("ADDING ASSIGNEE");
     headers = [...headers.slice(0, 10), "ASSIGNEE", ...headers.slice(10)];
 
     // Find the index of the 25% width and reduce it by 3%
@@ -28,6 +32,12 @@ export function OrderTableHeader({
       widthsCopy[idx25] = "23%";
     }
     headerWidths = [...widthsCopy.slice(0, 6), "2%", ...widthsCopy.slice(6)];
+
+    // If there are more headers than headerWidths after adding ASSIGNEE, fill with "5%"
+    if (headers.length > headerWidths.length) {
+      const diff = headers.length - headerWidths.length;
+      headerWidths = [...headerWidths, ...Array(diff).fill("5%")];
+    }
   }
 
   return (

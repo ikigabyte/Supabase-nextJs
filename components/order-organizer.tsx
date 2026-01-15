@@ -2277,7 +2277,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
                   <>
                     <h2 className={`font-bold text-lg ${headerColor}`}>{convertKeyToTitle(key)}</h2>
                     <Table className="mb-5">
-                      <OrderTableHeader tableHeaders={headers} />
+                      <OrderTableHeader tableHeaders={headers} ignoreIndex={false} ignoreAssignee={false} />
                       <OrderTableBody
                         data={group}
                         productionStatus={orderType}
