@@ -438,6 +438,11 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
   if (!newStatus) throw new Error("No new status found");
 
+  if (newStatus === order.production_status) { // anti same status spam
+    console.warn("New status is the same as current status, no update needed");
+    return;
+  } 
+
   const addHistoryPromise = addHistoryForUser(order.name_id, newStatus, order.production_status || "");
   // console.log(newStatus);
   if (newStatus === "completed") {

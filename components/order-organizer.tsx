@@ -26,7 +26,7 @@ import {
   addOrderViewer,
   assignAssigneeToRows,
   assignColorToQuantityRow,
-  createReprint
+  createReprint,
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -61,8 +61,10 @@ const draggingThreshold = 1; // px
 const ACTIVE_MS = 30 * 60 * 1000; // 30 minutes
 const IDLE_MS = 3 * 60 * 60 * 1000; // 2 hours
 
-const MAX_RETRIES_FOR_SCROLL = 10;
-const TIME_BETWEEN_FORCED_REFRESHES = 5 * 60 * 1000; // 5 minutes
+// const MAX_RETRIES_FOR_SCROLL = 10;
+// const TIME_BETWEEN_FORCED_REFRESHES = 5 * 60 * 1000; // 5 minutes
+const VISIBILITY_REFRESH_MIN_MS = 15 * 60 * 1000; // 15 minutes minimum between visibility and channel triggers
+
 // const TIME_BETWEEN_FORCED_REFRESHES = 15 * 1000; // 5 minutes
 const handleNewProductionStatus = (status: string | null, reverse: boolean) => {
   if (reverse) {
@@ -108,6 +110,8 @@ const laminationHeaderColors = {
   matte: "text-purple-500",
   gloss: "text-blue-500",
 };
+
+const REALTIME_IDLE_MS = 2 * 60 * 1000; // this is 2 minutes
 
 // function extractDashNumber(name: string): number {
 //   const match = name.match(/-(\d+)-/);
@@ -227,7 +231,6 @@ const switchKeyCodeForColor = (keyCode: string | null): string => {
       return "";
   }
 };
-
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
   return categories.reduce((acc, category) => {
@@ -516,36 +519,29 @@ type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; 
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = useMemo(() => getBrowserClient(), []);
   const fetchCount = useRef(0);
-  async function fetchAllOrders() {
+  const fetchAllOrders = useCallback(async () => {
     fetchCount.current += 1;
-    console.log("fetchAllOrders call #", fetchCount.current);
-    const allOrders = [];
+    const allOrders: Order[] = [];
     let from = 0;
-    const chunkSize = 1000; // at one time
+    const chunkSize = 1000;
     let more = true;
 
     while (more) {
-      const { data, error, count } = await supabase
+      const { data, error } = await supabase
         .from("orders")
-        .select("*", { count: "exact" })
+        .select("*")
         .eq("production_status", orderType)
         .range(from, from + chunkSize - 1);
 
-      if (error) {
-        console.error("Error fetching orders:", error);
-        break;
-      }
+      if (error) throw error;
+
       allOrders.push(...(data ?? []));
-      if (!data || data.length < chunkSize) {
-        more = false;
-      } else {
-        from += chunkSize;
-      }
+      if (!data || data.length < chunkSize) more = false;
+      else from += chunkSize;
     }
 
-    // Filter out any order with order_id === 0
-    return allOrders.filter((order) => order.order_id !== 0);
-  }
+    return allOrders.filter((o) => o.order_id !== 0);
+  }, [supabase, orderType]);
 
   async function fetchOrderZero() {
     const { data, error } = await supabase.from("orders").select("*").eq("order_id", 0).maybeSingle();
@@ -568,11 +564,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }
   const [session, setSession] = useState<Session | null>(null);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      // console.log("Session:", session, "Error:", error);
-      setSession(session);
-    });
-  }, []);
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+  }, [supabase]);
 
   // const me = session?.user?.email || "";
   const ignoreUpdateIds = useRef<Set<string>>(new Set());
@@ -602,17 +595,30 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // const [updateCounter, forceUpdate] = useState(0);
   const pressedRef = useRef<Set<string>>(new Set());
   const ordersRef = useRef(orders);
-  
+  const lastMsgAtRef = useRef<number>(Date.now());
+  const [socketState, setSocketState] = useState<"OPEN" | "CLOSED" | "ERROR" | "UNKNOWN">("UNKNOWN");
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
   const hasLoadedOnce = useRef(false);
   const [selectionVersion, bumpSelectionVersion] = useState(0);
   const [isShiftDown, setIsShiftDown] = useState(false);
+  const lastVisibilityRefreshAtRef = useRef<number>(0);
+  const ignoreFirstVisibleEventRef = useRef(true);
+
+
+  const [resubscribeToken, bumpResubscribeToken] = useState(0);
+
+  const forceResubscribe = useCallback(() => {
+    bumpResubscribeToken((n) => n + 1);
+  }, []);
+
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   // const shiftDown = useRef(false); // you can delete this if you don't use it elsewhere
   const lastUrlSelectedNameId = useRef<string | null>(null);
   const pendingUrlNameId = useRef<string | null>(null);
+
+  const lastSubscribedAtRef = useRef<number>(0);
 
   async function copyPrintData() {
     let values = [] as string[];
@@ -691,7 +697,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   // 2) ----- inside OrderOrganizer component state block -----
   const [profilesById, setProfilesById] = useState<
-    Map<string, { name: string; color?: string | null; identifier?: string | null, forcedInitials ?: string | null }>
+    Map<string, { name: string; color?: string | null; identifier?: string | null; forcedInitials?: string | null }>
   >(new Map());
 
   const [viewersByUser, setViewersByUser] = useState<Map<string, Date>>(new Map());
@@ -715,6 +721,52 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // }, [orders]);
 
   useEffect(() => {
+    const onOnline = () => {
+      // if (loading) return;
+
+      console.log("Forcing resubscribe due to online event");
+      forceResubscribe();
+      lastMsgAtRef.current = Date.now();
+      fetchAllOrders().then(setOrders).catch(console.error);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (ignoreFirstVisibleEventRef.current) {
+        ignoreFirstVisibleEventRef.current = false;
+        return;
+      }
+      // if (loading) return;
+
+      // 2) Do nothing until initial load completed
+      if (!hasLoadedOnce.current) return;
+
+      const now = Date.now();
+      const sinceLast = now - lastVisibilityRefreshAtRef.current;
+
+      if (sinceLast < VISIBILITY_REFRESH_MIN_MS) {
+        return;
+      }
+
+      lastVisibilityRefreshAtRef.current = now;
+
+      console.log("Forcing resubscribe due to visibility change");
+      forceResubscribe();
+
+      lastMsgAtRef.current = now;
+      fetchAllOrders().then(setOrders).catch(console.error);
+    };
+
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchAllOrders, forceResubscribe]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase.from("profiles").select("id, identifier, color, role, position, initials");
@@ -734,7 +786,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             initials?: string | null;
           }
         >();
-        const userColorMap = new Map<string, { color: string; position: string | null, initials?: string | null }>();
+        const userColorMap = new Map<string, { color: string; position: string | null; initials?: string | null }>();
 
         (data ?? []).forEach((row: any) => {
           idMap.set(row.id, {
@@ -761,7 +813,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const myEmail = session?.user?.email ?? null;
         if (myEmail) {
           let meProfile = undefined as
-            | { name: string; color?: string | null; identifier?: string | null; role?: string | null, initials?: string | null }
+            | {
+                name: string;
+                color?: string | null;
+                identifier?: string | null;
+                role?: string | null;
+                initials?: string | null;
+              }
             | undefined;
 
           for (const profile of idMap.values()) {
@@ -986,6 +1044,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   //   }
   // }, [supabase]);
 
+  function markRealtimeDown(reason: string) {
+    console.warn("Realtime down:", reason);
+    setDisplayWarning("⚠️ Realtime disconnected. Please refresh the page");
+  }
+
   useEffect(() => {
     // Initial load
     let cancelled = false;
@@ -1009,11 +1072,19 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     });
 
     const channel = supabase
-      .channel("orders_all")
+      .channel("orders_all", {
+        config: {
+          broadcast: { self: true },
+        },
+      })
+      .on("broadcast", { event: "hb" }, () => {
+        lastMsgAtRef.current = Date.now();
+      })
+
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
         const newOrder = payload.new as Order;
         const ns = newOrder.production_status as OrderTypes;
-
+        lastMsgAtRef.current = Date.now();
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(newOrder.name_id)) {
           setMultiSelectedRows((prev) => {
@@ -1067,17 +1138,19 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
         // const oldStatus = (payload.old as Order).production_status as OrderTypes | null;
         // if (!payload.new.order_id)
+        lastMsgAtRef.current = Date.now();
         const oldRow = payload.old as Order;
         const updated = payload.new as Order;
         if (updated.order_id === 0 && oldRow.name_id !== updated.name_id) {
           // console.log(oldRow.notes, "->", updated.notes);
           // console.log("update now on order_id 0 that isn't notes");
-          if (updated.name_id == "0") { // maintenance mode
+          if (updated.name_id == "0") {
+            // maintenance mode
             console.log("Sheet is under maintenance, ignoring update.");
             // return;
             setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
           } else {
-            setDisplayWarning("New update on the website, please refresh the page.");
+            setDisplayWarning("🟢 New update on the website, please refresh the page.");
           }
           // return;
         }
@@ -1172,6 +1245,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
+        lastMsgAtRef.current = Date.now();
         const removed = payload.old as Order;
         const os = removed.production_status as OrderTypes;
         // Remove from multiSelectedRows if present
@@ -1207,14 +1281,48 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           return next.slice();
         });
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (cancelled) return;
+        console.log("Realtime status:", status);
+        if (status === "SUBSCRIBED") {
+          setDisplayWarning(""); // clear
+          setSocketState("OPEN");
+          lastSubscribedAtRef.current = Date.now();
+          lastMsgAtRef.current = Date.now();
+        }
 
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.log("TIMED OUT");
+          setSocketState("ERROR");
+          forceResubscribe();
+          markRealtimeDown(status);
+        }
+
+        // Do NOT treat CLOSED as outage unless you previously subscribed
+        if (status === "CLOSED" && lastSubscribedAtRef.current !== 0) {
+          setSocketState("CLOSED");
+          console.log("Channel closed, forcing resubscribe");
+          forceResubscribe();
+          // markRealtimeDown("CLOSED");
+        }
+      });
+
+    const hb = setInterval(async () => {
+      if (cancelled) return;
+
+      const res = await channel.send({ type: "broadcast", event: "hb", payload: { t: Date.now() } });
+
+      // If the socket is alive enough to send, count it as activity too
+      if (res === "ok") lastMsgAtRef.current = Date.now();
+    }, 30_000);
     return () => {
       cancelled = true;
+      clearInterval(hb);
       supabase.removeChannel(channel);
-      setLoading(false);
     };
-  }, [orderType, supabase]);
+  }, [supabase, orderType, resubscribeToken]);
+
+  // heartbeat + watchdog for the orders_all connection
 
   // useEffect(() => {
   //   const handleKeyDown = async (e: KeyboardEvent) => {
@@ -1225,7 +1333,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   //       }
   //       // Modular color assignment for keys 1-6
   //     }
-    
+
   //   };
   //   document.addEventListener("keydown", handleKeyDown);
   //   return () => {
@@ -1248,11 +1356,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (!e.shiftKey) return;
 
       // If just Shift + 0, clear color (set to null)
-      if (pressed.has("Digit0") && pressed.size === 2 && pressed.has("ShiftLeft") || pressed.has("ShiftRight")) {
+      if ((pressed.has("Digit0") && pressed.size === 2 && pressed.has("ShiftLeft")) || pressed.has("ShiftRight")) {
         const collection = collectSelectedNameIds(dragSelections, orders);
         if (collection.length === 0) {
           toast.error("No orders selected for color removal.", {
-        duration: 3000,
+            duration: 3000,
           });
           return;
         }
@@ -1274,7 +1382,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const collection = collectSelectedNameIds(dragSelections, orders);
         if (collection.length === 0) {
           toast.error("No orders selected for color assignment.", {
-        duration: 3000,
+            duration: 3000,
           });
           return;
         }
@@ -1284,7 +1392,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         });
       }
 
-        // e.preventDefault();
+      // e.preventDefault();
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
@@ -1886,17 +1994,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     });
   }, []);
 
-
-  const handleReprintCreate = useCallback(
-    async (nameId: string, quantity: number) => {
-      await createReprint(nameId, quantity);
-      // console.log("Creating reprint for", nameId, "quantity", quantity);
-      toast("Reprint created", {
-        description: `Created reprint for ${nameId} (Quantity: ${quantity})`,
-      });
-    },
-    []
-  );
+  const handleReprintCreate = useCallback(async (nameId: string, quantity: number) => {
+    await createReprint(nameId, quantity);
+    // console.log("Creating reprint for", nameId, "quantity", quantity);
+    toast("Reprint created", {
+      description: `Created reprint for ${nameId} (Quantity: ${quantity})`,
+    });
+  }, []);
 
   const handleMenuOptionClick = useCallback(
     async (option: string, quantity?: number) => {
@@ -2152,7 +2256,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // console.log(dragSelections);
   return (
     <>
-      {displayWarning !== "" && <div className="bg-red-900 text-white font-bold p-2 rounded">{displayWarning}</div>}
+      {displayWarning !== "" && (
+        <div className="fixed top-2 left-2 right-2 z-50">
+          <div className="bg-red-900 text-white font-bold p-2 rounded">{displayWarning}</div>
+        </div>
+      )}
       <div className="relative" ref={containerRef}>
         <div className="flex flex-row items-start justify-between w-full">
           <div className="flex-shrink-0">
