@@ -39,7 +39,7 @@ import { ViewersDropdown } from "./viewers";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCcw, Clock } from "lucide-react";
 import { Info } from "lucide-react";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 // import { Description } from "@radix-ui/react-toast";
@@ -112,6 +112,8 @@ const laminationHeaderColors = {
 };
 
 const REALTIME_IDLE_MS = 2 * 60 * 1000; // this is 2 minutes
+const orderZeroCheckTime = 30 * 60 * 1000; // 30 minutes
+// const orderZeroCheckTime = 10 * 1000; // 30 seconds
 
 // function extractDashNumber(name: string): number {
 //   const match = name.match(/-(\d+)-/);
@@ -557,6 +559,38 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return data;
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const orderZero = await fetchOrderZero();
+        if (cancelled) return;
+        const current = orderZero?.notes ?? null;
+        const savedTime = lastUpdatedOrderTime;
+        // console.log("Order 0 periodic check:", { savedTime, current });
+        // Do nothing until we have a baseline saved value
+        // Compare current notes to lastUpdatedOrderTime
+        if (current !== savedTime) {
+          // console.warn("Order 0 lastUpdatedOrderTime mismatch:", { savedTime, current });
+          setDisplayWarning("⚠️ The page might be out of sync with the latest updates - please refresh.");
+          // Keep state updated so UI reflects the new value too
+          // setLastUpdatedOrderTime(current);
+        }
+      } catch (e) {
+        console.error("Order 0 periodic check failed:", e);
+      }
+    };
+    // Run once after mount, but only if you want. If not, remove this line.
+    // check();
+
+    const id = setInterval(check, orderZeroCheckTime); // automatic 30 minute checker always
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [fetchOrderZero]);
+
   if (supabase === null) {
     console.error("Supabase client is null");
     redirect("/login");
@@ -577,6 +611,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [orders, setOrders] = useState<Order[]>([]);
   const [dragging, setDragging] = useState(false);
   const [me, setMe] = useState<string>("");
+  const [lastUpdatedOrderTime, setLastUpdatedOrderTime] = useState<string | null>(null);
   const [scrollPosition, setScrollPosition] = useState<number>(0); // Temporary
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultPage);
   const [isRowHovered, setIsRowHovered] = useState<boolean>(false);
@@ -605,7 +640,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [isShiftDown, setIsShiftDown] = useState(false);
   const lastVisibilityRefreshAtRef = useRef<number>(0);
   const ignoreFirstVisibleEventRef = useRef(true);
-
+  // const [lastUpdatedOrderTimeRef, setLastUpdatedOrderTimeRef] = useState<{ current: string | null }>({ current: null });
 
   const [resubscribeToken, bumpResubscribeToken] = useState(0);
 
@@ -1057,6 +1092,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       if (!cancelled) hasLoadedOnce.current = true;
       setOrders(allOrders);
       fetchOrderZero().then((orderZero) => {
+        const lastUpdatedTime = orderZero?.notes ?? null;
+        console.log(lastUpdatedTime);
+        setLastUpdatedOrderTime(lastUpdatedTime);
         // If orderZero exists, set the version id with orderZero.name_id
         if (orderZero) {
           const versionEl = document.getElementById("version-p");
@@ -1141,19 +1179,30 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         lastMsgAtRef.current = Date.now();
         const oldRow = payload.old as Order;
         const updated = payload.new as Order;
-        if (updated.order_id === 0 && oldRow.name_id !== updated.name_id) {
-          // console.log(oldRow.notes, "->", updated.notes);
-          // console.log("update now on order_id 0 that isn't notes");
-          if (updated.name_id == "0") {
-            // maintenance mode
-            console.log("Sheet is under maintenance, ignoring update.");
-            // return;
-            setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
-          } else {
-            setDisplayWarning("🟢 New update on the website, please refresh the page.");
+        if (updated.order_id === 0) {
+          // console.log("Received update for order_id 0:", updated);
+          // Only update if notes has actually changed
+          // if (oldRow.notes === updated.notes) {
+          //   return;
+          // }
+          if (oldRow.notes !== updated.notes) {
+            // console.warn("Order 0 notes changed:", { old: oldRow.notes, new: updated.notes });
+            setLastUpdatedOrderTime(updated.notes ?? null);
+            return;
           }
-          // return;
+          if (updated.name_id == "0") {
+            console.log("Sheet is under maintenance, ignoring update.");
+            setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
+            return;
+          }
+
+          if (oldRow.name_id !== updated.name_id) {
+            setDisplayWarning("🟢 New update on the website, please refresh the page.");
+            return
+          }
+          return;
         }
+
         const norm = (v: string | null | undefined) => {
           const s = (v ?? "").trim();
           if (!s) return null;
@@ -2352,12 +2401,15 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             </Button>
           </div>
         </div>
-        <Separator className="w-full mb-10" />
-        <div className="flex items-center gap-2 mb-6 h-1">
+        <Separator className="w-full mb-3" />
+        {/* <div style={{ height: 30, display: "flex", alignItems: "center", marginBottom: 24 }}>
           <Button disabled={!isShiftDown} className="rounded-sm px-2 py-2 bg-gray-200 text-gray-700 cursor-default">
-            SHIFT
+            HOLD SHIFT TO MULTI SELECT ROWS
           </Button>
-          <p>Multi select rows by holding [SHIFT] and dragging your mouse</p>
+        </div> */}
+        <div className="flex items-center gap-2 mb-5">
+          <Clock className="w-4 h-4" />
+          <p className="text-xs">Last Updated Order @ {lastUpdatedOrderTime}</p>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           {selectedCategory.toLowerCase() === "special" && (
