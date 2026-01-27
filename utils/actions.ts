@@ -42,6 +42,32 @@ const getNewStatus = (currentStatus: string, revert: boolean) => {
     }
   }
 };
+
+
+async function retrieveUserRole(user?: { id: string; email?: string }): Promise<string | null> {
+  const supabase = await getServerClient();
+
+  if (!user) {
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+    if (!currentUser) throw new Error("User is not logged in");
+    user = currentUser;
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select<"role", AdminRow>("role")
+    .eq("id", user?.id)
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    console.error("Error checking user role:", error);
+    return null;
+  }
+  return data?.role ?? null;
+}
+
 async function requireAdmin(user?: { id: string; email?: string }): Promise<boolean> {
   const supabase = await getServerClient();
 
@@ -348,8 +374,12 @@ export async function createReprint(nameId: string, quantity?: number) {
   } = await supabase.auth.getUser();
 
   if (!user) throw new Error("User is not logged in");
-
-  console.log(`Creating reprint for ${nameId} with quantity ${quantity}`);
+  const role = await retrieveUserRole(user ?? null);
+  if (role !== "admin" && role !== "manager") {
+    throw new Error("User does not have permission to create reprints");
+  }
+  // console.log(role);
+  // console.log(`Creating reprint for ${nameId} with quantity ${quantity}`);
   const { data: originalOrder, error: fetchError } = await supabase
     .from("orders")
     .select("*")
@@ -408,19 +438,17 @@ export async function createReprint(nameId: string, quantity?: number) {
   }
   console.log("Reprint order created:", newNameId);
 
-
-  const { error } = await supabase.from("history").insert({ // * little history stamp
+  const { error } = await supabase.from("history").insert({
+    // * little history stamp
     user_id: user.id,
     name_id: nameId,
     production_change: `Created reprint ${newNameId} for quantity ${intQuantity}`,
   }); // * It time stamps automatically
 
-  
   if (error) {
     console.error("Error adding history for reprint", error);
     throw new Error("Error adding history for reprint");
   }
-  
 }
 
 export async function updateOrderStatus(order: Order, revert: boolean, bypassStatus?: string) {

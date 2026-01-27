@@ -10,7 +10,7 @@ import { ReprintDialog } from "./reprint-dialog";
 type OrderViewerProps = {
   currentRow: { name_id: string } | null;
   status: string;
-  isAdmin: boolean;
+  role: string;
   onRevertStatus: () => void;
   onViewZendesk: () => void;
   onDeleteLine: () => void;
@@ -21,7 +21,7 @@ type OrderViewerProps = {
 export function OrderViewer({
   currentRow,
   status,
-  isAdmin,
+  role,
   onRevertStatus,
   onViewZendesk,
   onDeleteLine,
@@ -35,16 +35,25 @@ export function OrderViewer({
   // console.log(currentRow.quantity);
 
   const [reprintOpen, setReprintOpen] = useState(false);
+  const permissionLevel = role === "admin" ? 3 : role === "manager" ? 2 : 1;
+  // console.log("Permission Level:", permissionLevel);
+  // const isAdmin = permissionLevel === 3;
+  // const isManager = permissionLevel === 2;
 
   if (!currentRow) return null;
-  console.log(currentRow);
+  // console.log(currentRow);
   // console.log("Rendering OrderViewer for:", currentRow.quantity);
   // if (currentRow.quantity === undefined) return null;
   // console.log("Rendering OrderViewer for:", currentRow.quantity);
   return (
     <>
       <div>
-        <ReprintDialog open={reprintOpen} onOpenChange={setReprintOpen} nameId={currentRow.name_id} onReprint={onCreateReprint} />
+        <ReprintDialog
+          open={reprintOpen}
+          onOpenChange={setReprintOpen}
+          nameId={currentRow.name_id}
+          onReprint={onCreateReprint}
+        />
       </div>
       <div
         data-ignore-selection="true"
@@ -112,27 +121,28 @@ export function OrderViewer({
                 View on Zendesk
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 rounded-full"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setReprintOpen(true);
-                    // onViewZendesk();
-                  }}
-                >
-                  <Printer className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="center">
-                Send to Reprint
-              </TooltipContent>
-            </Tooltip>
-
-            {isAdmin && (
+            {permissionLevel > 1 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 rounded-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReprintOpen(true);
+                      // onViewZendesk();
+                    }}
+                  >
+                    <Printer className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="center">
+                  Send to Reprint
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {permissionLevel > 2 && (
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>

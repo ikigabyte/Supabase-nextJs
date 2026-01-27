@@ -49,11 +49,11 @@ import { convertToSpaces } from "@/lib/utils";
 // import { UserSearchIcon } from "lucide-react";
 // import { setDefaultAutoSelectFamilyAttemptTimeout } from "net";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { set } from "date-fns";
-import { NEXT_HMR_REFRESH_HASH_COOKIE } from "next/dist/client/components/app-router-headers";
+// import { set } from "date-fns";
+// import { NEXT_HMR_REFRESH_HASH_COOKIE } from "next/dist/client/components/app-router-headers";
 
 type Counts = Record<OrderTypes, number>;
-type UserProfileRow = { id: string; role: string; color: string | null };
+// type UserProfileRow = { id: string; role: string; color: string | null };
 
 const STATUSES: readonly OrderTypes[] = ["print", "cut", "prepack", "pack", "ship"] as const;
 const draggingThreshold = 1; // px
@@ -621,6 +621,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [userSelected, setUserSelected] = useState<string>("");
   const [displayWarning, setDisplayWarning] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<string>("");
   const rowRefs = useRef<{ [name_id: string]: HTMLTableRowElement | null }>({});
   const [currentRowClicked, setCurrentRowClicked] = useState<Order | null>(null);
   const [multiSelectedRows, setMultiSelectedRows] = useState<Map<string, string | null>>(new Map());
@@ -863,8 +864,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
               break;
             }
           }
+          setUserRole(meProfile?.role || "");
           setIsAdmin(meProfile?.role === "admin");
         } else {
+          setUserRole("user");
           setIsAdmin(false);
         }
       }
@@ -2519,7 +2522,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         <OrderViewer
           currentRow={currentRowClicked}
           status={orderType}
-          isAdmin={isAdmin}
+          role={userRole}
           onRevertStatus={() => handleMenuOptionClick("revert")}
           onViewZendesk={() => handleMenuOptionClick("view")}
           onDeleteLine={() => handleMenuOptionClick("delete")}
