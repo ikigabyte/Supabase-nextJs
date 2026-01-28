@@ -24,7 +24,6 @@ import { Toaster } from "@/components/ui/sonner";
 // import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const STATUS_ORDER = ["print", "cut", "prepack", "ship", "pack"] as const;
@@ -61,7 +60,7 @@ function isDateBeforeOrEqual(dateA: string | Date, dateB: string | Date) {
   const b = new Date(dateB);
   a.setHours(0, 0, 0, 0);
   b.setHours(0, 0, 0, 0);
-  return a.getTime() <= b.getTime();
+  return a.getTime() < b.getTime();
 }
 
 // const formatDate = (dateString: string | null) => {
@@ -105,7 +104,7 @@ export function TimelineOrders() {
   // Fetch all orders for the visible timeline (due + future) in bulk and group by order_id
   useEffect(() => {
     const allIds = Array.from(
-      new Set([...combinedOrders].map((o) => Number(o.order_id)).filter((id) => Number.isFinite(id)) as number[])
+      new Set([...combinedOrders].map((o) => Number(o.order_id)).filter((id) => Number.isFinite(id)) as number[]),
     );
     if (allIds.length === 0) {
       setOrdersById({});
@@ -173,38 +172,50 @@ export function TimelineOrders() {
           return diffDays <= 7 && diffDays >= 0;
         };
 
-        const sortAllOrders = (orders: TimelineOrder[]) => {
-          return orders.sort((a, b) => {
-            const shipDateA = new Date(a.ship_date ?? "").getTime();
-            const shipDateB = new Date(b.ship_date ?? "").getTime();
-
-            if (shipDateA !== shipDateB) {
-              return shipDateA - shipDateB;
-            }
-
-            const ihdDateA = new Date(a.ihd_date ?? "").getTime();
-            const ihdDateB = new Date(b.ihd_date ?? "").getTime();
-
-            if (ihdDateA !== ihdDateB) {
-              return ihdDateA - ihdDateB;
-            }
-
-            const shippingMethodOrder = (method: string) => {
-              if (method.toLowerCase() === "express") return 0;
-              if (method.toLowerCase() === "rush_shipping") return 1;
-              if (method.toLowerCase() === "standard") return 2;
-              return 3; // fallback for other methods
-            };
-
-            return shippingMethodOrder(a.shipping_method ?? "") - shippingMethodOrder(b.shipping_method ?? "");
-          });
+        const toTimeOrNull = (value?: string | null): number | null => {
+          if (!value) return null;
+          const t = new Date(value).getTime();
+          return Number.isFinite(t) ? t : null;
         };
 
+        const compareNullableTime = (a: number | null, b: number | null): number => {
+          // nulls last
+          if (a === null && b === null) return 0;
+          if (a === null) return 1;
+          if (b === null) return -1;
+          return a - b;
+        };
+
+        const shippingMethodOrder = (method?: string | null) => {
+          const m = (method ?? "").toLowerCase();
+          if (m === "express") return 0;
+          if (m === "rush_shipping") return 1;
+          if (m === "standard") return 2;
+          return 3;
+        };
+
+        const sortAllOrders = (orders: TimelineOrder[]) => {
+          return [...orders].sort((a, b) => {
+            const shipA = toTimeOrNull(a.ship_date);
+            const shipB = toTimeOrNull(b.ship_date);
+
+            const shipCmp = compareNullableTime(shipA, shipB);
+            if (shipCmp !== 0) return shipCmp;
+
+            const ihdA = toTimeOrNull(a.ihd_date);
+            const ihdB = toTimeOrNull(b.ihd_date);
+
+            const ihdCmp = compareNullableTime(ihdA, ihdB);
+            if (ihdCmp !== 0) return ihdCmp;
+
+            return shippingMethodOrder(a.shipping_method) - shippingMethodOrder(b.shipping_method);
+          });
+        };
         const combinedOrders = sortAllOrders(
           data.filter((order) => {
             const orderDate = new Date(order.ship_date ?? "");
             return !isNaN(orderDate.getTime()) && (orderDate >= today || isWithin7Days(orderDate));
-          })
+          }),
         );
 
         setCombinedOrders(combinedOrders);
@@ -289,7 +300,7 @@ export function TimelineOrders() {
           Ship: currentIdx >= 2 ? "✓" : "",
           Pack: currentIdx >= 3 ? "✓" : "",
         };
-      })
+      }),
     );
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -330,8 +341,8 @@ export function TimelineOrders() {
               <DialogHeader>
                 <DialogTitle>Timeline</DialogTitle>
                 <DialogDescription className="text-sm">
-                  This scans Zendesk categories: To Print, To Cut, To Pack, ToPrePack and To Ship every hour on Zendesk. It
-                  organizes all the orders by due date and displays them here. Orders with ship dates longer then 30
+                  This scans Zendesk categories: To Print, To Cut, To Pack, ToPrePack and To Ship every hour on Zendesk.
+                  It organizes all the orders by due date and displays them here. Orders with ship dates longer then 30
                   days are not shown here
                 </DialogDescription>
               </DialogHeader>
@@ -375,7 +386,9 @@ export function TimelineOrders() {
                         <TableBody>
                           <TableRow>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
-                                <span>&nbsp;{orderIdNum || "—"}&nbsp;{openIds.has(orderIdNum) ? "▾" : "▸"}</span>
+                              <span>
+                                &nbsp;{orderIdNum || "—"}&nbsp;{openIds.has(orderIdNum) ? "▾" : "▸"}
+                              </span>
                             </TableCell>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
@@ -406,7 +419,6 @@ export function TimelineOrders() {
                   {openIds.has(orderIdNum) && (
                     <TableRow className="bg-gray-50">
                       <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-
                         <Table className="w-full table-fixed min-w-0">
                           <TableBody>
                             {rows.map((o) => (
@@ -427,12 +439,11 @@ export function TimelineOrders() {
                 <>
                   <TableRow className={`${isPastDue ? "bg-red-200" : "bg-gray-200"} h-12`}>
                     <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-
                       <Table className="w-full table-fixed min-w-0">
                         <TableBody>
                           <TableRow>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
-                                <span>&nbsp;{orderIdNum || "—"}</span>
+                              <span>&nbsp;{orderIdNum || "—"}</span>
                             </TableCell>
                             <TableCell className="w-[20%] px-3 py-2 font-semibold">
                               <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
@@ -463,7 +474,6 @@ export function TimelineOrders() {
               )}
               <Toaster theme={"dark"} richColors={true} />
             </React.Fragment>
-            
           );
         })}
       </section>
