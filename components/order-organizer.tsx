@@ -238,11 +238,10 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
     let count = 0;
-
     if (orderType === "print") {
       if (lowerCat === "rush") {
         // Rush takes priority over everything else (including sheets)
-        count = orders.filter((o) => o.production_status === orderType && o.rush === true).length;
+        count = orders.filter((o) => o.production_status === orderType && o.rush === true && o.material?.toLowerCase() !== "roll").length // Exclude rush rolls they don't go here
       } else if (lowerCat === "sheets") {
         // Exclude rush sheets so they don't double-count
         count = orders.filter(
@@ -262,7 +261,15 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
             o.material?.toLowerCase() !== "roll" &&
             o.shape?.toLowerCase() !== "sheets"
         ).length;
-      } else {
+
+      } else if (lowerCat === "roll") {
+        count = orders.filter(
+          (o) =>
+            o.production_status === orderType &&
+            o.material?.toLowerCase() === "roll"
+        ).length;
+      }
+       else {
         count = orders.filter(
           (o) =>
             o.production_status === orderType &&

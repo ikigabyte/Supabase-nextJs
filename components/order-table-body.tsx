@@ -636,6 +636,7 @@ export function OrderTableBody({
                 {capitalizeFirstLetter(row.shape) || "-"}
               </TableCell>
                 <TableCell
+                data-raw-quantity={row.quantity ?? ""}
                 style={{
                   backgroundColor:
                   row.production_status === "print" && row.quantityColor
