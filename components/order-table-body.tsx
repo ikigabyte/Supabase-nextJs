@@ -154,13 +154,13 @@ const convertToOrderTypeDate = (date: string | null, orderType: string | undefin
   let businessDays = 0;
   switch (orderType) {
     case "print":
-      businessDays = 3;
-      break;
-    case "cut":
       businessDays = 2;
       break;
-    case "prepack":
+    case "cut":
       businessDays = 1;
+      break;
+    case "prepack":
+      businessDays = 0;
       break;
     case "pack":
       businessDays = 0;
