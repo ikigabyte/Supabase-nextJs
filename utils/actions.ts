@@ -3,10 +3,10 @@
 import { Order } from "@/types/custom";
 import { getServerClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
-import { OrderTypes } from "./orderTypes";
+// import { OrderTypes } from "./orderTypes";
 
-import { updateZendeskNotes } from "@/utils/google-functions";
-import { GoTrueAdminApi } from "@supabase/supabase-js";
+import { updateZendeskNotes, reprintInternalNote } from "@/utils/google-functions";
+// import { GoTrueAdminApi } from "@supabase/supabase-js";
 
 type AdminRow = { role: "admin" | string };
 const getNewStatus = (currentStatus: string, revert: boolean) => {
@@ -436,7 +436,7 @@ export async function createReprint(nameId: string, quantity?: number) {
     console.error("Error creating reprint order", insertError);
     throw new Error("Error creating reprint order");
   }
-  console.log("Reprint order created:", newNameId);
+  // console.log("Reprint order created:", newNameId);
 
   const { error } = await supabase.from("history").insert({
     // * little history stamp
@@ -445,6 +445,8 @@ export async function createReprint(nameId: string, quantity?: number) {
     production_change: `Created reprint ${newNameId} for quantity ${intQuantity}`,
   }); // * It time stamps automatically
 
+  const orderId = originalOrder.order_id;
+  await reprintInternalNote(orderId, `Reprint created for quantity ${intQuantity} from original order ${nameId}. by ${user.email || user.id}`);
   if (error) {
     console.error("Error adding history for reprint", error);
     throw new Error("Error adding history for reprint");
