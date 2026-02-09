@@ -2,7 +2,6 @@
 
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { ClipboardCopy } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { DropdownAssignee } from "./dropdown";
@@ -47,8 +46,28 @@ const quantityColumnIndex = 3;
 
 function extractNumber(str: string) {
   const cleaned = str.replace(/qty/gi, "").trim();
-  const match = cleaned.match(/\d+/);
+  const match = cleaned.match(/-?\d+(?:\.\d+)?/);
   return match ? match[0] : "";
+}
+
+function extractFirstNumber(str: string): number | null {
+  const match = str.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const n = Number(match[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseTileQuantityAndSize(rawQuantity: string): { quantity: number; size: number } | null {
+  const cleaned = (rawQuantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
+  if (!cleaned) return null;
+  const splitPart = cleaned.split("-");
+  if (splitPart.length !== 3) return null;
+
+  const quantityPart = extractFirstNumber(splitPart[0]);
+  const sizePart = extractFirstNumber(splitPart[2]);
+  if (quantityPart == null || sizePart == null) return null;
+
+  return { quantity: quantityPart, size: sizePart };
 }
 
 export function ButtonOrganizer({
@@ -88,46 +107,58 @@ export function ButtonOrganizer({
   };
   // console.log(dragSelections.current);
 
-  let sumValue = 0;
-  let showDifferent = false;
-  const rows: string[] = [];
-  // console.log("Current user" + currentUserSelected);
-  dragSelections.current.forEach((selection, table) => {
-    const tbody = table.querySelector("tbody");
-    if (!tbody) return;
-    const dataRows = Array.from(tbody.children).filter(
-      (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
-    );
-    const rowStart = Math.min(selection.startRow, selection.endRow);
-    const rowEnd = Math.max(selection.startRow, selection.endRow);
-    const indices = new Set<number>();
-    for (let i = rowStart; i <= rowEnd; i++) indices.add(i);
-    if (selection.extras) {
-      for (const i of selection.extras) indices.add(i);
-    }
-    for (const i of indices) {
-      const row = dataRows[i];
-      if (!row) continue;
-      const cell = row.children[quantityColumnIndex];
-      if (cell) {
-        const cellValue = cell.textContent ?? "";
-        if (cellValue.toLowerCase().includes("tiles")) {
-          showDifferent = true;
-        }
-        rows.push(cellValue);
-      }
-    }
-  });
+  const rowValue = useMemo(() => {
+    let sumValue = 0;
+    let foundTiles = false;
+    let foundNonTiles = false;
+    let totalTiles = 0;
+    let totalInches = 0;
 
-  if (!showDifferent) {
-    for (const value of rows) {
-      const number = parseFloat(extractNumber(value));
-      if (!isNaN(number)) {
-        sumValue += number;
+    dragSelections.current.forEach((selection, table) => {
+      const tbody = table.querySelector("tbody");
+      if (!tbody) return;
+      const dataRows = Array.from(tbody.children).filter(
+        (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data",
+      );
+      const rowStart = Math.min(selection.startRow, selection.endRow);
+      const rowEnd = Math.max(selection.startRow, selection.endRow);
+      const indices = new Set<number>();
+      for (let i = rowStart; i <= rowEnd; i++) indices.add(i);
+      if (selection.extras) {
+        for (const i of selection.extras) indices.add(i);
       }
+
+      for (const i of indices) {
+        const row = dataRows[i];
+        if (!row) continue;
+        const cell = row.children[quantityColumnIndex] as HTMLElement | undefined;
+        if (!cell) continue;
+
+        const cellText = cell.textContent ?? "";
+        const rawQuantity = cell.dataset.rawQuantity ?? cellText;
+
+        const parsedTile = parseTileQuantityAndSize(rawQuantity);
+        if (parsedTile) {
+          foundTiles = true;
+          totalTiles += parsedTile.quantity;
+          totalInches += parsedTile.quantity * parsedTile.size;
+        } else {
+          foundNonTiles = true;
+          const number = parseFloat(extractNumber(cellText));
+          if (!isNaN(number)) sumValue += number;
+        }
+      }
+    });
+
+    const showDifferent = foundTiles && foundNonTiles;
+    if (showDifferent) return "N/A";
+
+    if (foundTiles) {
+      return `${Math.ceil(totalInches * 100) / 100}"`;
     }
-  }
-  const rowValue = showDifferent ? "N/A" : sumValue;
+
+    return String(sumValue);
+  }, [selectionVersion, dragSelections]);
 
   const condensedUsers = [
     { email: "N/A", color: "white", position: "" },
@@ -135,9 +166,9 @@ export function ButtonOrganizer({
       email,
       color: getCorrectUserColor(userRows, email).backgroundColor,
       position: userRows.get(email)?.position || "",
-      
     })),
   ];
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-200 shadow-lg">
       {/* Make both sides the same height */}
@@ -157,9 +188,8 @@ export function ButtonOrganizer({
                 `}
                   onClick={() => handleClick(category)}
                 >
-                  {category.toLowerCase() === "roll"
-                  ? `${category.toUpperCase()}-LABEL`
-                  : category.toUpperCase()} ({counts[category] || 0})
+                  {category.toLowerCase() === "roll" ? `${category.toUpperCase()}-LABEL` : category.toUpperCase()} (
+                  {counts[category] || 0})
                 </Button>
               );
             })}
@@ -184,10 +214,10 @@ export function ButtonOrganizer({
     "
             data-ignore-selection="true"
           >
-            <div className="flex w-full items-center gap-2 min-w-0">
+            <div className="flex w-full items-center gap-1 min-w-0">
               {/* Total Quantity */}
-              <div className="flex-1 min-w-0">
-                <span className="block truncate font-semibold">Total: {rowValue}</span>
+              <div className="flex-1 min-w-0 text-sm">
+                <span className="block font-semibold">Total: {rowValue}</span>
               </div>
 
               {/* Copy button */}
