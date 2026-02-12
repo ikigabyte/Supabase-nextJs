@@ -14,17 +14,21 @@ import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@
 import { Order } from "@/types/custom";
 import Papa from "papaparse";
 import { getBrowserClient } from "@/utils/supabase/client";
-import { Download } from "lucide-react";
+import { Download, RefreshCcw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Info, ExternalLink } from "lucide-react";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
 import { convertToSpaces } from "@/lib/utils";
-import { Toaster } from "@/components/ui/sonner";
+// import { Toaster } from "@/components/ui/sonner";
 // const supabase = createClientComponentClient();
 // import { Toaster } from "@/components/ui/sonner";
-import { toast } from "sonner";
+// import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+import { forceUpdateTimeline } from "@/utils/actions";
+// import { forceRefreshTimeline } from "@/utils/google-functions";
 
 const STATUS_ORDER = ["print", "cut", "prepack", "ship", "pack"] as const;
 type StatusType = (typeof STATUS_ORDER)[number];
@@ -96,10 +100,113 @@ export function TimelineOrders() {
       return next;
     });
 
+  const isRefreshingRef = useRef(false);
+
   // Inline orders rendering state: map order_id -> array of orders
   const [ordersById, setOrdersById] = useState<Record<number, Order[]>>({});
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
   const [open, setOpen] = useState(false);
+
+  const [refreshDisabled, setRefreshDisabled] = useState(true);
+  const [refreshHint, setRefreshHint] = useState<string>("Checking last refresh...");
+  const [lastRefreshMs, setLastRefreshMs] = useState<number | null>(null);
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [cooldownOpen, setCooldownOpen] = useState(false);
+  const [cooldownMessage, setCooldownMessage] = useState("");
+
+  const parseLastRefreshMs = (value?: string | null): number | null => {
+    if (!value) return null;
+    const t = new Date(value).getTime();
+    return Number.isFinite(t) ? t : null;
+  };
+
+  const formatRemaining = (ms: number) => {
+    const totalSec = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
+  const scheduleEnableWhenReady = (lastMs: number) => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+
+    const now = Date.now();
+    const nextAllowed = lastMs + REFRESH_COOLDOWN_MS;
+    const remaining = nextAllowed - now;
+
+    if (remaining <= 0) {
+      setRefreshDisabled(false);
+      setRefreshHint("Ready");
+      return;
+    }
+
+    setRefreshDisabled(true);
+    setRefreshHint(`Available in ${formatRemaining(remaining)}`);
+
+    refreshTimerRef.current = setTimeout(() => {
+      setRefreshDisabled(false);
+      setRefreshHint("Ready");
+    }, remaining);
+  };
+
+  const handleForceRefresh = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+
+    // Hard guard: prevents spam even before React state updates
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
+
+    try {
+      const now = Date.now();
+
+      // If still disabled, show blocked popup ONCE
+      if (refreshDisabled) {
+        setCooldownMessage("Orders can only be refreshed every 10 minutes");
+        setCooldownOpen(true);
+        return;
+      }
+      // Disable immediately and start cooldown locally
+      setRefreshDisabled(true);
+      setCooldownMessage("A request to update the orders has been sent, this might take a couple of minutes. ");
+      setCooldownOpen(true);
+      setRefreshHint(`Available in ${formatRemaining(REFRESH_COOLDOWN_MS)}`);
+      setLastRefreshMs(now);
+      scheduleEnableWhenReady(now);
+
+      // toast("Refresh requested", {
+      //   description: "Timeline refresh has been triggered.",
+      // });
+
+      forceUpdateTimeline();
+
+      // toast("Refresh accepted", {
+      //   description: "Zendesk scan should update soon.",
+      // });
+    } catch (e) {
+      // toast("Refresh failed", {
+      //   description: "Request did not complete. Try again.",
+      // });
+
+      // Optional: re-enable immediately on failure
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      setRefreshDisabled(false);
+      setRefreshHint("Ready");
+    } finally {
+      const base = lastRefreshMs ?? Date.now();
+      const remaining = base + REFRESH_COOLDOWN_MS - Date.now();
+
+      if (remaining > 0) {
+        setTimeout(() => {
+          isRefreshingRef.current = false;
+        }, remaining);
+        return;
+      }
+
+      isRefreshingRef.current = false;
+    }
+  };
 
   // Fetch all orders for the visible timeline (due + future) in bulk and group by order_id
   useEffect(() => {
@@ -223,16 +330,71 @@ export function TimelineOrders() {
   }, []);
 
   useEffect(() => {
+    setRefreshDisabled(true);
+    setRefreshHint("Checking last refresh...");
+
     supabase
       .from("timeline")
       .select()
       .eq("order_id", 0)
       .single()
-      .then(({ data }) => {
-        if (data) {
-          setTimeUpdated(formatLastUpdated(data.production_status ?? ""));
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setRefreshDisabled(false); // fail open so you are not locked out
+          setRefreshHint("Ready");
+          return;
         }
+
+        // IMPORTANT: this assumes data.production_status is an ISO timestamp string
+        const ms = parseLastRefreshMs(data.production_status ?? "");
+        if (ms === null) {
+          setRefreshDisabled(false); // if unparseable, fail open
+          setRefreshHint("Ready");
+          return;
+        }
+
+        setLastRefreshMs(ms);
+        setTimeUpdated(formatLastUpdated(data.production_status ?? ""));
+        scheduleEnableWhenReady(ms);
       });
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    setRefreshDisabled(true);
+    setRefreshHint("Checking last refresh...");
+
+    supabase
+      .from("timeline")
+      .select()
+      .eq("order_id", 0)
+      .single()
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setRefreshDisabled(false); // fail open so you are not locked out
+          setRefreshHint("Ready");
+          return;
+        }
+
+        // IMPORTANT: this assumes data.production_status is an ISO timestamp string
+        const ms = parseLastRefreshMs(data.production_status ?? "");
+        if (ms === null) {
+          setRefreshDisabled(false); // if unparseable, fail open
+          setRefreshHint("Ready");
+          return;
+        }
+
+        setLastRefreshMs(ms);
+        setTimeUpdated(formatLastUpdated(data.production_status ?? ""));
+        scheduleEnableWhenReady(ms);
+      });
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
   }, []);
 
   const HEADER_COLS = 6;
@@ -265,14 +427,14 @@ export function TimelineOrders() {
     return "No Data Found";
   };
 
-  const handleClick = (orderId: string | number) => {
-    navigator.clipboard.writeText(String(orderId));
-    // alert(`Double clicked on Order ID: ${orderId}`);
-    toast("Copied to clipboard", {
-      description: `The order ${orderId} has been copied to clipboard.`,
-    });
-    // await new Promise((resolve) => setTimeout(resolve, 1000));
-  };
+  // const handleClick = (orderId: string | number) => {
+  //   navigator.clipboard.writeText(String(orderId));
+  //   // alert(`Double clicked on Order ID: ${orderId}`);
+  //   toast("Copied to clipboard", {
+  //     description: `The order ${orderId} has been copied to clipboard.`,
+  //   });
+  //   // await new Promise((resolve) => setTimeout(resolve, 1000));
+  // };
 
   const openZendeskLink = (orderId: number) => {
     const url = `https://stickerbeat.zendesk.com/agent/tickets/${orderId}`;
@@ -329,6 +491,15 @@ export function TimelineOrders() {
   // How do we get the last updated thing, maybe we keep just an order
   return (
     <>
+      <Dialog open={cooldownOpen} onOpenChange={setCooldownOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Refresh Locked</DialogTitle>
+            <DialogDescription>{cooldownMessage}</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+
       <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
         <h1 className="font-bold text-3xl "> Timeline Orders (Last 30 Days) </h1>
         <p className="text-left font-regular text-sm">Last Scanned Zendesk: {timeUpdated} </p>
@@ -348,10 +519,20 @@ export function TimelineOrders() {
               </DialogHeader>
             </DialogContent>
           </Dialog>
-          <Button onClick={handleDownloadCSV}>
-            <Download className="mr-2" />
-            Download CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleDownloadCSV}>
+              <Download className="mr-2" />
+              Download CSV
+            </Button>
+            <Button
+              onClick={handleForceRefresh}
+              aria-disabled={refreshDisabled}
+              className={refreshDisabled ? "opacity-50 cursor-not-allowed" : ""}
+            >
+              <RefreshCcw className="mr-2" />
+              Force Refresh
+            </Button>
+          </div>
         </div>
         {/* Orders Due */}
         <Table className="w-full table-fixed min-w-0 mb-2 bg-black">
@@ -472,7 +653,6 @@ export function TimelineOrders() {
                   </TableRow>
                 </>
               )}
-              <Toaster theme={"dark"} richColors={true} />
             </React.Fragment>
           );
         })}

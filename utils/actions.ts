@@ -5,7 +5,7 @@ import { getServerClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 // import { OrderTypes } from "./orderTypes";
 
-import { updateZendeskNotes, reprintInternalNote } from "@/utils/google-functions";
+import { updateZendeskNotes, reprintInternalNote, forceRefreshTimeline } from "@/utils/google-functions";
 // import { GoTrueAdminApi } from "@supabase/supabase-js";
 
 type AdminRow = { role: "admin" | string };
@@ -127,6 +127,25 @@ async function getSiblingOrders(orderId: number, newStatus: string): Promise<boo
     return true;
   }
   return false;
+}
+
+
+export async function forceUpdateTimeline() {
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("User is not logged in");
+  }
+
+  const role = await retrieveUserRole(user);
+  if (role !== "admin" && role !== "manager") {
+    throw new Error("User does not have permission to force update timeline");
+  }
+  console.log("Forcing timeline refresh by updating order_id 0 with timestamp");
+  await forceRefreshTimeline();
+  return true;
 }
 
 
