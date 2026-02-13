@@ -279,13 +279,17 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
   const [value, setValue] = useState(note);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Prevent duplicate commits across Enter + blur
+  const lastCommittedRef = useRef<string>(note);
+  const commitLockRef = useRef(false);
+
   useEffect(() => {
     if (document.activeElement !== inputRef.current) {
       setValue(note);
+      lastCommittedRef.current = note;
     }
   }, [note]);
 
-  // Auto-resize on input
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
     if (inputRef.current) {
@@ -294,7 +298,6 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
     }
   };
 
-  // Initial auto-resize
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
@@ -302,35 +305,43 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
     }
   }, [value]);
 
-  const handleBlur = () => {
-    if (value !== note) {
-      // console.log("Committing note change:", value);
-      onCommit(value);
-    } else {
-    }
+  const commitOnce = (next: string) => {
+    if (commitLockRef.current) return;
+
+    const trimmed = next; // optionally: next.trimEnd()
+    if (trimmed === lastCommittedRef.current) return;
+
+    commitLockRef.current = true;
+    lastCommittedRef.current = trimmed;
+
+    onCommit(trimmed);
+
+    // unlock next tick so blur+enter in same frame cannot double fire
+    queueMicrotask(() => {
+      commitLockRef.current = false;
+    });
   };
 
   return (
-    <>
-      <Textarea
-        ref={inputRef}
-        className="overflow-y-hidden resize-none bg-transparent border-0 focus:bg-gray-200 text-[11px]"
-        value={value}
-        rows={1}
-        onInput={handleInput}
-        onChange={handleInput}
-        onBlur={handleBlur}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            onCommit(value);
-          }
-        }}
-      />
-    </>
+    <Textarea
+      ref={inputRef}
+      className="overflow-y-hidden resize-none bg-transparent border-0 focus:bg-gray-200 text-[11px]"
+      value={value}
+      rows={1}
+      onInput={handleInput}
+      onChange={handleInput}
+      onBlur={() => commitOnce(value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          commitOnce(value);
+          // optional: keep focus so blur never happens
+          // inputRef.current?.focus();
+        }
+      }}
+    />
   );
 }
-
 type dragSel = {
   startRow: number;
   endRow: number;

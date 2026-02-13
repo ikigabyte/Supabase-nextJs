@@ -635,6 +635,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [hashValue, setHashValue] = useState<string | null>(null);
   const pendingRemovalIds = useRef<Set<string>>(new Set());
   const [userRows, setUserRows] = useState<Map<string, { color: string; position: string | null }>>(new Map());
+  const NOTE_COOLDOWN_MS = 10 * 1000; // 10 seconds
+  const noteCooldownUntilRef = useRef<Record<string, number>>({});
+  const noteInFlightRef = useRef<Record<string, boolean>>({});
+
   // const [updateCounter, forceUpdate] = useState(0);
   const pressedRef = useRef<Set<string>>(new Set());
   const ordersRef = useRef(orders);
@@ -2040,26 +2044,56 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
     await updateOrderStatus(order, false, orderType);
   }, []);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleNoteChange = useCallback(async (order: Order, newNotes: string) => {
-    // console.log("Updating notes for order", order.name_id, "to", newNotes);
-    // Optimistically update local state
-    // toast.info("Updating notes...", { duration: 2000 });
-    setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, notes: newNotes } : o)));
-    // Persist change
-    await updateOrderNotes(order, newNotes);
-    toast(`Updated note for ${order.name_id}`, {
-      description: `Note: ${newNotes}`,
-    });
-  }, []);
+const handleNoteChange = useCallback(
+  async (order: Order, newNotes: string) => {
+    const id = order.name_id;
+    const now = Date.now();
 
-  const handleReprintCreate = useCallback(async (nameId: string, quantity: number) => {
-    await createReprint(nameId, quantity);
-    // console.log("Creating reprint for", nameId, "quantity", quantity);
-    toast("Reprint created", {
-      description: `Created reprint for ${nameId} (Quantity: ${quantity})`,
-    });
-  }, []);
+    const cooldownUntil = noteCooldownUntilRef.current[id] ?? 0;
+    const inFlight = noteInFlightRef.current[id] ?? false;
+
+    // Block if still cooling down or already sending one
+    if (inFlight || now < cooldownUntil) {
+      toast.error("Please wait before updating notes again.", {
+        description: "You can only update notes every 10 seconds, please try again shortly",
+        duration: 3000,
+      });
+      // setOpen(true); // your Dialog: "Orders can only be requested every 10 minutes" (adjust text)
+      return;
+    }
+
+    // Instant UI update
+    setOrders((prev) => prev.map((o) => (o.name_id === id ? { ...o, notes: newNotes } : o)));
+
+    // Start cooldown immediately
+    noteCooldownUntilRef.current[id] = now + NOTE_COOLDOWN_MS;
+    noteInFlightRef.current[id] = true;
+
+    try {
+      toast.success("Notes updated", {
+        description: `Notes for ${(order.order_id ?? "")} have been updated.`,
+      });
+      await updateOrderNotes(order, newNotes); // instant server update
+    } catch (e) {
+      // If you want retries allowed when it fails, clear cooldown here
+      delete noteCooldownUntilRef.current[id];
+      throw e;
+    } finally {
+      noteInFlightRef.current[id] = false;
+    }
+  },
+  [setOrders],
+);
+
+const handleReprintCreate = useCallback(async (nameId: string, quantity: number) => {
+  await createReprint(nameId, quantity);
+  // console.log("Creating reprint for", nameId, "quantity", quantity);
+  toast("Reprint created", {
+    description: `Created reprint for ${nameId} (Quantity: ${quantity})`,
+  });
+}, []);
 
   const handleMenuOptionClick = useCallback(
     async (option: string, quantity?: number) => {
