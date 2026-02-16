@@ -145,7 +145,7 @@ const subtractBusinessDays = (date: Date, days: number): Date => {
   return result;
 };
 
-const convertToOrderTypeDate = (date: string | null, orderType: string | undefined): string => {
+const convertToOrderTypeDate = (date: string | null, orderType: string | undefined, isRush: boolean | undefined): string => {
   if (!date) return "-";
   if (!orderType) return "-"; // If no order type, return original date
   const [year, month, day] = date.split("-").map(Number);
@@ -170,6 +170,9 @@ const convertToOrderTypeDate = (date: string | null, orderType: string | undefin
   }
 
   const originalDate = new Date(year, month - 1, day);
+  if (isRush && orderType === "print") {
+    return date; // If it's a rush order, return the original date
+  }
   const newDate = subtractBusinessDays(originalDate, businessDays);
 
   // Format as YYYY-MM-DD
@@ -522,7 +525,7 @@ export function OrderTableBody({
         }
         const prev = data[i - 1];
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
-        const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus);
+        const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus, row.rush);
         const assignee = normalizeAssignee(row.asignee);
         // Try to find initials for the assignee from userColors map
         let assigneeInitials: string | null = null;
@@ -541,7 +544,7 @@ export function OrderTableBody({
           }
         }
         // Example: assigneeInitials will be "kr" if found, otherwise null
-        const meetsProduction = meetsProductionCycle(convertedProductionDate) && productionStatus !== "ship";
+        const meetsProduction = meetsProductionCycle(convertedProductionDate) && productionStatus !== "ship" && !row.rush;
         const getDayOfDate = convertDateToActualDay(row.due_date);
         return (
           <React.Fragment key={row.name_id}>
@@ -685,9 +688,11 @@ export function OrderTableBody({
                 }}
                 onMouseLeave={handleMouseLeave}
               >
-                {meetsProduction
-                  ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
-                  : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
+                {row.rush && productionStatus === "print"
+                  ? convertDateToReadableDate(row.due_date)
+                  : meetsProduction
+                  ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus, row.rush))} ⚠ `
+                  : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus, row.rush))}
               </TableCell>
               <TableCell
                 className=""
