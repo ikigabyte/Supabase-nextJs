@@ -149,6 +149,9 @@ export function NavBarElement() {
       <Link id="to-ship" href="/toship?regular">
         To Ship ({counts.ship})
       </Link>
+      <Link id="history" href="/history">
+        History <span className="text-red-500">[NEW]</span>
+      </Link>
       <Link id="completed" href="/completed">
         Completed
       </Link>

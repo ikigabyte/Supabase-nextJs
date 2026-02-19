@@ -1,13 +1,6 @@
 "use client";
-// import * as React from "react"
 import React, { useState, useEffect } from "react";
-import { Button } from "./ui/button";
-import { SkipBack, Eye, MailOpen, Trash } from "lucide-react";
-import { Separator } from "./ui/separator";
-import { OrderTypes } from "@/utils/orderTypes";
-// import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { History } from "@/types/custom";
-import { OrderTableHeader } from "@/components/order-table-header";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 
@@ -31,24 +24,45 @@ const formatDate = (dateString: string | null) => {
 export function UserOrders() {
   const [orders, setOrders] = useState<History[]>([]);
   const [user, setUser] = useState<string>("Guest");
-  // const clientUser = supabase.auth.getUser();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user?.email ?? "Guest");
-    });
-  }, [user]);
+    let cancelled = false;
 
-  useEffect(() => {
-    supabase
-      .from("history")
-      .select()
-      // .eq("production_status", orderType)
-      .order("inserted_at", { ascending: false })
-      .then(({ data }) => setOrders(data ?? []));
-  }, [orders]);
+    const loadMyOrders = async () => {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
 
-  // console.log(orders);
+      if (!authUser) {
+        if (!cancelled) {
+          setUser("Guest");
+          setOrders([]);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setUser(authUser.email ?? "Guest");
+      }
+
+      const { data } = await supabase
+        .from("history")
+        .select("id, inserted_at, name_id, production_change, user_id")
+        .eq("user_id", authUser.id)
+        .order("inserted_at", { ascending: false });
+
+      if (!cancelled) {
+        setOrders((data ?? []) as History[]);
+      }
+    };
+
+    void loadMyOrders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <>
       <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
@@ -71,7 +85,7 @@ export function UserOrders() {
               </TableRow>
             ))}
           </TableBody>
-          {/* <CompletedOrganizer orders={orders} /> */}
+          {/* <CompletedOrganizer orders={orders} /> */}m
         </Table>
       </section>
       {/* <h1> Recently clicked orders</h1> */}

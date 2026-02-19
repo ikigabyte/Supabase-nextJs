@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   Pagination,
   PaginationContent,
+  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -56,6 +57,10 @@ export default async function CompletedPage({
 
   const total = count || 0;
   const pages = Math.max(Math.ceil(total / limit), 1);
+  const maxVisiblePages = 5;
+  const windowStart = Math.max(1, Math.min(page - 2, pages - maxVisiblePages + 1));
+  const windowEnd = Math.min(pages, windowStart + maxVisiblePages - 1);
+  const middlePages = Array.from({ length: windowEnd - windowStart + 1 }, (_, idx) => windowStart + idx);
 
   const hrefFor = (p: number) => {
     const params = new URLSearchParams();
@@ -99,14 +104,35 @@ export default async function CompletedPage({
         </PaginationPrevious>
 
         <PaginationContent>
-          {Array.from({ length: pages }).map((_, idx) => {
-            const p = idx + 1;
-            return (
-              <PaginationItem key={p} className={p === page ? "active" : ""}>
-                <PaginationLink href={hrefFor(p)}>{p}</PaginationLink>
-              </PaginationItem>
-            );
-          })}
+          {windowStart > 1 && (
+            <PaginationItem className={page === 1 ? "active" : ""}>
+              <PaginationLink href={hrefFor(1)}>1</PaginationLink>
+            </PaginationItem>
+          )}
+
+          {windowStart > 2 && (
+            <PaginationItem>
+              <PaginationEllipsis />
+            </PaginationItem>
+          )}
+
+          {middlePages.map((p) => (
+            <PaginationItem key={p} className={p === page ? "active" : ""}>
+              <PaginationLink href={hrefFor(p)}>{p}</PaginationLink>
+            </PaginationItem>
+          ))}
+
+          {windowEnd < pages - 1 && (
+            <PaginationItem>
+              <PaginationEllipsis />
+            </PaginationItem>
+          )}
+
+          {windowEnd < pages && (
+            <PaginationItem className={page === pages ? "active" : ""}>
+              <PaginationLink href={hrefFor(pages)}>{pages}</PaginationLink>
+            </PaginationItem>
+          )}
         </PaginationContent>
 
         <PaginationNext href={hrefFor(Math.min(page + 1, pages))}>
