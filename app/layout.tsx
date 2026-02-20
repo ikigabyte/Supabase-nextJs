@@ -1,7 +1,12 @@
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
-import Header from "@/components/header";
-import AuthHeader from "@/components/auth-header";
+import localFont from "next/font/local";
+
+const archivo = localFont({
+  src: "./fonts/Archivo-VariableFont_wdth,wght.ttf",
+  variable: "--font-archivo",
+  weight: "100 900",
+});
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -15,11 +20,10 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={GeistSans.variable} suppressHydrationWarning>
-      <body className="sticky top-0 bg-background text-foreground">
-        <AuthHeader />
-        <main className="flex flex-col items-center">{children}</main>
-      </body>
+    <html lang="en"
+        className={`${GeistSans.variable} ${archivo.variable}`}
+      suppressHydrationWarning>
+      <body className="sticky top-0 bg-background text-foreground">{children}</body>
     </html>
   );
 }

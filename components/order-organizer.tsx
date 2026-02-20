@@ -600,7 +600,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   if (supabase === null) {
     console.error("Supabase client is null");
-    redirect("/login");
+    redirect("/database/login");
     return null; // or handle the error as needed
   }
   const [session, setSession] = useState<Session | null>(null);
@@ -1874,7 +1874,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // Ensure we strip any existing query from the path
         const basePath = pathname.split("?")[0];
 
-        // This yields: /toprint?special, /toprint?white, etc.
+        // This yields: /database/toprint?special, /database/toprint?white, etc.
         router.push(`${basePath}?${lowerCategory}`);
       }
     },
@@ -1884,7 +1884,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // *  Finding a different way to search
   // * URL → state: category, headers, visible groups
   useEffect(() => {
-    // Get first key from ?category style URL, e.g. /toprint?special
+    // Get first key from ?category style URL, e.g. /database/toprint?special
     const first = Array.from(searchParams.entries())[0] ?? [];
     const [key, value] = first as [string | undefined, string | undefined];
 
@@ -1896,7 +1896,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         pendingUrlNameId.current = decoded; // <-- defer selection
       }
     } else {
-      // No value (e.g. /toprint?clear) → reset
+      // No value (e.g. /database/toprint?clear) → reset
       lastUrlSelectedNameId.current = null;
       pendingUrlNameId.current = null;
     }

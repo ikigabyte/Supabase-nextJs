@@ -155,35 +155,35 @@ export function NavBarElement() {
 
   return (
     <div className="flex items-center gap-5 text-xs font-medium">
-      <Link id="to-print" href="/toprint?rush">
+      <Link id="to-print" href="/database/toprint?rush">
         To Print ({counts.print})
       </Link>
-      <Link id="to-cut" href="/tocut?regular">
+      <Link id="to-cut" href="/database/tocut?regular">
         To Cut ({counts.cut})
       </Link>
-      <Link id="to-prepack" href="/toprepack?regular">
+      <Link id="to-prepack" href="/database/toprepack?regular">
         To Prepack ({counts.prepack})
       </Link>
-      <Link id="to-pack" href="/topack?regular">
+      <Link id="to-pack" href="/database/topack?regular">
         To Pack ({counts.pack})
       </Link>
-      <Link id="to-ship" href="/toship?regular">
+      <Link id="to-ship" href="/database/toship?regular">
         To Ship ({counts.ship})
       </Link>
       {canViewHistory && (
-        <Link id="history" href="/history" className="flex items-center gap-1">
+        <Link id="history" href="/database/history" className="flex items-center gap-1">
           History
           <span className="text-red-600">NEW</span>
         </Link>
       )}
-      <Link id="completed" href="/completed">
+      <Link id="completed" href="/database/completed">
         Completed
       </Link>
-      <Link id="timeline" href="/timeline">
+      <Link id="timeline" href="/database/timeline">
         Timeline
       </Link>
       {isAdmin && (
-        <Link id="admin" href="/admin" className="text-red-900">
+        <Link id="admin" href="/database/admin" className="text-red-900">
           Admin
         </Link>
       )}

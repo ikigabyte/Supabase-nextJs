@@ -258,7 +258,7 @@ export function TimelineOrders() {
 
   if (supabase === null) {
     console.error("Supabase client is null");
-    redirect("/login");
+    redirect("/database/login");
     return null; // or handle the error as needed
   }
 

@@ -1,6 +1,6 @@
 // "use client";
 
-// import { removeTodo, updateTodo } from "@/app/toprint/actions";
+// import { removeTodo, updateTodo } from "@/app/database/toprint/actions";
 // import { Button } from "@/components/ui/button";
 // import { Card, CardContent } from "@/components/ui/card";
 // import { Checkbox } from "@/components/ui/checkbox";

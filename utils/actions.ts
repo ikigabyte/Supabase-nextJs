@@ -170,7 +170,7 @@ async function addHistoryForUser(nameid: string, newStatus: string, previousStat
     throw new Error("Error adding history");
   }
   return true;
-  // revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+  // revalidatePath("/database/toprint"); // * Revalidate any of the data should be refreshed
 }
 
 export async function removeOrderLine(order: Order) {
@@ -195,7 +195,7 @@ export async function removeOrderLine(order: Order) {
   }
 
   console.log("Order deleted successfully");
-  revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+  revalidatePath("/database/toprint"); // * Revalidate any of the data should be refreshed
 }
 
 export async function removeOrderAll(orderId: number) {
@@ -244,7 +244,7 @@ export async function removeOrderAll(orderId: number) {
   await Promise.all(nameIds.map((nameId) => addHistoryForUser(nameId, "deleted", "N/A")));
 
   console.log(`Orders with order_id ${orderId} deleted successfully`);
-  revalidatePath("/toprint");
+  revalidatePath("/database/toprint");
 }
 export async function assignColorToQuantityRow(nameIds: string[], colorValue?: string | null) { // this should be in a hexcode format
   if (!nameIds || nameIds.length === 0) throw new Error("No nameIds provided");
@@ -373,7 +373,7 @@ export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: str
 //   }
 
 //   // Optionally revalidate if needed
-//   // revalidatePath("/toprint");
+//   // revalidatePath("/database/toprint");
 // }
 
 
@@ -742,7 +742,7 @@ export async function createCustomOrder(
 //     throw new Error("Error adding todo");
 //   }
 
-//   revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+//   revalidatePath("/database/toprint"); // * Revalidate any of the data should be refreshed
 // }
 
 // export async function addTodo(formData: FormData){
@@ -770,7 +770,7 @@ export async function createCustomOrder(
 //         throw new Error("Error adding todo");
 //     }
 
-//     revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+//     revalidatePath("/database/toprint"); // * Revalidate any of the data should be refreshed
 // }
 
 // export async function getTodos() {
@@ -811,7 +811,7 @@ export async function createCustomOrder(
 //     user_id: user.id, // the user id
 //     id: todo.id, // the todo id
 //   });
-//   revalidatePath("/toprint"); // * Revalidate any of the data should be refreshed
+//   revalidatePath("/database/toprint"); // * Revalidate any of the data should be refreshed
 // }
 
 // console.log("Existing history:", history);

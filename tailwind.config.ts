@@ -87,6 +87,7 @@ const config = {
       },
       fontFamily: {
         sans: ["var(--font-geist-sans)", ...fontFamily.sans],
+        archivo: ["var(--font-archivo)"],
       },
       keyframes: {
         "accordion-down": {

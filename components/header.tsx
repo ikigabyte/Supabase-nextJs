@@ -5,7 +5,7 @@ import Link from "next/link";
 import Form from "next/form";
 import type { Session } from "@supabase/supabase-js";
 
-import { signOut } from "@/app/login/actions";
+import { signOut } from "@/app/database/login/actions";
 import { Button } from "@/components/ui/button";
 import { NavBarElement } from "./navbar-element";
 import { getBrowserClient } from "@/utils/supabase/client";
@@ -123,7 +123,7 @@ export default function Header() {
             <p id="version-p" className="text-xs font-bold">SB Database</p>
           </a>
           <div className="flex items-center justify-end space-x-12">
-            {session ? <NavBarElement /> : <Link href="/login" />}
+            {session ? <NavBarElement /> : <Link href="/database/login" />}
           </div>
         </nav>
 
@@ -132,7 +132,7 @@ export default function Header() {
             <>
               <div className="relative">
                 <Button asChild className="h-8 w-8 rounded-full" style={{ backgroundColor: userBackgroundColor }}>
-                  <Link href="/user">{userInitials}</Link>
+                  <Link href="/database/user">{userInitials}</Link>
                 </Button>
                 {profileLabel && (
                   <span className="absolute right-full top-1/2 mr-2 -translate-y-1/2 bg-transparent px-0 py-0 text-[10px] font-medium leading-none capitalize">
@@ -149,7 +149,7 @@ export default function Header() {
             </>
           ) : (
             <Button asChild>
-              <Link href="/login">Sign In</Link>
+              <Link href="/database/login">Sign In</Link>
             </Button>
           )}
         </div>
