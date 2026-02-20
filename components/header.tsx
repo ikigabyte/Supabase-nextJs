@@ -11,23 +11,25 @@ import { NavBarElement } from "./navbar-element";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { convertUsableColor } from "@/lib/utils";
 
-// helper stays the same
-export async function fetchUserColorByIdentifier(supabase: any, identifier: string): Promise<string | null> {
+type ProfileSummary = {
+  color: string | null;
+  role: string | null;
+  position: string | null;
+};
+
+export async function fetchUserProfileById(supabase: any, userId: string): Promise<ProfileSummary | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("color")
-    .eq("identifier", identifier)
+    .select("color, role, position")
+    .eq("id", userId)
     .maybeSingle();
-    
-    if (error) {
-      console.error("Failed to fetch user color:", error);
-      return null;
-    }
-  if (data.color) {
-    return convertUsableColor(data.color);
-  } else {
-    return "#000000ff"; // default white with full opacity
+
+  if (error) {
+    console.error("Failed to fetch user profile:", error);
+    return null;
   }
+
+  return (data as ProfileSummary | null) ?? null;
 }
 
 const getInitials = (email: string) =>
@@ -40,6 +42,7 @@ export default function Header() {
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [myColor, setMyColor] = useState<string | null>(null);
+  const [profileLabel, setProfileLabel] = useState<string>("");
   const [databaseVersion, setDatabaseVersion] = useState<string | null>(null);
 
   // const { data, error } = await supabase.from("profiles").select("id, identifier, color, role, position");supabase
@@ -79,23 +82,34 @@ export default function Header() {
     };
   }, [supabase]);
 
-  // Fetch color when email is known (this is the part that was broken)
+  // Fetch profile details when session is known
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      if (!email) {
-        if (!cancelled) setMyColor(null);
+      const userId = session?.user?.id;
+      if (!userId) {
+        if (!cancelled) {
+          setMyColor(null);
+          setProfileLabel("");
+        }
         return;
       }
-      const color = await fetchUserColorByIdentifier(supabase, email);
-      if (!cancelled) setMyColor(color);
+
+      const profile = await fetchUserProfileById(supabase, userId);
+      const color = profile?.color ? convertUsableColor(profile.color) : "#000000ff";
+      const labelValue = (profile?.position ?? profile?.role ?? "").trim();
+
+      if (!cancelled) {
+        setMyColor(color);
+        setProfileLabel(labelValue);
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [supabase, email]);
+  }, [supabase, session]);
 
   const userInitials = email ? getInitials(email) : "";
   const userBackgroundColor = myColor ?? "#ffffff";
@@ -116,9 +130,16 @@ export default function Header() {
         <div className="flex items-center space-x-3 ml-auto">
           {session ? (
             <>
-              <Button asChild className="h-8 w-8 rounded-full" style={{ backgroundColor: userBackgroundColor }}>
-                <Link href="/user">{userInitials}</Link>
-              </Button>
+              <div className="relative">
+                <Button asChild className="h-8 w-8 rounded-full" style={{ backgroundColor: userBackgroundColor }}>
+                  <Link href="/user">{userInitials}</Link>
+                </Button>
+                {profileLabel && (
+                  <span className="absolute right-full top-1/2 mr-2 -translate-y-1/2 bg-transparent px-0 py-0 text-[10px] font-medium leading-none capitalize">
+                    {profileLabel.toUpperCase()}
+                  </span>
+                )}
+              </div>
 
               <Form action={signOut} formMethod="POST" className="flex items-center gap-2">
                 <Button type="submit" size="sm">

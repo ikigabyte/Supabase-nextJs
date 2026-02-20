@@ -9,6 +9,7 @@ import type { Session } from "@supabase/supabase-js";
 import { Search } from "lucide-react";
 
 const DELAY_BETWEEN_UPDATES = 2000; // 1.5 seconds
+const ALLOWED_POSITIONS = new Set(["prepress", "printing"]);
 
 export function NavBarElement() {
   // const router = useRouter();
@@ -26,6 +27,8 @@ export function NavBarElement() {
     ship: "...",
   });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdminRole, setIsAdminRole] = useState(false);
+  const [userPosition, setUserPosition] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -62,11 +65,23 @@ export function NavBarElement() {
     (async () => {
       const { data: userRes, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userRes?.user) {
-        if (!cancelled) setIsAdmin(false);
+        if (!cancelled) {
+          setIsAdmin(false);
+          setIsAdminRole(false);
+          setUserPosition(null);
+        }
         return;
       }
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", userRes.user.id).single();
-      if (!cancelled) setIsAdmin(profile?.role === "admin" || profile?.role === "manager");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, position")
+        .eq("id", userRes.user.id)
+        .single();
+      if (!cancelled) {
+        setUserPosition(profile?.position ?? null);
+        setIsAdmin(profile?.role === "admin" || profile?.role === "manager");
+        setIsAdminRole(profile?.role === "admin");
+      }
     })();
 
     return () => {
@@ -74,6 +89,12 @@ export function NavBarElement() {
     };
   }, [supabase]);
 
+  const normalizedPosition = (userPosition ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+  
+  const canViewHistory = isAdmin || ALLOWED_POSITIONS.has(normalizedPosition);
   // fetchCounts moved out, memoized on supabase
   const timeoutRef = useRef<number | null>(null);
   const fetchCounts = useCallback(async () => {
@@ -149,9 +170,12 @@ export function NavBarElement() {
       <Link id="to-ship" href="/toship?regular">
         To Ship ({counts.ship})
       </Link>
-      <Link id="history" href="/history">
-        History <span className="text-red-500">[NEW]</span>
-      </Link>
+      {canViewHistory && (
+        <Link id="history" href="/history" className="flex items-center gap-1">
+          History
+          <span className="text-red-600">NEW</span>
+        </Link>
+      )}
       <Link id="completed" href="/completed">
         Completed
       </Link>
@@ -163,7 +187,8 @@ export function NavBarElement() {
           Admin
         </Link>
       )}
-      <Link href="#" onClick={() => setDialogOpen(true)} className="flex items-center gap-1">
+      <Link href="#" onClick={() => setDialogOpen(true)} className="flex items-center gap-1 border border-gray-200 rounded px-3 py-2
+      ">
         <Search size={14} className="cursor-pointer" />
         <span>Search Log</span>
       </Link>

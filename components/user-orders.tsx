@@ -3,6 +3,15 @@ import React, { useState, useEffect } from "react";
 import { History } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 const supabase = getBrowserClient();
 
@@ -24,6 +33,8 @@ const formatDate = (dateString: string | null) => {
 export function UserOrders() {
   const [orders, setOrders] = useState<History[]>([]);
   const [user, setUser] = useState<string>("Guest");
+  const [page, setPage] = useState(1);
+  const limit = 20;
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +78,7 @@ export function UserOrders() {
     <>
       <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
         <h1 className="font-bold text-3xl "> {user} History </h1>
+        <p className="text-sm text-muted-foreground">Total actions committed: {orders.length}</p>
         <Table>
           {/* Use the same headers styling */}
           <TableHeader>
@@ -77,7 +89,7 @@ export function UserOrders() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((order) => (
+            {orders.slice((page - 1) * limit, page * limit).map((order) => (
               <TableRow key={order.id} className="h-5 text-sm">
                 <TableCell className="text-left align-middle">{order.name_id}</TableCell>
                 <TableCell className="text-left align-middle">{order.production_change}</TableCell>
@@ -87,6 +99,53 @@ export function UserOrders() {
           </TableBody>
           {/* <CompletedOrganizer orders={orders} /> */}m
         </Table>
+        {/* Pagination Controls */}
+        {orders.length > limit && (
+          <Pagination className="mt-4">
+            <PaginationPrevious
+              href="#"
+              onClick={e => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
+            />
+            <PaginationContent>
+              {(() => {
+                const totalPages = Math.ceil(orders.length / limit);
+                const maxVisiblePages = 5;
+                const windowStart = Math.max(1, Math.min(page - 2, totalPages - maxVisiblePages + 1));
+                const windowEnd = Math.min(totalPages, windowStart + maxVisiblePages - 1);
+                const middlePages = Array.from({ length: windowEnd - windowStart + 1 }, (_, idx) => windowStart + idx);
+                return (
+                  <>
+                    {windowStart > 1 && (
+                      <PaginationItem>
+                        <PaginationLink href="#" onClick={e => { e.preventDefault(); setPage(1); }}>1</PaginationLink>
+                      </PaginationItem>
+                    )}
+                    {windowStart > 2 && (
+                      <PaginationItem><PaginationEllipsis /></PaginationItem>
+                    )}
+                    {middlePages.map(p => (
+                      <PaginationItem key={p}>
+                        <PaginationLink href="#" isActive={p === page} onClick={e => { e.preventDefault(); setPage(p); }}>{p}</PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    {windowEnd < totalPages - 1 && (
+                      <PaginationItem><PaginationEllipsis /></PaginationItem>
+                    )}
+                    {windowEnd < totalPages && (
+                      <PaginationItem>
+                        <PaginationLink href="#" onClick={e => { e.preventDefault(); setPage(totalPages); }}>{totalPages}</PaginationLink>
+                      </PaginationItem>
+                    )}
+                  </>
+                );
+              })()}
+            </PaginationContent>
+            <PaginationNext
+              href="#"
+              onClick={e => { e.preventDefault(); setPage(p => Math.min(Math.ceil(orders.length / limit), p + 1)); }}
+            />
+          </Pagination>
+        )}
       </section>
       {/* <h1> Recently clicked orders</h1> */}
     </>

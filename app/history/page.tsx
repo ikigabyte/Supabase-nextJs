@@ -1,5 +1,6 @@
 import { getServerClient } from "@/utils/supabase/server";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   Pagination,
   PaginationContent,
@@ -12,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { HistoryOrderLookup } from "@/components/history-order-lookup";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+const ALLOWED_POSITIONS = new Set(["prepress", "printing"]);
 
 type HistorySearchParams = {
   page?: string;
@@ -38,6 +41,19 @@ export default async function HistoryPage({
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    return redirect("/login");
+  }
+
+  const { data: profile } = await supabase.from("profiles").select("role, position").eq("id", user.id).maybeSingle();
+  const normalizedPosition = (profile?.position ?? "").trim().toLowerCase().replace(/[^a-z]/g, "");
+  const isAdminRole = profile?.role === "admin";
+  console.log(isAdminRole)
+  console.log(normalizedPosition, ALLOWED_POSITIONS.has(normalizedPosition))
+  if (!isAdminRole && !ALLOWED_POSITIONS.has(normalizedPosition)) {
+    return redirect("/");
+  }
+
   const limit = 100;
   const from = (page - 1) * limit;
   const to = page * limit - 1;
@@ -51,11 +67,7 @@ export default async function HistoryPage({
     q = q.or(`name_id.eq.${orderParamRaw},name_id.ilike.${orderParamRaw}-%`);
   }
   if (viewMode === "mine") {
-    if (user?.id) {
-      q = q.eq("user_id", user.id);
-    } else {
-      q = q.eq("user_id", "__no_user__");
-    }
+    q = q.eq("user_id", user.id);
   }
 
   const { data: historyRows, count } = await q.range(from, to);
@@ -107,7 +119,6 @@ export default async function HistoryPage({
           <Link href={viewHrefFor("all")}>View all orders</Link>
         </Button>
       </div>
-      {viewMode === "mine" && !user && <p className="text-sm text-muted-foreground">Sign in to view your orders.</p>}
       <HistoryOrderLookup />
 
       <Table>
