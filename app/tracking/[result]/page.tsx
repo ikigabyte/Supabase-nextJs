@@ -44,7 +44,8 @@ const STATUS_TO_PROGRESS_INDEX: Record<string, number> = {
   to_cut: 5,
   to_prepack: 6,
   to_pack: 7,
-  to_ship: 7,
+  to_ship: 8,
+  pack_and_ship: 9,
   shipped: 9,
 };
 
@@ -58,6 +59,7 @@ const STATUS_TO_DATE_STEPS: Record<string, number[]> = {
   to_prepack: [6],
   to_pack: [7],
   to_ship: [8],
+  pack_and_ship: [9],
   shipped: [9],
 };
 
@@ -338,9 +340,18 @@ export default function TrackingResultPage() {
       }
     }
 
+    const currentStatusDates = historyEntries
+      .filter((entry) => normalizeStatus(entry?.value) === currentStatus)
+      .map((entry) => formatHistoryDate(entry?.updated_at))
+      .filter(Boolean);
+    const currentStatusDate =
+      currentStatusDates[currentStatusDates.length - 1] ?? formatHistoryDate(latestHistoryEntry?.updated_at) ?? "";
+
     return TIMELINE_STEP_NAMES.map((name, idx) => ({
       name,
-      date: latestDateByStep.get(idx) ?? "",
+      date:
+        latestDateByStep.get(idx) ??
+        (idx <= activeIndex && currentStatusDate ? currentStatusDate : ""),
       done: idx < activeIndex,
       active: idx === activeIndex,
     }));
