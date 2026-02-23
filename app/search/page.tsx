@@ -21,7 +21,7 @@ export default function SearchPage() {
     <div className="min-h-screen bg-zinc-50 font-archivo">
       <header className="w-full bg-[#76C043] px-6 py-4 text-white">
         <div className="grid grid-cols-3 items-center">
-          <img src="public/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-8 w-auto" />
+          <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-8 w-auto" />
           <h1 className="text-center text-4xl tracking-tight">Order Tracker</h1>
           <div className="flex justify-end">
             <Button asChild variant="outline" className="border-white bg-transparent text-white hover:bg-white/15">
@@ -39,8 +39,14 @@ export default function SearchPage() {
           <div className="flex items-stretch gap-3">
             <Textarea
               value={orderNumber}
-              onChange={(event) => setOrderNumber(event.target.value)}
+              onChange={(event) => {
+                const numericOnly = event.target.value.replace(/\D/g, "").slice(0, 8);
+                setOrderNumber(numericOnly);
+              }}
               placeholder="Enter order number"
+              rows={1}
+              maxLength={8}
+              inputMode="numeric"
               className="min-h-0 h-11 flex-1 resize-none rounded-full px-4 text-lg"
             />
             <Button type="submit" className="h-11 shrink-0">
