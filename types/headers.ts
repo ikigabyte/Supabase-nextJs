@@ -1,6 +1,8 @@
 import { OrderTypes } from "@/utils/orderTypes";
 
 export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
+  const includeIhdDate = orderType === "cut" || orderType === "prepack" || orderType === "pack";
+
   // Example: if orderType is "pack", return special headers
   if (orderType === "ship") {
     return [
@@ -31,6 +33,7 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "-",
         orderType + " date",
         "ship date",
+        ...(includeIhdDate ? ["ihd date"] : []),
         "shipping method",
         "notes",
         orderType,
@@ -46,6 +49,7 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "-",
         orderType + " date",
         "SHIP DATE",
+        ...(includeIhdDate ? ["ihd date"] : []),
         "shipping method",
         "notes",
         orderType,
@@ -61,6 +65,7 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "print method",
         orderType + " date",
         "SHIP DATE",
+        ...(includeIhdDate ? ["ihd date"] : []),
         "shipping method",
         "notes",
         orderType,
@@ -76,6 +81,7 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "print method",
         orderType + " date",
         "SHIP DATE",
+        ...(includeIhdDate ? ["ihd date"] : []),
         "shipping method",
         "notes",
         orderType,
@@ -91,6 +97,7 @@ export const getMaterialHeaders = (orderType: OrderTypes, material: string) => {
         "print method",
         orderType + " date",
         "SHIP DATE",
+        ...(includeIhdDate ? ["ihd date"] : []),
         "shipping method",
         "notes",
         orderType,

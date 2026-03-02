@@ -393,6 +393,8 @@ export function OrderTableBody({
   userColors: Map<string, { color: string; position: string | null; initials?: string | null }>;
   isShiftDown: boolean;
 }) {
+  const showIhdDateColumn =
+    productionStatus === "cut" || productionStatus === "prepack" || productionStatus === "pack";
   // Example usage for setting userRows from data:
   // const simplifiedRows = (data ?? []).map((row) => ({
   //   email: row.identifier,
@@ -713,6 +715,7 @@ export function OrderTableBody({
                   ? convertDateToReadableDate(row.ihd_date)
                   : convertDateToReadableDate(row.due_date)}
               </TableCell>
+              {showIhdDateColumn && <TableCell>{convertDateToReadableDate(row.ihd_date)}</TableCell>}
               <TableCell
                 className=""
                 data-ignore-selection="true" // <-- new
