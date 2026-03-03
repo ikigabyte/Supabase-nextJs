@@ -222,7 +222,7 @@ const dayOfTheWeekColor: { [key: number]: string } = {
 const inkColors: { [key: string]: string } = {
   metallic: "bg-purple-100",
   clear: "bg-pink-100",
-  "white-ink": "bg-pink-100",
+  "white": "bg-pink-100",
   "3": "bg-yellow-200",
   "4": "bg-orange-200",
   "6": "bg-green-200",
@@ -233,7 +233,7 @@ const getInkCellColor = (ink: string | null | undefined): string => {
   const normalized = ink?.toLowerCase().trim();
   if (!normalized) return "";
   if (normalized.includes("metallic")) return inkColors.metallic;
-  if (normalized.includes("clear")) return inkColors.clear;
+  if (normalized.includes("white")) return inkColors.white;
   return inkColors[normalized] ?? "";
 };
 
