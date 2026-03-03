@@ -9,6 +9,7 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "sheets-gloss",
     "sheets-matte",
     "sheets-no-lamination",
+    "sheets-metallic-ink",
     "white-gloss-regular",
     "white-gloss-tiles",
     "white-gloss-promo",
@@ -16,52 +17,62 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "white-matte-tiles",
     "white-matte-promo",
     "white-no-lamination",
+    "white-metallic-ink",
     "holographic-gloss-regular",
     "holographic-gloss-tiles",
     "holographic-gloss-promo",
     "holographic-matte-regular",
     "holographic-matte-tiles",
     "holographic-matte-promo",
+    "holographic-metallic-ink",
     "clear-gloss-regular",
     "clear-gloss-tiles",
     "clear-gloss-promo",
     "clear-matte-regular",
     "clear-matte-tiles",
     "clear-matte-promo",
+    "clear-metallic-ink",
     "glitter-gloss-regular",
     "glitter-gloss-tiles",
     "glitter-gloss-promo",
     "glitter-matte-regular",
     "glitter-matte-tiles",
     "glitter-matte-promo",
+    "glitter-metallic-ink",
     "20ptmag-gloss-regular",
     "20ptmag-gloss-tiles",
     "20ptmag-gloss-promo",
     "20ptmag-matte-regular",
     "20ptmag-matte-tiles",
     "20ptmag-matte-promo",
+    "20ptmag-metallic-ink",
     "30ptmag-gloss-regular",
     "30ptmag-gloss-tiles",
     "30ptmag-matte-regular",
     "30ptmag-matte-tiles",
+    "30ptmag-metallic-ink",
     "cling-clear-regular",
     "cling-clear-tiles",
     "cling-white-regular",
     "cling-white-tiles",
+    "cling-metallic-ink",
     "reflective-gloss-regular",
     "reflective-gloss-tiles",
     "reflective-gloss-promo",
     "reflective-matte-regular",
     "reflective-matte-tiles",
     "reflective-matte-promo",
+    "reflective-metallic-ink",
     "arlon-gloss-regular",
     "arlon-gloss-tiles",
     "arlon-matte-regular",
     "arlon-matte-tiles",
+    "arlon-metallic-ink",
     "floor-hard-regular",
     "floor-hard-tiles",
     "floor-carpet-regular",
     "floor-carpet-tiles",
+    "floor-metallic-ink",
     "roll-gloss-tiles",
     "roll-gloss-promo",
     "roll-matte-tiles",
@@ -94,16 +105,31 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
       if (rushKey) return rushKey;
     }
 
+    const isMetallic = order.ink?.toLowerCase() === "metallic";
+
     if (order.shape === "sheets" && suffix === "tiles") {
-      const lamination = order.lamination === "gloss" ? "gloss" : "matte";
       if (order.rush === true) {
         const rushSheetsKey = keys.find((k) => k === `sheets-rush`);
         if (rushSheetsKey) return rushSheetsKey;
       }
+      if (isMetallic && order.material !== "roll") {
+        const metallicSheetsKey = keys.find((k) => k === "sheets-metallic-ink");
+        if (metallicSheetsKey) return metallicSheetsKey;
+      }
+      const lamination =
+        order.lamination === "gloss" ? "gloss" : order.lamination === "no-lam" ? "no-lamination" : "matte";
       const sheetsKey = keys.find((k) => k.startsWith(`sheets-${lamination}`));
       if (sheetsKey) return sheetsKey;
       const noLaminationKey = keys.find((k) => k.startsWith("sheets-no-lamination"));
       if (noLaminationKey) return noLaminationKey;
+    }
+
+    if (isMetallic && order.material !== "roll") {
+      const baseMaterial = order.material?.toLowerCase();
+      if (baseMaterial) {
+        const metallicKey = keys.find((k) => k === `${baseMaterial}-metallic-ink`);
+        if (metallicKey) return metallicKey;
+      }
     }
 
     if (order.lamination === "no-lam" && order.material === "white") {

@@ -110,6 +110,7 @@ const laminationHeaderColors = {
   matte: "text-purple-500",
   gloss: "text-blue-500",
 };
+const metallicInkHeaderColor = "text-purple-400";
 
 const REALTIME_IDLE_MS = 2 * 60 * 1000; // this is 2 minutes
 const orderZeroCheckTime = 30 * 60 * 1000; // 30 minutes
@@ -2469,6 +2470,9 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
             // console.log(group);
             const keySplit = key.split("-");
             var headerColor = "";
+            if (keySplit.includes("metallic") && keySplit.includes("ink")) {
+              headerColor = metallicInkHeaderColor;
+            }
             if (keySplit.length > 1 && (keySplit.includes("gloss") || keySplit.includes("matte"))) {
               // console.log("this has the matte or gloss thing here");
               const laminationType = keySplit[keySplit.length - 2];

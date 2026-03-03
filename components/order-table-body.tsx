@@ -221,11 +221,20 @@ const dayOfTheWeekColor: { [key: number]: string } = {
 
 const inkColors: { [key: string]: string } = {
   metallic: "bg-purple-100",
+  clear: "bg-pink-100",
   "white-ink": "bg-pink-100",
   "3": "bg-yellow-200",
   "4": "bg-orange-200",
   "6": "bg-green-200",
   "12": "bg-blue-200",
+};
+
+const getInkCellColor = (ink: string | null | undefined): string => {
+  const normalized = ink?.toLowerCase().trim();
+  if (!normalized) return "";
+  if (normalized.includes("metallic")) return inkColors.metallic;
+  if (normalized.includes("clear")) return inkColors.clear;
+  return inkColors[normalized] ?? "";
 };
 
 const materialColors: { [key: string]: string } = {
@@ -675,7 +684,7 @@ export function OrderTableBody({
               >
                 {capitalizeFirstLetter(row.material) || "-"}
               </TableCell>
-              <TableCell className="">{capitalizeFirstLetter(row.ink)}</TableCell>
+              <TableCell className={getInkCellColor(row.ink)}>{capitalizeFirstLetter(row.ink)}</TableCell>
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
