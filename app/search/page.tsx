@@ -93,7 +93,7 @@ export default function SearchPage() {
                       event.preventDefault();
                     }
                   }}
-                  placeholder="Enter Order"
+                  placeholder="Enter Order Number"
                   rows={1}
                   maxLength={20}
                   className="min-h-0 h-11 overflow-hidden resize-none rounded-full px-4 text-lg"
