@@ -14,8 +14,8 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Stickerbeat Database",
-  description: "Order Controller for Stickerbeat",
+  title: "Stickerbeat Order Tracking",
+  description: "Order tracking for Stickerbeat",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

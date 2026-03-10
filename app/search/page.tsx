@@ -7,6 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 
 const NO_ORDER_FOUND_MESSAGE = "No orders found for that Order ID and email key.";
 
+function normalizeEmailInput(value: string) {
+  const singleLineValue = value.replace(/[\r\n]+/g, "");
+  const beforeAt = singleLineValue.split("@")[0] ?? "";
+  return beforeAt.slice(0, 20);
+}
+
 export default function SearchPage() {
   const router = useRouter();
   const [orderId, setOrderId] = useState("");
@@ -87,20 +93,20 @@ export default function SearchPage() {
                       event.preventDefault();
                     }
                   }}
-                  placeholder="Enter order ID"
+                  placeholder="Enter Order"
                   rows={1}
                   maxLength={20}
                   className="min-h-0 h-11 overflow-hidden resize-none rounded-full px-4 text-lg"
                 />
                 <Textarea
                   value={emailKey}
-                  onChange={(event) => setEmailKey(event.target.value.replace(/[\r\n]+/g, "").slice(0, 20))}
+                  onChange={(event) => setEmailKey(normalizeEmailInput(event.target.value))}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
                     }
                   }}
-                  placeholder="Enter last part of your email (before @)"
+                  placeholder="Enter Email"
                   rows={1}
                   maxLength={20}
                   className="min-h-0 h-11 overflow-hidden resize-none rounded-full px-4 text-lg"
