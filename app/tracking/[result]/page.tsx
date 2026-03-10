@@ -429,10 +429,9 @@ export default function TrackingResultPage() {
                               <div className="relative z-10 flex items-center">
                                 <p className="bg-white px-2 text-xl font-medium font-bold">{step.name}</p>
                                 {step.date && (
-                                  <>
-                                    <span className="px-2 text-lg text-zinc-500">•</span>
-                                    <p className="text-lg text-zinc-700">{step.date}</p>
-                                  </>
+                                  <div className="ml-auto mr-4 flex w-60 items-center justify-start pr-4">
+                                    <p className="text-left text-lg text-zinc-700">{step.date}</p>
+                                  </div>
                                 )}
                               </div>
                             </div>
