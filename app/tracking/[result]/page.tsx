@@ -85,7 +85,7 @@ const STATUS_TO_DATE_STEPS: Record<string, number[]> = {
   shipped: [9],
 };
 
-const STATUS_ROW_HEIGHT_REM = 7;
+const STATUS_ROW_HEIGHT_REM = 4;
 const STATUS_MARKER_CENTER_OFFSET_REM = 0.95;
 const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -355,12 +355,13 @@ export default function TrackingResultPage() {
   }, [trackingOrder]);
 
   const activeStepIndex = liveSteps.findIndex((step) => step.active);
+  const activeStep = activeStepIndex >= 0 ? liveSteps[activeStepIndex] : null;
   const showErrorState = !loadingTracking && !!trackingError;
   const orderDoesNotExist = !loadingTracking && !trackingError && (!hasValidToken || !trackingOrder);
 
   return (
-    <div className="min-h-screen bg-zinc-50 font-archivo">
-      <header className="w-full bg-[#76C043] px-6 py-4 text-white">
+    <div className="min-h-screen overscroll-none bg-zinc-50 font-archivo">
+      <header className="sticky top-0 z-50 w-full bg-[#76C043] px-6 py-4 text-white">
         <div className="grid grid-cols-3 items-center">
           <div className="flex justify-start">
             <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-12 w-auto" />
@@ -375,7 +376,7 @@ export default function TrackingResultPage() {
       </header>
 
       <div className="px-4 py-8">
-        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
           <div className="space-y-8 p-6">
             {showErrorState ? (
               <p className="text-lg">{trackingError}</p>
@@ -394,18 +395,19 @@ export default function TrackingResultPage() {
                     <p className="text-lg">Order #{liveOrderId}</p>
                     <p className="text-lg">{liveItemCount} Item</p>
                   </div>
-                      <p className="text-lg"><span className="font-bold">• Est. Ship Date:</span> {liveShipDate || "-"}</p>
-                      <p className="text-lg"><span className="font-bold">• Original Provided Date:</span> {liveProvidedDate || "-"}</p>
-                    <p className="text-lg"><span className="font-bold">• Shipping Method:</span> {capitalizeFirstLetter(liveShipping) || "-"}</p>
+                      <p className="text-lg"><span className="font-bold">Est. Ship Date:</span> {liveShipDate || "-"}</p>
+                      <p className="text-lg"><span className="font-bold">Original Provided Date:</span> {liveProvidedDate || "-"}</p>
+                      <p className="text-lg"><span className="font-bold">Shipping Method:</span> {capitalizeFirstLetter(liveShipping) || "-"}</p>
+                      <p className="text-lg"><span className="font-bold">Tracking Link:</span> { "N/a" }</p>
                 </section>
 
                 <section className="space-y-4">
-                  <h2 className="text-2xl font-medium">Status</h2>
+                  <h2 className="text-2xl font-medium">Status Updates</h2>
                   <div className="rounded-3xl border border-zinc-200 p-10">
                     <div className="relative">
                       {activeStepIndex >= 0 && (
                         <span
-                          className="absolute left-[10px] w-0.5 rounded-full bg-gray-400"
+                          className="absolute left-1.5 w-0.5 rounded-full bg-gray-400"
                           style={{
                             top: `${STATUS_MARKER_CENTER_OFFSET_REM}rem`,
                             height: `calc(${activeStepIndex} * ${STATUS_ROW_HEIGHT_REM}rem)`,
@@ -413,8 +415,8 @@ export default function TrackingResultPage() {
                         />
                       )}
                       {liveSteps.map((step, index) => (
-                        <div key={step.name} className="grid h-28 grid-cols-[24px_1fr] items-start gap-4">
-                          <div className="relative flex w-6 justify-center self-stretch">
+                        <div key={step.name} className="grid h-[4rem] grid-cols-[24px_1fr] items-start gap-4">
+                          <div className="relative flex w-3 justify-center self-stretch">
                             {activeStepIndex >= 0 && index === activeStepIndex && (
                               <span className="absolute left-1/2 top-[0.95rem] h-4 w-4 -translate-x-1/2 -translate-y-1/2">
                                 <span className="absolute inset-0 rounded-full bg-[#76C043]" />
@@ -423,19 +425,26 @@ export default function TrackingResultPage() {
                             )}
                           </div>
                           <div className="grid flex-10 sm:items-center">
-                            <div className="ml-3 space-y-2 py-1">
+                            <div className="py-1">
                               <div className="relative z-10 flex items-center">
-                                <p className="bg-white px-2 text-xl font-medium">{step.name}</p>
+                                <p className="bg-white px-2 text-xl font-medium font-bold">{step.name}</p>
+                                {step.date && (
+                                  <>
+                                    <span className="px-2 text-lg text-zinc-500">•</span>
+                                    <p className="text-lg text-zinc-700">{step.date}</p>
+                                  </>
+                                )}
                               </div>
-                              {step.date && <p className="ml-5 text-lg font-medium">{step.date}</p>}
-                              {(step.active || step.done) && (
-                                <p className="ml-5 text-zinc-500 text-lg">{step.description}</p>
-                              )}
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
+                    {activeStep && (
+                      <div className="mt-8 rounded-2xl bg-zinc-100 px-6 py-5">
+                        <p className="text-lg text-zinc-700">{activeStep.description}</p>
+                      </div>
+                    )}
                   </div>
                 </section>
 
