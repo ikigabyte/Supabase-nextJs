@@ -110,6 +110,7 @@ const laminationHeaderColors = {
   matte: "text-purple-500",
   gloss: "text-blue-500",
 };
+const metallicInkHeaderColor = "text-purple-400";
 
 const REALTIME_IDLE_MS = 2 * 60 * 1000; // this is 2 minutes
 const orderZeroCheckTime = 30 * 60 * 1000; // 30 minutes
@@ -600,7 +601,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   if (supabase === null) {
     console.error("Supabase client is null");
-    redirect("/database/login");
+    redirect("/login");
     return null; // or handle the error as needed
   }
   const [session, setSession] = useState<Session | null>(null);
@@ -1874,7 +1875,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         // Ensure we strip any existing query from the path
         const basePath = pathname.split("?")[0];
 
-        // This yields: /database/toprint?special, /database/toprint?white, etc.
+        // This yields: /toprint?special, /toprint?white, etc.
         router.push(`${basePath}?${lowerCategory}`);
       }
     },
@@ -1884,7 +1885,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // *  Finding a different way to search
   // * URL → state: category, headers, visible groups
   useEffect(() => {
-    // Get first key from ?category style URL, e.g. /database/toprint?special
+    // Get first key from ?category style URL, e.g. /toprint?special
     const first = Array.from(searchParams.entries())[0] ?? [];
     const [key, value] = first as [string | undefined, string | undefined];
 
@@ -1896,7 +1897,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         pendingUrlNameId.current = decoded; // <-- defer selection
       }
     } else {
-      // No value (e.g. /database/toprint?clear) → reset
+      // No value (e.g. /toprint?clear) → reset
       lastUrlSelectedNameId.current = null;
       pendingUrlNameId.current = null;
     }
@@ -2469,6 +2470,9 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
             // console.log(group);
             const keySplit = key.split("-");
             var headerColor = "";
+            if (keySplit.includes("metallic") && keySplit.includes("ink")) {
+              headerColor = metallicInkHeaderColor;
+            }
             if (keySplit.length > 1 && (keySplit.includes("gloss") || keySplit.includes("matte"))) {
               // console.log("this has the matte or gloss thing here");
               const laminationType = keySplit[keySplit.length - 2];
