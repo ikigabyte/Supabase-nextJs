@@ -13,26 +13,56 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getBrowserClient } from "@/utils/supabase/client";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
 type Step = {
   name: string;
+  description: string;
   date: string;
   done: boolean;
   active?: boolean;
 };
 
-const TIMELINE_STEP_NAMES = [
-  "Order Received",
-  "Proof Sent",
-  "Proof Approved",
-  "Print File Created",
-  "Printing",
-  "Cutting",
-  "QA Checks and Count",
-  "Packing",
-  "Label Created",
-  "Tracking Sent",
+const TIMELINE_STEPS = [
+  {
+    name: "Order Received",
+    description: "Thank you for making a purchase with Stickerbeat.",
+  },
+  {
+    name: "Proof Sent",
+    description: "A digital proof has been sent for this order. Please approve it at your earliest convenience.",
+  },
+  {
+    name: "Proof Approved",
+    description: "We have received confirmation of your proof approval. The production timeline starts now.",
+  },
+  {
+    name: "Print File Created",
+    description: "A print file has been created from the approved digital proof.",
+  },
+  {
+    name: "Printing",
+    description: "Printing has begun. This is the first stage of production. Changes to this order can no longer be made.",
+  },
+  {
+    name: "Cutting",
+    description: "Your order has begun cutting. This is the longest stage of our production.",
+  },
+  {
+    name: "QA Checks and Count",
+    description: "We are reviewing the production quality as well as the total sticker count. If there are any shorts, you may see this tracker go back to “Printing”.",
+  },
+  {
+    name: "Packing",
+    description: "The count has been verified. This order is now being shrink wrapped and packed.",
+  },
+  {
+    name: "Label Created",
+    description: "This order has been packed and a shipping label has been created.",
+  },
+  {
+    name: "Tracking Sent",
+    description: "This order has been completed. Tracking will fully activate when FedEx first scans this package around 5:30PM EST.",
+  },
 ] as const;
 
 const STATUS_TO_PROGRESS_INDEX: Record<string, number> = {
@@ -65,6 +95,7 @@ const STATUS_TO_DATE_STEPS: Record<string, number[]> = {
 
 const STATUS_ROW_HEIGHT_REM = 5;
 const STATUS_MARKER_CENTER_OFFSET_REM = 0.95;
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function normalizeStatus(value: unknown) {
   return String(value ?? "")
@@ -203,21 +234,11 @@ function getItemProperties(item: Record<string, unknown>) {
   return props.length ? props.join("\n") : "-";
 }
 
-function getStatusHelpText(stepName: string) {
-  if (stepName === "Order Received") return "Order was received during this date";
-  if (stepName === "Proof Sent") return "proof sent means when the proof was sent";
-  return `${stepName.toLowerCase()} means this is the current production step.`;
-}
-
 export default function TrackingResultPage() {
   const params = useParams<{ result: string }>();
-  const rawSegment = params?.result ?? "";
-  const parsedOrderNumber = decodeURIComponent(rawSegment)
-    .replace(/^result=/, "")
-    .trim()
-    .replace(/\D/g, "");
-  const orderNumberForQuery = Number(parsedOrderNumber);
-  const hasValidOrderId = Number.isFinite(orderNumberForQuery) && orderNumberForQuery > 0;
+  const rawSegment = Array.isArray(params?.result) ? params.result[0] : params?.result ?? "";
+  const trackingToken = decodeURIComponent(rawSegment).trim();
+  const hasValidToken = UUID_V4_REGEX.test(trackingToken);
 
   const [trackingOrder, setTrackingOrder] = useState<Record<string, unknown> | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
@@ -230,50 +251,34 @@ export default function TrackingResultPage() {
       setLoadingTracking(true);
       setTrackingError(null);
 
-      if (!hasValidOrderId) {
+      if (!hasValidToken) {
         if (!mounted) return;
         setTrackingOrder(null);
+        setTrackingError("Invalid tracking token");
         setLoadingTracking(false);
         return;
       }
 
-      const supabase = getBrowserClient() as any;
-      const allTrackingOrdersRes = await supabase.from("tracking_orders").select("*");
-      if (allTrackingOrdersRes.error) {
-        console.error("tracking_orders debug fetch error:", allTrackingOrdersRes.error);
-      }
-
-      let data: any = null;
-      let error: any = null;
-
-      // 1) Primary source: tracking_orders (single row per order expected)
-      const trackingRes = await supabase
-        .from("tracking_orders")
-        .select("*")
-        .eq("order_id", orderNumberForQuery)
-        .maybeSingle();
-
-      data = trackingRes.data;
-      error = trackingRes.error;
-
-      // 2) Fallback for existing production data that may still live in `orders`
-      if (!data && !error) {
-        const ordersRes = await supabase
-          .from("orders")
-          .select("*")
-          .eq("order_id", orderNumberForQuery)
-          .order("inserted_date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        data = ordersRes.data;
-        error = ordersRes.error;
+      let data: Record<string, unknown> | null = null;
+      let errorMessage: string | null = null;
+      try {
+        const response = await fetch(`/api/track?token=${encodeURIComponent(trackingToken)}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          errorMessage = payload?.error ?? "Failed to load tracking order";
+        } else {
+          data = payload?.data ?? payload ?? null;
+        }
+      } catch {
+        errorMessage = "Failed to load tracking order";
       }
 
       if (!mounted) return;
 
-      if (error) {
-        setTrackingError(error.message ?? "Failed to load tracking order");
+      if (errorMessage) {
+        setTrackingError(errorMessage);
         setTrackingOrder(null);
       } else {
         setTrackingOrder(data ?? null);
@@ -286,14 +291,13 @@ export default function TrackingResultPage() {
     return () => {
       mounted = false;
     };
-  }, [hasValidOrderId, orderNumberForQuery]);
+  }, [hasValidToken, trackingToken]);
 
   const liveOrderId = trackingOrder?.order_id ? String(trackingOrder.order_id) : "";
+  console.log("trackingOrder", trackingOrder, "liveOrderId", liveOrderId);
   const liveItems = useMemo(() => {
     const candidates = [
       trackingOrder?.items,
-      trackingOrder?.order_items,
-      trackingOrder?.line_items,
       parseMaybeJson(trackingOrder?.history as unknown)?.productionChange?.items,
     ];
 
@@ -312,8 +316,10 @@ export default function TrackingResultPage() {
         : typeof trackingOrder?.item_count === "number"
           ? trackingOrder.item_count
           : 0;
-  const liveEta = (trackingOrder?.provided_date as string | undefined) ?? "";
+  const liveShipDate = (trackingOrder?.ship_date as string | undefined) ?? "";
+  const liveProvidedDate = (trackingOrder?.provided_date as string | undefined) ?? "";
   const liveShipping = (trackingOrder?.shipping_method as string | undefined) ?? "";
+  // const liveProvidedDate = (trackingOrder?.eta as string | undefined) ?? "";
 
   const liveSteps = useMemo(() => {
     const rawHistory = trackingOrder?.history;
@@ -321,11 +327,10 @@ export default function TrackingResultPage() {
     const historyEntries = toHistoryArray(parsedHistory);
     const latestHistoryEntry = historyEntries[historyEntries.length - 1] ?? null;
     const currentStatus = normalizeStatus(latestHistoryEntry?.value ?? parsedHistory?.productionChange?.value);
-    console.log(currentStatus);
     const activeIndex = STATUS_TO_PROGRESS_INDEX[currentStatus];
 
     if (typeof activeIndex !== "number") {
-      return TIMELINE_STEP_NAMES.map((name) => ({ name, date: "", done: false, active: false }));
+      return TIMELINE_STEPS.map((step) => ({ ...step, date: "", done: false, active: false }));
     }
 
     const latestDateByStep = new Map<number, string>();
@@ -347,8 +352,8 @@ export default function TrackingResultPage() {
     const currentStatusDate =
       currentStatusDates[currentStatusDates.length - 1] ?? formatHistoryDate(latestHistoryEntry?.updated_at) ?? "";
 
-    return TIMELINE_STEP_NAMES.map((name, idx) => ({
-      name,
+    return TIMELINE_STEPS.map((step, idx) => ({
+      ...step,
       date:
         latestDateByStep.get(idx) ??
         (idx <= activeIndex && currentStatusDate ? currentStatusDate : ""),
@@ -358,7 +363,8 @@ export default function TrackingResultPage() {
   }, [trackingOrder]);
 
   const activeStepIndex = liveSteps.findIndex((step) => step.active);
-  const orderDoesNotExist = !loadingTracking && !trackingError && (!hasValidOrderId || !trackingOrder);
+  const showErrorState = !loadingTracking && !!trackingError;
+  const orderDoesNotExist = !loadingTracking && !trackingError && (!hasValidToken || !trackingOrder);
 
   return (
     <div className="min-h-screen bg-zinc-50 font-archivo">
@@ -379,7 +385,9 @@ export default function TrackingResultPage() {
       <div className="px-4 py-8">
         <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
           <div className="space-y-8 p-6">
-            {orderDoesNotExist ? (
+            {showErrorState ? (
+              <p className="text-lg">{trackingError}</p>
+            ) : orderDoesNotExist ? (
               <p className="text-lg">Order doesn't exist</p>
             ) : (
               <>
@@ -401,13 +409,9 @@ export default function TrackingResultPage() {
                     <p className="text-lg">Order #{liveOrderId}</p>
                     <p className="text-lg">{liveItemCount} Item</p>
                   </div>
-                    <p className="text-lg"><span className="font-bold">• Est. Arrival Date:</span> {liveEta || "-"}</p>
+                      <p className="text-lg"><span className="font-bold">• Est. Ship Date:</span> {liveShipDate || "-"}</p>
+                      <p className="text-lg"><span className="font-bold">• Original Provided Date:</span> {liveProvidedDate || "-"}</p>
                     <p className="text-lg"><span className="font-bold">• Shipping Method:</span> {liveShipping || "-"}</p>
-                  {/* <p className="text-lg text-zinc-600">
-                {loadingTracking && `Loading tracking_orders row for order_id=${orderNumberForQuery}...`}
-                {!loadingTracking && trackingOrder && "Loaded from Supabase table: tracking_orders"}
-                {!loadingTracking && trackingError && `Supabase error: ${trackingError}`}
-              </p> */}
                 </section>
 
                 <section className="space-y-4">
@@ -416,7 +420,7 @@ export default function TrackingResultPage() {
                     <div className="relative">
                       {activeStepIndex >= 0 && (
                         <span
-                          className="absolute left-[10px] top-0 w-1 rounded-full bg-black"
+                          className="absolute left-[10px] top-0 w-0.5 rounded-full bg-gray-400"
                           style={{
                             height: `calc(${activeStepIndex} * ${STATUS_ROW_HEIGHT_REM}rem + ${STATUS_MARKER_CENTER_OFFSET_REM}rem)`,
                           }}
@@ -440,7 +444,7 @@ export default function TrackingResultPage() {
                               <div className="flex items-center">
                                 {step.date && <p className="text-lg">{step.date}</p>}
                                 {step.active && (
-                                  <p className="ml-10 text-zinc-500">{getStatusHelpText(step.name)}</p>
+                                  <p className="ml-10 text-zinc-500">{step.description}</p>
                                 )}
                               </div>
                             </div>
