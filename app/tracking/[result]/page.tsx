@@ -4,14 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
 type Step = {
@@ -93,7 +85,7 @@ const STATUS_TO_DATE_STEPS: Record<string, number[]> = {
   shipped: [9],
 };
 
-const STATUS_ROW_HEIGHT_REM = 5;
+const STATUS_ROW_HEIGHT_REM = 7;
 const STATUS_MARKER_CENTER_OFFSET_REM = 0.95;
 const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -371,7 +363,7 @@ export default function TrackingResultPage() {
       <header className="w-full bg-[#76C043] px-6 py-4 text-white">
         <div className="grid grid-cols-3 items-center">
           <div className="flex justify-start">
-            <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat test" className="h-12 w-auto" />
+            <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-12 w-auto" />
           </div>
           <h1 className="text-center text-4xl tracking-tight">Order Tracker</h1>
           <div className="flex justify-end">
@@ -383,7 +375,7 @@ export default function TrackingResultPage() {
       </header>
 
       <div className="px-4 py-8">
-        <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
           <div className="space-y-8 p-6">
             {showErrorState ? (
               <p className="text-lg">{trackingError}</p>
@@ -392,16 +384,9 @@ export default function TrackingResultPage() {
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-3">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline">Order #{liveOrderId}</Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuLabel>Order</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>#{liveOrderId}</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button asChild variant="outline">
+                    <Link href="/tracking">Track Another</Link>
+                  </Button>
                 </div>
 
                 <section className="space-y-2">
@@ -411,23 +396,24 @@ export default function TrackingResultPage() {
                   </div>
                       <p className="text-lg"><span className="font-bold">• Est. Ship Date:</span> {liveShipDate || "-"}</p>
                       <p className="text-lg"><span className="font-bold">• Original Provided Date:</span> {liveProvidedDate || "-"}</p>
-                    <p className="text-lg"><span className="font-bold">• Shipping Method:</span> {liveShipping || "-"}</p>
+                    <p className="text-lg"><span className="font-bold">• Shipping Method:</span> {capitalizeFirstLetter(liveShipping) || "-"}</p>
                 </section>
 
                 <section className="space-y-4">
-                  <h2 className="text-lg">Status</h2>
-                  <div className="rounded-3xl border border-zinc-200 p-6">
+                  <h2 className="text-2xl font-medium">Status</h2>
+                  <div className="rounded-3xl border border-zinc-200 p-10">
                     <div className="relative">
                       {activeStepIndex >= 0 && (
                         <span
-                          className="absolute left-[10px] top-0 w-0.5 rounded-full bg-gray-400"
+                          className="absolute left-[10px] w-0.5 rounded-full bg-gray-400"
                           style={{
-                            height: `calc(${activeStepIndex} * ${STATUS_ROW_HEIGHT_REM}rem + ${STATUS_MARKER_CENTER_OFFSET_REM}rem)`,
+                            top: `${STATUS_MARKER_CENTER_OFFSET_REM}rem`,
+                            height: `calc(${activeStepIndex} * ${STATUS_ROW_HEIGHT_REM}rem)`,
                           }}
                         />
                       )}
                       {liveSteps.map((step, index) => (
-                        <div key={step.name} className="grid h-20 grid-cols-[24px_1fr] items-start gap-4">
+                        <div key={step.name} className="grid h-28 grid-cols-[24px_1fr] items-start gap-4">
                           <div className="relative flex w-6 justify-center self-stretch">
                             {activeStepIndex >= 0 && index === activeStepIndex && (
                               <span className="absolute left-1/2 top-[0.95rem] h-4 w-4 -translate-x-1/2 -translate-y-1/2">
@@ -436,17 +422,15 @@ export default function TrackingResultPage() {
                               </span>
                             )}
                           </div>
-                          <div className="grid flex-1 gap-1 sm:items-center">
-                            <div>
-                              <div className="flex items-center">
-                                <p className="text-xl font-medium">{step.name}</p>
+                          <div className="grid flex-10 sm:items-center">
+                            <div className="ml-3 space-y-2 py-1">
+                              <div className="relative z-10 flex items-center">
+                                <p className="bg-white px-2 text-xl font-medium">{step.name}</p>
                               </div>
-                              <div className="flex items-center">
-                                {step.date && <p className="text-lg">{step.date}</p>}
-                                {step.active && (
-                                  <p className="ml-10 text-zinc-500">{step.description}</p>
-                                )}
-                              </div>
+                              {step.date && <p className="ml-5 text-lg font-medium">{step.date}</p>}
+                              {(step.active || step.done) && (
+                                <p className="ml-5 text-zinc-500 text-lg">{step.description}</p>
+                              )}
                             </div>
                           </div>
                         </div>
