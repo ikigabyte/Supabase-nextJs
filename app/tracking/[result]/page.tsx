@@ -85,7 +85,7 @@ const STATUS_TO_DATE_STEPS: Record<string, number[]> = {
   shipped: [9],
 };
 
-const STATUS_ROW_HEIGHT_REM = 4;
+const STATUS_ROW_HEIGHT_REM = 3.7;
 const STATUS_MARKER_CENTER_OFFSET_REM = 0.95;
 const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -311,6 +311,7 @@ export default function TrackingResultPage() {
   const liveShipDate = (trackingOrder?.ship_date as string | undefined) ?? "";
   const liveProvidedDate = (trackingOrder?.provided_date as string | undefined) ?? "";
   const liveShipping = (trackingOrder?.shipping_method as string | undefined) ?? "";
+  const isBackdoor = trackingOrder?.isBackdoor === true;
   // const liveProvidedDate = (trackingOrder?.eta as string | undefined) ?? "";
 
   const liveSteps = useMemo(() => {
@@ -392,11 +393,15 @@ export default function TrackingResultPage() {
 
                 <section className="space-y-2">
                   <div className="flex items-center gap-8 text-lg">
-                    <p className="text-lg">Order #{liveOrderId}</p>
-                    <p className="text-lg">{liveItemCount} Item</p>
+                    <p className="text-lg font-bold">Order #{liveOrderId}</p>
+                    {/* <p className="text-lg">{liveItemCount} Item</p> */}
                   </div>
                       <p className="text-lg"><span className="font-bold">Est. Ship Date:</span> {liveShipDate || "-"}</p>
-                      <p className="text-lg"><span className="font-bold">Original Provided Date:</span> {liveProvidedDate || "-"}</p>
+                      {!isBackdoor && (
+                        <p className="text-lg">
+                          <span className="font-bold">Original Shopify Arrival Date:</span> {liveProvidedDate || "-"}
+                        </p>
+                      )}
                       <p className="text-lg"><span className="font-bold">Shipping Method:</span> {capitalizeFirstLetter(liveShipping) || "-"}</p>
                       <p className="text-lg"><span className="font-bold">Tracking Link:</span> { "N/a" }</p>
                 </section>
@@ -415,7 +420,11 @@ export default function TrackingResultPage() {
                         />
                       )}
                       {liveSteps.map((step, index) => (
-                        <div key={step.name} className="grid h-[4rem] grid-cols-[24px_1fr] items-start gap-4">
+                        <div
+                          key={step.name}
+                          className="grid grid-cols-[24px_1fr] items-start gap-4"
+                          style={{ height: `${STATUS_ROW_HEIGHT_REM}rem` }}
+                        >
                           <div className="relative flex w-3 justify-center self-stretch">
                             {activeStepIndex >= 0 && index === activeStepIndex && (
                               <span className="absolute left-1/2 top-[0.95rem] h-4 w-4 -translate-x-1/2 -translate-y-1/2">
@@ -427,7 +436,7 @@ export default function TrackingResultPage() {
                           <div className="grid flex-10 sm:items-center">
                             <div className="py-1">
                               <div className="relative z-10 flex items-center">
-                                <p className="bg-white px-2 text-xl font-medium font-bold">{step.name}</p>
+                                <p className="bg-white px-2 text-lg font-medium font-bold">{step.name}</p>
                                 {step.date && (
                                   <div className="ml-auto mr-4 flex w-60 items-center justify-start pr-4">
                                     <p className="text-left text-lg text-zinc-700">{step.date}</p>
@@ -441,7 +450,7 @@ export default function TrackingResultPage() {
                     </div>
                     {activeStep && (
                       <div className="mt-8 rounded-2xl bg-zinc-100 px-6 py-5">
-                        <p className="text-lg text-zinc-700">{activeStep.description}</p>
+                        <p className="text-md text-zinc-700">{activeStep.description}</p>
                       </div>
                     )}
                   </div>
