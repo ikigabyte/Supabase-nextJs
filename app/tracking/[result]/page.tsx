@@ -312,18 +312,36 @@ export default function TrackingResultPage() {
   const liveProvidedDate = (trackingOrder?.provided_date as string | undefined) ?? "";
   const liveShipping = (trackingOrder?.shipping_method as string | undefined) ?? "";
   const isBackdoor = trackingOrder?.isBackdoor === true;
+  const trackingNumber = trackingOrder?.tracking_info ? String(trackingOrder.tracking_info).trim() : "";
+
+  const trackingLink = trackingNumber ? `https://www.fedex.com/wtrk/track/?trknbr=${trackingNumber}` : "";
   // const liveProvidedDate = (trackingOrder?.eta as string | undefined) ?? "";
 
-  const liveSteps = useMemo(() => {
+  const statusUpdatesState = useMemo(() => {
     const rawHistory = trackingOrder?.history;
     const parsedHistory: any = parseMaybeJson(rawHistory);
     const historyEntries = toHistoryArray(parsedHistory);
     const latestHistoryEntry = historyEntries[historyEntries.length - 1] ?? null;
-    const currentStatus = normalizeStatus(latestHistoryEntry?.value ?? parsedHistory?.productionChange?.value);
+    const latestStatusRaw = String(latestHistoryEntry?.value ?? parsedHistory?.productionChange?.value ?? "").trim();
+    const latestStatus = normalizeStatus(latestStatusRaw);
+    const latestStatusIsRecognized =
+      typeof STATUS_TO_PROGRESS_INDEX[latestStatus] === "number" || Array.isArray(STATUS_TO_DATE_STEPS[latestStatus]);
+
+    const latestRecognizedHistoryEntry =
+      [...historyEntries]
+        .reverse()
+        .find((entry) => typeof STATUS_TO_PROGRESS_INDEX[normalizeStatus(entry?.value)] === "number") ?? null;
+    const currentStatus = normalizeStatus(latestRecognizedHistoryEntry?.value ?? latestStatus);
     const activeIndex = STATUS_TO_PROGRESS_INDEX[currentStatus];
 
+    const unrecognizedLatestUpdate =
+      latestStatusRaw && !latestStatusIsRecognized ? `Update not recognized: ${latestStatusRaw}` : "";
+
     if (typeof activeIndex !== "number") {
-      return TIMELINE_STEPS.map((step) => ({ ...step, date: "", done: false, active: false }));
+      return {
+        liveSteps: TIMELINE_STEPS.map((step) => ({ ...step, date: "", done: false, active: false })),
+        unrecognizedLatestUpdate,
+      };
     }
 
     const latestDateByStep = new Map<number, string>();
@@ -343,17 +361,23 @@ export default function TrackingResultPage() {
       .map((entry) => formatHistoryDate(entry?.updated_at))
       .filter(Boolean);
     const currentStatusDate =
-      currentStatusDates[currentStatusDates.length - 1] ?? formatHistoryDate(latestHistoryEntry?.updated_at) ?? "";
+      currentStatusDates[currentStatusDates.length - 1] ??
+      formatHistoryDate(latestRecognizedHistoryEntry?.updated_at ?? latestHistoryEntry?.updated_at) ??
+      "";
 
-    return TIMELINE_STEPS.map((step, idx) => ({
-      ...step,
-      date:
-        latestDateByStep.get(idx) ??
-        (idx <= activeIndex && currentStatusDate ? currentStatusDate : ""),
-      done: idx < activeIndex,
-      active: idx === activeIndex,
-    }));
+    return {
+      liveSteps: TIMELINE_STEPS.map((step, idx) => ({
+        ...step,
+        date:
+          latestDateByStep.get(idx) ??
+          (idx <= activeIndex && currentStatusDate ? currentStatusDate : ""),
+        done: idx < activeIndex,
+        active: idx === activeIndex,
+      })),
+      unrecognizedLatestUpdate,
+    };
   }, [trackingOrder]);
+  const { liveSteps, unrecognizedLatestUpdate } = statusUpdatesState;
 
   const activeStepIndex = liveSteps.findIndex((step) => step.active);
   const activeStep = activeStepIndex >= 0 ? liveSteps[activeStepIndex] : null;
@@ -403,7 +427,7 @@ export default function TrackingResultPage() {
                         </p>
                       )}
                       <p className="text-lg"><span className="font-bold">Shipping Method:</span> {capitalizeFirstLetter(liveShipping) || "-"}</p>
-                      <p className="text-lg"><span className="font-bold">Tracking Link:</span> { "N/a" }</p>
+                      <p className="text-lg text-color-purple"><span className="font-bold">Tracking Link:</span> {trackingLink ? <a href={trackingLink} target="_blank" rel="noopener noreferrer">{trackingNumber}</a> : "N/A"}</p>
                 </section>
 
                 <section className="space-y-4">
@@ -451,6 +475,11 @@ export default function TrackingResultPage() {
                     {activeStep && (
                       <div className="mt-8 rounded-2xl bg-zinc-100 px-6 py-5">
                         <p className="text-md text-zinc-700">{activeStep.description}</p>
+                      </div>
+                    )}
+                    {unrecognizedLatestUpdate && (
+                      <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-6 py-5">
+                        <p className="text-md text-amber-900">{unrecognizedLatestUpdate}</p>
                       </div>
                     )}
                   </div>

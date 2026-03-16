@@ -72,7 +72,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabase
       .from("tracking_orders")
       .select(
-        "order_id, created_at, current_status, items, history, ship_date, shipping_method, tracking_info, shipped, provided_date, email_key, tracking_token"
+        "order_id, created_at, current_status, items, history, ship_date, shipping_method, tracking_info, provided_date, email_key, tracking_token"
       )
       .eq("tracking_token", token)
       .maybeSingle();
