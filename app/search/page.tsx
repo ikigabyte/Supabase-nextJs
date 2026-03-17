@@ -5,11 +5,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
-const NO_ORDER_FOUND_MESSAGE = "No orders found for that Order ID and email key.";
+const NO_ORDER_FOUND_MESSAGE = "No orders found for that Order ID and email key, please be sure to input the correct email associated with your Ticket #";
 
 function normalizeEmailInput(value: string) {
   const singleLineValue = value.replace(/[\r\n]+/g, "");
-  const beforeAt = singleLineValue.split("@")[0] ?? "";
+  return singleLineValue.slice(0, 254);
+}
+
+function getEmailKeyLookupValue(value: string) {
+  const normalizedInput = normalizeEmailInput(value).trim();
+  const beforeAt = normalizedInput.split("@")[0] ?? "";
   return beforeAt.slice(0, 20);
 }
 
@@ -58,7 +63,7 @@ export default function SearchPage() {
   const onResolveToken = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const orderIdTrimmed = orderId.trim();
-    const emailKeyTrimmed = emailKey.trim();
+    const emailKeyTrimmed = getEmailKeyLookupValue(emailKey);
     if (!orderIdTrimmed || !emailKeyTrimmed) {
       setLookupError("Order ID and email key are required.");
       return;
@@ -82,9 +87,9 @@ export default function SearchPage() {
       </header>
 
       <div className="flex min-h-[calc(100vh-88px)] items-center justify-center px-4">
-        <div className="w-full max-w-3xl space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div className="w-full max-w-3xl space-y-4 rounded-md border border-zinc-200 bg-white p-6 shadow-sm">
             <form onSubmit={onResolveToken} className="space-y-3">
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid items-stretch gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                 <Textarea
                   value={orderId}
                   onChange={(event) => setOrderId(event.target.value.replace(/[\r\n]+/g, "").slice(0, 20))}
@@ -96,7 +101,7 @@ export default function SearchPage() {
                   placeholder="Enter Order Number"
                   rows={1}
                   maxLength={20}
-                  className="min-h-0 h-11 overflow-hidden resize-none rounded-full px-4 text-lg"
+                  className="min-h-0 h-11 w-full overflow-hidden resize-none rounded-md px-4 text-lg"
                 />
                 <Textarea
                   value={emailKey}
@@ -108,14 +113,14 @@ export default function SearchPage() {
                   }}
                   placeholder="Enter Email"
                   rows={1}
-                  maxLength={20}
-                  className="min-h-0 h-11 overflow-hidden resize-none rounded-full px-4 text-lg"
+                  maxLength={254}
+                  className="min-h-0 h-11 w-full overflow-hidden resize-none rounded-md px-4 text-lg"
                 />
+                <Button type="submit" className="h-11 whitespace-nowrap px-6" disabled={lookupLoading}>
+                  {lookupLoading ? "Searching Order..." : "Search Orders"}
+                </Button>
               </div>
               {lookupError && <p className="text-sm font-medium text-red-600">{lookupError}</p>}
-              <Button type="submit" className="h-11" disabled={lookupLoading}>
-                {lookupLoading ? "Searching Order..." : "Search Orders"}
-              </Button>
             </form>
         </div>
       </div>

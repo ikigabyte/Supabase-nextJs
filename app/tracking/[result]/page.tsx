@@ -427,7 +427,7 @@ export default function TrackingResultPage() {
                         </p>
                       )}
                       <p className="text-lg"><span className="font-bold">Shipping Method:</span> {capitalizeFirstLetter(liveShipping) || "-"}</p>
-                      <p className="text-lg text-color-purple"><span className="font-bold">Tracking Link:</span> {trackingLink ? <a href={trackingLink} target="_blank" rel="noopener noreferrer">{trackingNumber}</a> : "N/A"}</p>
+                        <p className="text-lg"><span className="font-bold">Tracking Link:</span> {trackingLink ? <a href={trackingLink} target="_blank" rel="noopener noreferrer" className="text-purple-600">{trackingNumber}</a> : "N/A"}</p>
                 </section>
 
                 <section className="space-y-4">

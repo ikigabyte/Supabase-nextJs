@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import AuthHeader from "@/components/auth-header";
+
+export const metadata: Metadata = {
+  title: "Stickerbeat Order Tracking",
+  description: "Order tracking for Stickerbeat",
+};
 
 export default function DatabaseLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -119,7 +119,7 @@ export default function Header() {
       <div className="flex h-14 w-full items-center justify-between px-4 md:px-7">
         <nav className="flex items-center space-x-4 lg:space-x-3">
           <a className="mr-3 flex items-center space-x-2" href="/">
-            <img src="/stickerbeat-logo.png" alt="Stickerbeat Logo" className="h-8 w-8" />
+            <img src="/images/stickerbeat-logo.png" alt="Stickerbeat Logo" className="h-8 w-8" />
             <p id="version-p" className="text-xs font-bold">SB Database</p>
           </a>
           <div className="flex items-center justify-end space-x-12">
