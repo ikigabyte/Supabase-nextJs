@@ -12,6 +12,12 @@ const widthByHeader: Record<string, string> = {
   ink: "5%",
   "print method": "5%",
   "print_method": "5%",
+  "print date": "6%",
+  "cut date": "6%",
+  "prepack date": "6%",
+  "pack date": "6%",
+  "ship date": "6%",
+  "ihd date": "6%",
   "shipping method": "6%",
   "shipping speed": "6%",
   notes: "25%",
@@ -28,7 +34,7 @@ const widthByHeader: Record<string, string> = {
 const normalizeHeaderName = (label: string) => label.trim().toLowerCase().replace(/[-_]+/g, " ");
 const resolveColumnWidth = (header: string): string => {
   const normalized = normalizeHeaderName(header);
-  if (normalized.includes("date")) return "3%";
+  if (normalized.includes("date")) return "6%";
   return widthByHeader[normalized] ?? DEFAULT_COLUMN_WIDTH;
 };
 
