@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import AuthHeader from "@/components/auth-header";
 
 export const metadata: Metadata = {
-  title: "Stickerbeat Order Tracking",
+  title: "Stickerbeat Database",
   description: "Order tracking for Stickerbeat",
 };
 

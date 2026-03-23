@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 import localFont from "next/font/local";
@@ -12,9 +13,9 @@ const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "http://localhost:3000";
 
-export const metadata = {
+export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Stickerbeat Order Tracking",
+  title: "Stickerbeat Tools",
   description: "Order tracking for Stickerbeat",
 };
 

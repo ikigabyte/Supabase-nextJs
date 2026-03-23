@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Stickerbeat Order Tracking",
+  title: "Stickerbeat Tracking",
   description: "Order tracking for Stickerbeat",
 };
 
