@@ -1,7 +1,124 @@
 import { NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
 import { createClient } from "@supabase/supabase-js";
 
 const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const RATE_LIMIT_WINDOW_SECONDS = 300;
+const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 10;
+const RATE_LIMIT_KEY_PREFIX = "track:";
+
+type MemoryRateLimitEntry = {
+  count: number;
+  expiresAt: number;
+};
+
+declare global {
+  var __trackRateLimitStore: Map<string, MemoryRateLimitEntry> | undefined;
+}
+
+let upstashRedis: Redis | null | undefined;
+
+function getClientIp(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (forwardedFor) return forwardedFor;
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
+  return "unknown";
+}
+
+function getUpstashRedis() {
+  if (upstashRedis !== undefined) {
+    return upstashRedis;
+  }
+
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    upstashRedis = null;
+    return upstashRedis;
+  }
+
+  upstashRedis = new Redis({ url, token });
+  return upstashRedis;
+}
+
+function getMemoryRateLimitStore() {
+  if (!globalThis.__trackRateLimitStore) {
+    globalThis.__trackRateLimitStore = new Map<string, MemoryRateLimitEntry>();
+  }
+
+  return globalThis.__trackRateLimitStore;
+}
+
+function getRateLimitMaxRequests() {
+  const rawValue = process.env.TRACK_RATE_LIMIT_MAX_REQUESTS;
+  if (!rawValue) return DEFAULT_RATE_LIMIT_MAX_REQUESTS;
+
+  const parsedValue = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+    return DEFAULT_RATE_LIMIT_MAX_REQUESTS;
+  }
+
+  return parsedValue;
+}
+
+async function checkRateLimit(ip: string): Promise<boolean> {
+  const key = `${RATE_LIMIT_KEY_PREFIX}${ip}`;
+  const redis = getUpstashRedis();
+  const maxRequests = getRateLimitMaxRequests();
+
+  if (redis) {
+    const count = await redis.incr(key);
+    if (count === 1) {
+      await redis.expire(key, RATE_LIMIT_WINDOW_SECONDS);
+    }
+
+    console.log("track rate limit", { ip, key, count, blocked: count > maxRequests, maxRequests, storage: "upstash" });
+    return count > maxRequests;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    console.warn("track rate limit skipped: Upstash Redis is not configured in production");
+    return false;
+  }
+
+  const store = getMemoryRateLimitStore();
+  const now = Date.now();
+  const existing = store.get(key);
+
+  if (!existing || existing.expiresAt <= now) {
+    const nextEntry = {
+      count: 1,
+      expiresAt: now + RATE_LIMIT_WINDOW_SECONDS * 1000,
+    };
+    store.set(key, nextEntry);
+    console.log("track rate limit", {
+      ip,
+      key,
+      count: nextEntry.count,
+      blocked: nextEntry.count > maxRequests,
+      maxRequests,
+      storage: "memory",
+    });
+    return nextEntry.count > maxRequests;
+  }
+
+  existing.count += 1;
+  store.set(key, existing);
+
+  console.log("track rate limit", {
+    ip,
+    key,
+    count: existing.count,
+    blocked: existing.count > maxRequests,
+    maxRequests,
+    storage: "memory",
+  });
+  return existing.count > maxRequests;
+}
 
 function normalizeEmailKey(value: string) {
   const trimmed = value.trim().toLowerCase();
@@ -40,6 +157,12 @@ function withSupabaseError(message: string, error: { code?: string; details?: st
 }
 
 export async function GET(request: Request) {
+  const ip = getClientIp(request);
+  const limited = await checkRateLimit(ip);
+  if (limited) {
+    console.warn("track rate limit exceeded", { ip });
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });  }
+
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token")?.trim() ?? "";
   const orderIdRaw = searchParams.get("orderId")?.trim() ?? "";
@@ -99,6 +222,7 @@ export async function GET(request: Request) {
   }
 
   const normalizedEmailKey = normalizeEmailKey(emailKeyRaw);
+  console.log(normalizedEmailKey);
   if (!normalizedEmailKey) {
     return NextResponse.json({ error: "Invalid email key" }, { status: 400 });
   }
@@ -107,7 +231,7 @@ export async function GET(request: Request) {
     .from("tracking_orders")
     .select("tracking_token")
     .eq("order_id", orderId)
-    .ilike("email_key", `%${normalizedEmailKey}%`)
+    .eq("email_key", normalizedEmailKey)
     .limit(1);
 
   if (error) {

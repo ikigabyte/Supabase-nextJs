@@ -389,7 +389,9 @@ export default function TrackingResultPage() {
       <header className="sticky top-0 z-50 w-full bg-[#76C043] px-6 py-4 text-white">
         <div className="grid grid-cols-3 items-center">
           <div className="flex justify-start">
-            <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-12 w-auto" />
+            <Link href="https://www.stickerbeat.ca" aria-label="Go to Stickerbeat home">
+              <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-12 w-auto" />
+            </Link>
           </div>
           <h1 className="text-center text-4xl tracking-tight">Order Tracker</h1>
           <div className="flex justify-end">

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,7 +77,9 @@ export default function SearchPage() {
     <div className="min-h-screen bg-zinc-50 font-archivo">
       <header className="w-full bg-[#76C043] px-6 py-4 text-white">
         <div className="grid grid-cols-3 items-center">
-          <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-8 w-auto" />
+          <Link href="https://www.stickerbeat.ca" aria-label="Go to Stickerbeat home">
+            <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-8 w-auto" />
+          </Link>
           <h1 className="text-center text-4xl tracking-tight">Order Tracker</h1>
           <div className="flex justify-end">
             {/* <Button asChild variant="outline" className="border-white bg-transparent text-white hover:bg-white/15">
