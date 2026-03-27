@@ -120,7 +120,7 @@ export default function SearchPage() {
                             </DialogTrigger>
                           </TooltipTrigger>
                           <TooltipContent side="top">
-                            Click here to find out where to find your order number
+                            Click icon to see where your order number is
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
