@@ -1,10 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
+
 
 const NO_ORDER_FOUND_MESSAGE = "No orders found for that Order ID and email key, please be sure to input the correct email associated with your Ticket #";
 
@@ -92,33 +97,77 @@ export default function SearchPage() {
       <div className="flex min-h-[calc(100vh-88px)] items-center justify-center px-4">
         <div className="w-full max-w-3xl space-y-4 rounded-md border border-zinc-200 bg-white p-6 shadow-sm">
             <form onSubmit={onResolveToken} className="space-y-3">
-              <div className="grid items-stretch gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                <Textarea
-                  value={orderId}
-                  onChange={(event) => setOrderId(event.target.value.replace(/[\r\n]+/g, "").slice(0, 20))}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                    }
-                  }}
-                  placeholder="Enter Order Number"
-                  rows={1}
-                  maxLength={20}
-                  className="min-h-0 h-11 w-full overflow-hidden resize-none rounded-md px-4 text-lg"
-                />
-                <Textarea
-                  value={emailKey}
-                  onChange={(event) => setEmailKey(normalizeEmailInput(event.target.value))}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                    }
-                  }}
-                  placeholder="Enter Email"
-                  rows={1}
-                  maxLength={254}
-                  className="min-h-0 h-11 w-full overflow-hidden resize-none rounded-md px-4 text-lg"
-                />
+              <div className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-zinc-700">Order Number</p>
+                    <Dialog>
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DialogTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="Where to find your order number"
+                                className="rounded-sm text-zinc-500 transition hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#76C043] focus:ring-offset-2"
+                              >
+                                <Info className="h-4 w-4" />
+                              </button>
+                            </DialogTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            Click here to find out where to find your order number
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <DialogContent className="w-[min(90vw,720px)] max-w-none p-0">
+                        <div className="flex aspect-[4/3] flex-col bg-white">
+                          <DialogHeader className="border-b border-zinc-200 px-6 py-4">
+                            <DialogTitle>Find your order number here</DialogTitle>
+                          </DialogHeader>
+                          <div className="relative flex-1">
+                            <Image
+                              src="/images/Info.png"
+                              alt="Guide showing where to find the order number"
+                              fill
+                              className="object-contain"
+                              sizes="(max-width: 768px) 90vw, 720px"
+                            />
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  <Textarea
+                    value={orderId}
+                    onChange={(event) => setOrderId(event.target.value.replace(/[\r\n]+/g, "").slice(0, 20))}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                      }
+                    }}
+                    placeholder="121302"
+                    rows={1}
+                    maxLength={20}
+                    className="min-h-0 h-11 w-full overflow-hidden resize-none rounded-md px-4 text-lg"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-zinc-700">Email</p>
+                  <Textarea
+                    value={emailKey}
+                    onChange={(event) => setEmailKey(normalizeEmailInput(event.target.value))}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                      }
+                    }}
+                    placeholder="Johndoe@gmail.com"
+                    rows={1}
+                    maxLength={254}
+                    className="min-h-0 h-11 w-full overflow-hidden resize-none rounded-md px-4 text-lg"
+                  />
+                </div>
                 <Button type="submit" className="h-11 whitespace-nowrap px-6" disabled={lookupLoading}>
                   {lookupLoading ? "Searching Order..." : "Search Orders"}
                 </Button>
