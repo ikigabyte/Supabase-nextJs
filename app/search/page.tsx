@@ -24,6 +24,10 @@ function getEmailKeyLookupValue(value: string) {
   return beforeAt.slice(0, 20);
 }
 
+function normalizeOrderIdInput(value: string) {
+  return value.replace(/\D+/g, "").slice(0, 20);
+}
+
 export default function SearchPage() {
   const router = useRouter();
   const [orderId, setOrderId] = useState("");
@@ -68,7 +72,7 @@ export default function SearchPage() {
 
   const onResolveToken = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const orderIdTrimmed = orderId.trim();
+    const orderIdTrimmed = normalizeOrderIdInput(orderId);
     const emailKeyTrimmed = getEmailKeyLookupValue(emailKey);
     if (!orderIdTrimmed || !emailKeyTrimmed) {
       setLookupError("Order ID and email key are required.");
@@ -140,7 +144,7 @@ export default function SearchPage() {
                   </div>
                   <Textarea
                     value={orderId}
-                    onChange={(event) => setOrderId(event.target.value.replace(/[\r\n]+/g, "").slice(0, 20))}
+                    onChange={(event) => setOrderId(normalizeOrderIdInput(event.target.value))}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
@@ -149,6 +153,7 @@ export default function SearchPage() {
                     placeholder="121302"
                     rows={1}
                     maxLength={20}
+                    inputMode="numeric"
                     className="min-h-0 h-11 w-full overflow-hidden resize-none rounded-md px-4 text-lg"
                   />
                 </div>
