@@ -120,7 +120,11 @@ export default function SearchPage() {
                             </DialogTrigger>
                           </TooltipTrigger>
                           <TooltipContent side="top">
-                            Click icon to see where your order number is
+                            <span className="flex items-center gap-1">
+                              <span>Click</span>
+                              <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>to see where your order number is located</span>
+                            </span>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
