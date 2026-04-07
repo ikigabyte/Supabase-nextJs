@@ -252,17 +252,32 @@ const convertDateToActualDay = (dateString: string | null) => {
   return days[date.getDay()];
 };
 
-const meetsProductionCycle = (convertedOrderTypeDate: string): boolean => {
+type ProductionDateStatus = "normal" | "warning" | "important";
+
+const getProductionDateStatus = (
+  convertedOrderTypeDate: string,
+  orderType: string | undefined
+): ProductionDateStatus => {
+  if (orderType === "ship") return "normal";
+
   const today = new Date();
   const [year, month, day] = convertedOrderTypeDate.split("-").map(Number);
   const dueDate = new Date(year, month - 1, day);
+  if (isNaN(dueDate.getTime())) return "normal";
+
   // Remove time part for comparison
   today.setHours(0, 0, 0, 0);
   dueDate.setHours(0, 0, 0, 0);
-  if (dueDate < today) {
-    return true;
-  }
-  return false;
+
+  if (dueDate < today) return "important";
+  if (orderType === "print" && dueDate.getTime() === today.getTime()) return "warning";
+  return "normal";
+};
+
+const getProductionDateClassName = (status: ProductionDateStatus): string => {
+  if (status === "important") return "text-red-500";
+  if (status === "warning") return "text-yellow-600";
+  return "text-black";
 };
 
 // * Uncomment this one, the other one is just for testijng
@@ -475,10 +490,15 @@ export function OrderTableBody({
         setRowHistory([combinedString]);
         setScrollAreaName("Tile Size");
         lastHoveredIdRef.current = row.name_id;
-      } else if (type === "production_warning") {
+      } else if (type === "production_warning-important") {
         setScrollAreaName("Production Warning");
         setRowHistory(["Based on the production cycle this order is overdue."]);
       }
+      else if (type === "production_warning-warning") {
+        setScrollAreaName("Production Warning");
+        setRowHistory(["Based on the production cycle this order is approaching its due date."]);
+      }
+      
       setIsRowHovered(true);
     } else {
       // If the same row is hovered again, reset the state
@@ -555,7 +575,8 @@ export function OrderTableBody({
           }
         }
         // Example: assigneeInitials will be "kr" if found, otherwise null
-        const meetsProduction = meetsProductionCycle(convertedProductionDate) && productionStatus !== "ship";
+        const productionDateStatus = getProductionDateStatus(convertedProductionDate, productionStatus);
+        const hasProductionWarning = productionDateStatus !== "normal";
         const getDayOfDate = convertDateToActualDay(row.due_date);
         return (
           <React.Fragment key={row.name_id}>
@@ -689,19 +710,19 @@ export function OrderTableBody({
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
               <TableCell
-                className={meetsProduction ? "text-red-500" : "text-black"}
+                className={getProductionDateClassName(productionDateStatus)}
                 onMouseEnter={(event) => {
                   if (productionStatus === "ship") {
                     setTableCellHovered(cellRefs.current[i][1]);
-                  } else if (meetsProduction) {
-                    handleMouseEnter(event, row, "production_warning");
+                  } else if (hasProductionWarning) {
+                    handleMouseEnter(event, row, `production_warning-${productionDateStatus}`);
                   }
                 }}
                 onMouseLeave={handleMouseLeave}
               >
-                { meetsProduction
-                  ? `${convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))} ⚠ `
-                  : convertDateToReadableDate(convertToOrderTypeDate(row.due_date, productionStatus))}
+                {hasProductionWarning
+                  ? `${convertDateToReadableDate(convertedProductionDate)} ⚠ `
+                  : convertDateToReadableDate(convertedProductionDate)}
               </TableCell>
               <TableCell
                 className=""

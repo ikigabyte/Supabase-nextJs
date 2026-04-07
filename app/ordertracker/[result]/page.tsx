@@ -396,7 +396,7 @@ export default function TrackingResultPage() {
           <h1 className="text-center text-4xl tracking-tight">Order Tracker</h1>
           <div className="flex justify-end">
             <Button asChild variant="outline" className="border-white bg-transparent text-white hover:bg-white/15">
-              <Link href="/orderTracker/">Track Order</Link>
+              <Link href="/ordertracker/">Track Order</Link>
             </Button>
           </div>
         </div>
@@ -413,7 +413,7 @@ export default function TrackingResultPage() {
               <>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button asChild variant="outline">
-                    <Link href="/orderTracker">Track Another</Link>
+                    <Link href="/ordertracker">Track Another</Link>
                   </Button>
                 </div>
 
