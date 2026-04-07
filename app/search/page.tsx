@@ -62,7 +62,7 @@ export default function SearchPage() {
         return;
       }
 
-      router.push(`/tracking/${encodeURIComponent(resolvedToken)}`);
+      router.push(`/orderTracker/${encodeURIComponent(resolvedToken)}`);
     } catch {
       setLookupError("Unable to verify that order right now.");
     } finally {
