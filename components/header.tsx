@@ -118,10 +118,10 @@ export default function Header() {
     <header className="z-50 w-full border-b border-border bg-white supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 w-full items-center justify-between px-4 md:px-7">
         <nav className="flex items-center space-x-4 lg:space-x-3">
-          <a className="mr-3 flex items-center space-x-2" href="/">
+          <Link className="mr-3 flex items-center space-x-2" href="/database/toprint?rush">
             <img src="/images/stickerbeat-logo.png" alt="Stickerbeat Logo" className="h-8 w-8" />
             <p id="version-p" className="text-xs font-bold">SB Database</p>
-          </a>
+          </Link>
           <div className="flex items-center justify-end space-x-12">
             {session ? <NavBarElement /> : <Link href="/database/login" />}
           </div>

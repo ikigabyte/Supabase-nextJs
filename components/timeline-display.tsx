@@ -59,12 +59,14 @@ function formatLastUpdated(isoString: string) {
   return `${time} on ${month}-${day}`;
 }
 
-function isDateBeforeOrEqual(dateA: string | Date, dateB: string | Date) {
+function getTimelineDateStatus(dateA: string | Date, dateB: string | Date): "past" | "today" | "future" {
   const a = new Date(dateA);
   const b = new Date(dateB);
   a.setHours(0, 0, 0, 0);
   b.setHours(0, 0, 0, 0);
-  return a.getTime() < b.getTime();
+  if (a.getTime() < b.getTime()) return "past";
+  if (a.getTime() === b.getTime()) return "today";
+  return "future";
 }
 
 // const formatDate = (dateString: string | null) => {
@@ -551,7 +553,9 @@ export function TimelineOrders() {
           const orderIdNum = Number(order.order_id);
           const rows = ordersById[orderIdNum] ?? [];
           const hasRows = !ordersLoading && rows.length > 0;
-          const isPastDue = order.ship_date ? isDateBeforeOrEqual(order.ship_date, new Date()) : false;
+          const dueDateStatus = order.ship_date ? getTimelineDateStatus(order.ship_date, new Date()) : "future";
+          const dueDateRowClass =
+            dueDateStatus === "past" ? "bg-red-200" : dueDateStatus === "today" ? "bg-yellow-200" : "bg-gray-200";
           const latestStatus = getStatus(rows);
           return (
             <React.Fragment key={`due-group-${orderIdNum}`}>
@@ -559,36 +563,37 @@ export function TimelineOrders() {
                 <>
                   {/* TRIGGER ROW: spans full table */}
                   <TableRow
-                    className={`${isPastDue ? "bg-red-200" : "bg-gray-200"} h-12`}
+                    className={`${dueDateRowClass} h-6`}
                     onClick={() => toggleOpen(orderIdNum, !openIds.has(orderIdNum))}
                   >
                     <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-                      <Table className="w-full table-fixed min-w-0">
-                        <TableBody>
+                        <Table className="w-full table-fixed min-w-0">
+                          <TableBody>
                           <TableRow>
-                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
                               <span>
                                 &nbsp;{orderIdNum || "—"}&nbsp;{openIds.has(orderIdNum) ? "▾" : "▸"}
                               </span>
                             </TableCell>
-                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
                               <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
                               <div> {order.ship_date || "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
                               <div> {order.ihd_date || "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[15%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[15%] px-3 py-1 font-semibold align-middle">
                               <div>Status: To {capitalizeFirstLetter(latestStatus)}</div>
                             </TableCell>
-                            <TableCell className="w-[5%] px-3 py-1">
-                              <Button onClick={() => openZendeskLink(orderIdNum)}>
-                                {" "}
-                                <>
-                                  <ExternalLink />
-                                </>
+                            <TableCell className="w-[5%] px-3 py-1 align-middle text-center">
+                              <Button
+                                onClick={() => openZendeskLink(orderIdNum)}
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-black hover:bg-transparent hover:text-black"
+                              >
+                                <ExternalLink className="h-4 w-4" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -598,14 +603,14 @@ export function TimelineOrders() {
                   </TableRow>
                   {/* DETAILS ROW */}
                   {openIds.has(orderIdNum) && (
-                    <TableRow className="bg-gray-50">
+                    <TableRow className="bg-gray-50 h-6">
                       <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
                         <Table className="w-full table-fixed min-w-0">
                           <TableBody>
                             {rows.map((o) => (
-                              <TableRow key={`${orderIdNum}-${o.name_id}`}>
-                                <TableCell className="text-xs truncate">{convertToSpaces(o.name_id)}</TableCell>
-                                <TableCell className="text-xs w-[20%] text-left">
+                              <TableRow key={`${orderIdNum}-${o.name_id}`} className="h-6">
+                                <TableCell className="text-xs truncate py-1 align-middle">{convertToSpaces(o.name_id)}</TableCell>
+                                <TableCell className="text-xs w-[20%] text-left py-1 align-middle">
                                   To {capitalizeFirstLetter(o.production_status)}
                                 </TableCell>
                               </TableRow>
@@ -618,32 +623,33 @@ export function TimelineOrders() {
                 </>
               ) : (
                 <>
-                  <TableRow className={`${isPastDue ? "bg-red-200" : "bg-gray-200"} h-12`}>
+                  <TableRow className={`${dueDateRowClass} h-6`}>
                     <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-                      <Table className="w-full table-fixed min-w-0">
-                        <TableBody>
+                        <Table className="w-full table-fixed min-w-0">
+                          <TableBody>
                           <TableRow>
-                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
                               <span>&nbsp;{orderIdNum || "—"}</span>
                             </TableCell>
-                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
                               <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
                               <div> {order.ship_date || "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[20%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
                               <div> {order.ihd_date || "-"}</div>
                             </TableCell>
-                            <TableCell className="w-[15%] px-3 py-2 font-semibold">
+                            <TableCell className="w-[15%] px-3 py-1 font-semibold align-middle">
                               <div>Not In Log</div>
                             </TableCell>
-                            <TableCell className="w-[5%] px-3 py-2">
-                              <Button onClick={() => openZendeskLink(orderIdNum)}>
-                                {" "}
-                                <>
-                                  <ExternalLink />
-                                </>
+                            <TableCell className="w-[5%] px-3 py-1 align-middle text-center">
+                              <Button
+                                onClick={() => openZendeskLink(orderIdNum)}
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-black hover:bg-transparent hover:text-black"
+                              >
+                                <ExternalLink className="h-4 w-4" />
                               </Button>
                             </TableCell>
                           </TableRow>
