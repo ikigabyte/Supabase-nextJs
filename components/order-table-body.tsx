@@ -12,6 +12,7 @@ import { Textarea } from "./ui/textarea";
 import { Button } from "@/components/ui/button";
 import { getCorrectUserColor } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Eye } from "lucide-react";
 
 // import {
 //   DropdownMenu,
@@ -394,6 +395,7 @@ export function OrderTableBody({
   getRowRef,
   onAsigneeClick,
   userColors,
+  orderViewerNamesByNameId = new Map<string, string[]>(),
   isShiftDown,
 }: {
   data: Array<Order>;
@@ -415,6 +417,7 @@ export function OrderTableBody({
   getRowRef?: (name_id: string) => (el: HTMLTableRowElement | null) => void;
   onAsigneeClick: (row: Order) => void;
   userColors: Map<string, { color: string; position: string | null; initials?: string | null }>;
+  orderViewerNamesByNameId?: Map<string, string[]>;
   isShiftDown: boolean;
 }) {
   const showIhdDateColumn =
@@ -433,7 +436,7 @@ export function OrderTableBody({
   }
   // track which rows are checked by name_id
   const [checkedRows, setCheckedRows] = useState<Set<string>>(new Set());
-  const lastHoveredIdRef = useRef<string | number | null>(null);
+  const lastHoveredKeyRef = useRef<string | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const lastClickTime = useRef<number>(0);
@@ -464,15 +467,21 @@ export function OrderTableBody({
     });
   };
   // console.log("user colors" , userColors);
-  const handleMouseEnter = (event: React.MouseEvent<HTMLTableCellElement>, row: Order, type: string) => {
-    if (lastHoveredIdRef.current !== row.name_id) {
+  const handleMouseEnter = (
+    event: React.MouseEvent<HTMLElement>,
+    row: Order,
+    type: string,
+    viewerNames?: string[]
+  ) => {
+    const hoverKey = `${row.name_id}:${type}`;
+    if (lastHoveredKeyRef.current !== hoverKey) {
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       setMousePos({ x: rect.right, y: rect.bottom });
       if (type === "history") {
         const historyArray = Array.isArray(row.history) ? (row.history as string[]) : [];
         setRowHistory(historyArray);
         setScrollAreaName("History");
-        lastHoveredIdRef.current = row.name_id;
+        lastHoveredKeyRef.current = hoverKey;
       } else if (type === "quantity") {
         const quantity = row.quantity || "";
         const cleanedQuantity = quantity.toLowerCase().replace(/qty/gi, ""); // Remove "qty" (case-insensitive)
@@ -489,27 +498,36 @@ export function OrderTableBody({
         const combinedString = `${quantityPart} x ${sizePart}" H = ${multiplication.toFixed(2)}" or ${multiplicationInFeet.toFixed(2)}" ft`;
         setRowHistory([combinedString]);
         setScrollAreaName("Tile Size");
-        lastHoveredIdRef.current = row.name_id;
+        lastHoveredKeyRef.current = hoverKey;
+      } else if (type === "current_viewers") {
+        if (!viewerNames || viewerNames.length === 0) {
+          return;
+        }
+        setRowHistory([viewerNames.join(", ")]);
+        setScrollAreaName("Current Viewers");
+        lastHoveredKeyRef.current = hoverKey;
       } else if (type === "production_warning-important") {
         setScrollAreaName("Production Warning");
         setRowHistory(["Based on the production cycle this order is overdue."]);
+        lastHoveredKeyRef.current = hoverKey;
       }
       else if (type === "production_warning-warning") {
         setScrollAreaName("Production Warning");
         setRowHistory(["Based on the production cycle this order is approaching its due date."]);
+        lastHoveredKeyRef.current = hoverKey;
       }
       
       setIsRowHovered(true);
     } else {
       // If the same row is hovered again, reset the state
       setIsRowHovered(false);
-      lastHoveredIdRef.current = null;
+      lastHoveredKeyRef.current = null;
     }
   };
 
   const handleMouseLeave = () => {
     setIsRowHovered(false);
-    lastHoveredIdRef.current = null;
+    lastHoveredKeyRef.current = null;
   };
   // console.log("production status in body", productionStatus);
   // console.log("the notes have changed here")
@@ -540,6 +558,8 @@ export function OrderTableBody({
         const currentDay = convertToDayOfTheWeek(row.due_date);
         // console.log(currentDay); // If this has n
         const safeName = convertToSpaces(row.name_id);
+        const currentViewerNames = orderViewerNamesByNameId.get(row.name_id) ?? [];
+        const showViewerEye = currentViewerNames.length > 0;
         const isSelected = row.name_id === selectedNameId;
         const inRange =
           !!dragSelection &&
@@ -643,8 +663,6 @@ export function OrderTableBody({
                 //     ? "bg-blue-100"
                 //     : ""
                 // }
-                onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
-                onMouseLeave={handleMouseLeave}
                 className={
                   "whitespace-normal break-all " +
                   (isHighlighted
@@ -671,7 +689,25 @@ export function OrderTableBody({
                   }
                 }}
               >
-                {isHighlighted ? boldUntilDash(safeName) : boldUntilDash(truncate(safeName, 30)) || "-"}
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className="min-w-0 flex-1 break-all"
+                    onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
+                    onMouseLeave={handleMouseLeave}
+                  >
+                    {isHighlighted ? boldUntilDash(safeName) : boldUntilDash(truncate(safeName, 30)) || "-"}
+                  </span>
+                  {showViewerEye ? (
+                    <span
+                      data-disable-history-hover="true"
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center"
+                      onMouseEnter={(event) => handleMouseEnter(event, row, "current_viewers", currentViewerNames)}
+                      onMouseLeave={handleMouseLeave}
+                    >
+                      <Eye className="h-4 w-4 text-black/60" aria-hidden="true" />
+                    </span>
+                  ) : null}
+                </div>
               </TableCell>
               <TableCell
                 ref={(el) => {

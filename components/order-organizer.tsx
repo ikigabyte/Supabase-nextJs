@@ -749,7 +749,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   >(new Map());
 
   const [viewersByUser, setViewersByUser] = useState<Map<string, Date>>(new Map());
-
+  const [viewerNameIdByUser, setViewerNameIdByUser] = useState<Map<string, string>>(new Map());
+  // console.log(viewerNameIdByUser);
   const [nowTick, setNowTick] = useState(() => Date.now());
   // useEffect(() => {
   //   // console.log("Now tick updated:", nowTick);
@@ -925,28 +926,45 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     let cancelled = false;
 
     const upsert = (row: OrderViewerRow) => {
+      const d = parsePgTs(row.last_updated);
+      const key = row.user_id;
+      let shouldUpdateNameId = false;
+
       setViewersByUser((prev) => {
         const next = new Map(prev);
-        const d = parsePgTs(row.last_updated);
-        // KEY: use the same key you use in profilesById (prefer user_id)
-        const key = row.user_id; // <- if your profilesById is keyed by profile id
         const cur = next.get(key);
-        if (!cur || d > cur) next.set(key, d);
+        if (!cur || d > cur) {
+          next.set(key, d);
+          shouldUpdateNameId = true;
+        }
         return next;
       });
+
+      if (shouldUpdateNameId) {
+        setViewerNameIdByUser((prev) => {
+          const next = new Map(prev);
+          next.set(key, row.name_id);
+          return next;
+        });
+      }
     };
 
     (async () => {
       const { data, error } = await supabase.from("order_viewers").select("user_id, last_updated, name_id");
       if (!error && !cancelled) {
         const map = new Map<string, Date>();
+        const nameIdMap = new Map<string, string>();
         (data as OrderViewerRow[]).forEach((r) => {
           const d = parsePgTs(r.last_updated);
           const key = r.user_id; // keep keys consistent
           const prev = map.get(key);
-          if (!prev || d > prev) map.set(key, d);
+          if (!prev || d > prev) {
+            map.set(key, d);
+            nameIdMap.set(key, r.name_id);
+          }
         });
         setViewersByUser(map);
+        setViewerNameIdByUser(nameIdMap);
         setNowTick(Date.now());
       } else if (error) {
         console.error("order_viewers init error:", error);
@@ -994,6 +1012,26 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, [viewersByUser, nowTick]);
 
   const totalRecentViewers = activeViewers.length + idleViewers.length;
+  const orderViewerNamesByNameId = useMemo(() => {
+    const next = new Map<string, string[]>();
+    const recentViewerIds = new Set([...activeViewers, ...idleViewers].map((viewer) => viewer.user_id));
+
+    recentViewerIds.forEach((userId) => {
+      const nameId = viewerNameIdByUser.get(userId);
+      const profile = profilesById.get(userId);
+      const profileName = profile?.name ?? profile?.identifier ?? null;
+
+      if (!nameId || !profileName) return;
+
+      const current = next.get(nameId) ?? [];
+      if (!current.includes(profileName)) {
+        current.push(profileName);
+        next.set(nameId, current);
+      }
+    });
+
+    return next;
+  }, [activeViewers, idleViewers, viewerNameIdByUser, profilesById]);
 
   // 6) ----- small renderer for an item -----
 
@@ -2507,6 +2545,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
                         }}
                         onAsigneeClick={handleAsigneeClick}
                         userColors={userRows}
+                        orderViewerNamesByNameId={orderViewerNamesByNameId}
                         isShiftDown={isShiftDown}
                       />
                     </Table>
