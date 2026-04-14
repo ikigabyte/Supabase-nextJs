@@ -575,21 +575,12 @@ export async function clearOrderViewer(user_id: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("User is not logged in");
-
-  console.log("[order_viewers] clearing viewer rows", {
-    requestedUserId: user_id,
-    actingUserId: user.id,
-    actingUserEmail: user.email || "",
-  });
-
   const { error } = await supabase.from("order_viewers").delete().eq("user_id", user_id);
   if (error) {
     console.error("Error clearing order viewer", error);
     throw new Error("Error clearing order viewer");
   }
-  console.log("[order_viewers] cleared viewer rows successfully", {
-    clearedUserId: user_id,
-  });
+
   return true;
 }
 
@@ -636,10 +627,10 @@ export async function updateOrderViewer(name_ids: string[]) {
       console.error("Error adding order viewers", insertError);
       throw new Error("Error adding order viewers: " + insertError.message);
     }
-    console.log("[order_viewers] inserted updated viewer rows", {
-      userId: user.id,
-      insertedNameIds: name_ids,
-    });
+    // console.log("[order_viewers] inserted updated viewer rows", {
+    //   userId: user.id,
+    //   insertedNameIds: name_ids,
+    // });
   } else {
     console.log("[order_viewers] cleared viewer rows because selection is empty", {
       userId: user.id,
