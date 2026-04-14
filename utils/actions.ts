@@ -568,11 +568,33 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   // }
 }
 
-export async function addOrderViewer(name_ids: string[]) {
-  if (!name_ids || name_ids.length === 0) {
-    console.warn("No name_ids provided for order viewers");
-    return false;
+
+export async function clearOrderViewer(user_id: string) {
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("User is not logged in");
+
+  console.log("[order_viewers] clearing viewer rows", {
+    requestedUserId: user_id,
+    actingUserId: user.id,
+    actingUserEmail: user.email || "",
+  });
+
+  const { error } = await supabase.from("order_viewers").delete().eq("user_id", user_id);
+  if (error) {
+    console.error("Error clearing order viewer", error);
+    throw new Error("Error clearing order viewer");
   }
+  console.log("[order_viewers] cleared viewer rows successfully", {
+    clearedUserId: user_id,
+  });
+  return true;
+}
+
+
+export async function updateOrderViewer(name_ids: string[]) {
   const supabase = await getServerClient();
 
   // Get the current user
@@ -580,6 +602,12 @@ export async function addOrderViewer(name_ids: string[]) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("User is not logged in");
+
+  // console.log("[order_viewers] updating viewer rows", {
+  //   userId: user.id,
+  //   userEmail: user.email || "",
+  //   selectedNameIds: name_ids,
+  // });
 
   // 1. Delete any existing rows for this user
   const { error: deleteError } = await supabase.from("order_viewers").delete().eq("user_id", user.id);
@@ -608,7 +636,14 @@ export async function addOrderViewer(name_ids: string[]) {
       console.error("Error adding order viewers", insertError);
       throw new Error("Error adding order viewers: " + insertError.message);
     }
-    // console.log("Order viewers added successfully");
+    console.log("[order_viewers] inserted updated viewer rows", {
+      userId: user.id,
+      insertedNameIds: name_ids,
+    });
+  } else {
+    console.log("[order_viewers] cleared viewer rows because selection is empty", {
+      userId: user.id,
+    });
   }
   return true;
 }

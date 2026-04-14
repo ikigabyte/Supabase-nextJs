@@ -23,7 +23,7 @@ import {
   removeOrderLine,
   removeOrderAll,
   createCustomOrder,
-  addOrderViewer,
+  updateOrderViewer,
   assignAssigneeToRows,
   assignColorToQuantityRow,
   createReprint,
@@ -105,6 +105,8 @@ type DragSel = {
   endRow: number;
   extras?: Set<number>; // non-contiguous added rows
 };
+
+type ViewerActivity = { user_id: string; last: Date };
 
 const laminationHeaderColors = {
   matte: "text-purple-500",
@@ -748,9 +750,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     Map<string, { name: string; color?: string | null; identifier?: string | null; forcedInitials?: string | null }>
   >(new Map());
 
+  const hadViewerSelectionRef = useRef(false);
   const [viewersByUser, setViewersByUser] = useState<Map<string, Date>>(new Map());
-  const [viewerNameIdByUser, setViewerNameIdByUser] = useState<Map<string, string>>(new Map());
-  // console.log(viewerNameIdByUser);
+  const [viewerOrdersByUser, setViewerOrdersByUser] = useState<Map<string, Map<string, Date>>>(new Map());
   const [nowTick, setNowTick] = useState(() => Date.now());
   // useEffect(() => {
   //   // console.log("Now tick updated:", nowTick);
@@ -922,49 +924,86 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   // 4) ----- subscribe to order_viewers + initial load -----
   // ---- 3) subscribe to INSERT + UPDATE (replace your current order_viewers channel) ----
+  const computeLatestViewersByUser = useCallback((ordersByUser: Map<string, Map<string, Date>>) => {
+    const next = new Map<string, Date>();
+
+    ordersByUser.forEach((orders, userId) => {
+      let latest: Date | null = null;
+      orders.forEach((lastViewedAt) => {
+        if (!latest || lastViewedAt > latest) {
+          latest = lastViewedAt;
+        }
+      });
+      if (latest) next.set(userId, latest);
+    });
+
+    return next;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     const upsert = (row: OrderViewerRow) => {
       const d = parsePgTs(row.last_updated);
-      const key = row.user_id;
-      let shouldUpdateNameId = false;
+      const userId = row.user_id;
 
-      setViewersByUser((prev) => {
+      setViewerOrdersByUser((prev) => {
         const next = new Map(prev);
-        const cur = next.get(key);
-        if (!cur || d > cur) {
-          next.set(key, d);
-          shouldUpdateNameId = true;
+        const existingOrders = next.get(userId) ?? new Map<string, Date>();
+        const nextOrders = new Map(existingOrders);
+        const currentOrderTs = nextOrders.get(row.name_id);
+        if (!currentOrderTs || d > currentOrderTs) {
+          nextOrders.set(row.name_id, d);
         }
+        next.set(userId, nextOrders);
+        setViewersByUser(computeLatestViewersByUser(next));
         return next;
       });
+    };
 
-      if (shouldUpdateNameId) {
-        setViewerNameIdByUser((prev) => {
-          const next = new Map(prev);
-          next.set(key, row.name_id);
-          return next;
-        });
-      }
+    const removeViewerOrder = (row: Partial<OrderViewerRow>) => {
+      const userId = row.user_id;
+      const nameId = row.name_id;
+      if (!userId || !nameId) return;
+
+      setViewerOrdersByUser((prev) => {
+        const next = new Map(prev);
+        const existingOrders = next.get(userId);
+        if (!existingOrders) return prev;
+
+        const nextOrders = new Map(existingOrders);
+        nextOrders.delete(nameId);
+
+        if (nextOrders.size === 0) next.delete(userId);
+        else next.set(userId, nextOrders);
+
+        setViewersByUser(computeLatestViewersByUser(next));
+        return next;
+      });
     };
 
     (async () => {
       const { data, error } = await supabase.from("order_viewers").select("user_id, last_updated, name_id");
       if (!error && !cancelled) {
         const map = new Map<string, Date>();
-        const nameIdMap = new Map<string, string>();
+        const ordersByUserMap = new Map<string, Map<string, Date>>();
         (data as OrderViewerRow[]).forEach((r) => {
           const d = parsePgTs(r.last_updated);
-          const key = r.user_id; // keep keys consistent
-          const prev = map.get(key);
+          const userId = r.user_id;
+          const prev = map.get(userId);
           if (!prev || d > prev) {
-            map.set(key, d);
-            nameIdMap.set(key, r.name_id);
+            map.set(userId, d);
           }
+
+          const existingOrders = ordersByUserMap.get(userId) ?? new Map<string, Date>();
+          const currentOrderTs = existingOrders.get(r.name_id);
+          if (!currentOrderTs || d > currentOrderTs) {
+            existingOrders.set(r.name_id, d);
+          }
+          ordersByUserMap.set(userId, existingOrders);
         });
-        setViewersByUser(map);
-        setViewerNameIdByUser(nameIdMap);
+        setViewerOrdersByUser(ordersByUserMap);
+        setViewersByUser(computeLatestViewersByUser(ordersByUserMap));
         setNowTick(Date.now());
       } else if (error) {
         console.error("order_viewers init error:", error);
@@ -977,8 +1016,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         "postgres_changes",
         { event: "*", schema: "public", table: "order_viewers" }, // INSERT + UPDATE (+ DELETE if you ever need)
         (payload) => {
-          // setNowTick(Date.now()); // refresh nowTick on any viewer activity to be able to check what time it is
-          // console.log("order_viewers change:", payload.eventType, payload.new || payload.old);
+          setNowTick(Date.now());
+          if (payload.eventType === "DELETE") {
+            removeViewerOrder(payload.old as Partial<OrderViewerRow>);
+            return;
+          }
           if (payload.new) upsert(payload.new as OrderViewerRow);
         }
       )
@@ -988,7 +1030,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       cancelled = true;
       supabase.removeChannel(ch);
     };
-  }, [supabase]);
+  }, [computeLatestViewersByUser, supabase]);
 
   // console.log(userRows)
   // 5) ----- derive active/idle lists -----
@@ -1011,28 +1053,67 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return { activeViewers: active, idleViewers: idle };
   }, [viewersByUser, nowTick]);
 
+  const syncLocalViewerSelection = useCallback((userId: string, selectedNameIds: string[]) => {
+    const now = new Date();
+    const nextOrders = new Map<string, Date>();
+    selectedNameIds.forEach((nameId) => {
+      nextOrders.set(nameId, now);
+    });
+
+    setViewerOrdersByUser((prev) => {
+      const next = new Map(prev);
+      if (nextOrders.size === 0) next.delete(userId);
+      else next.set(userId, nextOrders);
+      setViewersByUser(computeLatestViewersByUser(next));
+      return next;
+    });
+
+    setNowTick(now.getTime());
+  }, [computeLatestViewersByUser]);
+
+  // useEffect(() => {
+  //   console.log("[order_viewers] viewer activity changed", {
+  //     activeCount: activeViewers.length,
+  //     idleCount: idleViewers.length,
+  //     activeViewers: activeViewers.map((viewer) => ({
+  //       user_id: viewer.user_id,
+  //       last: viewer.last.toISOString(),
+  //     })),
+  //     idleViewers: idleViewers.map((viewer) => ({
+  //       user_id: viewer.user_id,
+  //       last: viewer.last.toISOString(),
+  //     })),
+  //   });
+  // }, [activeViewers, idleViewers]);
+
   const totalRecentViewers = activeViewers.length + idleViewers.length;
   const orderViewerNamesByNameId = useMemo(() => {
     const next = new Map<string, string[]>();
     const recentViewerIds = new Set([...activeViewers, ...idleViewers].map((viewer) => viewer.user_id));
 
     recentViewerIds.forEach((userId) => {
-      const nameId = viewerNameIdByUser.get(userId);
       const profile = profilesById.get(userId);
       const profileName = profile?.name ?? profile?.identifier ?? null;
+      const ordersForUser = viewerOrdersByUser.get(userId);
 
-      if (!nameId || !profileName) return;
+      if (!ordersForUser || !profileName) return;
 
-      const current = next.get(nameId) ?? [];
-      if (!current.includes(profileName)) {
-        current.push(profileName);
-        next.set(nameId, current);
-      }
+      ordersForUser.forEach((lastViewedAt, nameId) => {
+        if (nowTick - lastViewedAt.getTime() > IDLE_MS) return;
+
+        const current = next.get(nameId) ?? [];
+        if (!current.includes(profileName)) {
+          current.push(profileName);
+          next.set(nameId, current);
+        }
+      });
     });
 
     return next;
-  }, [activeViewers, idleViewers, viewerNameIdByUser, profilesById]);
+  }, [activeViewers, idleViewers, viewerOrdersByUser, profilesById, nowTick]);
 
+
+  // console.log(activeViewers);
   // 6) ----- small renderer for an item -----
 
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -1793,8 +1874,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   }, [dragging]);
 
   useEffect(() => {
-    // console.log("Drag selections changed:", dragSelections.current);
-    const selectedNameIds: string[] = [];
+    const selectedNameIds = new Set<string>();
     dragSelections.current.forEach((selection, table) => {
       const tbody = table.querySelector("tbody");
       if (!tbody) return;
@@ -1811,16 +1891,37 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const nameId = row.getAttribute("name-id");
         // console.log("Selected row name_id:", nameId);
         if (nameId) {
-          selectedNameIds.push(nameId);
+          selectedNameIds.add(nameId);
         }
       }
     });
-    // console.log("Selected name_ids:", selectedNameIds);
-    if (selectedNameIds.length > 0) {
-      // console.log("Selected name_ids:", selectedNameIds);
-      addOrderViewer(selectedNameIds);
+
+    const nextSelectedNameIds = Array.from(selectedNameIds);
+    const currentUserId = session?.user?.id;
+
+    if (nextSelectedNameIds.length > 0) {
+      hadViewerSelectionRef.current = true;
+      if (currentUserId) {
+        syncLocalViewerSelection(currentUserId, nextSelectedNameIds);
+      }
+      void updateOrderViewer(nextSelectedNameIds).catch((error) => {
+        console.error("Error syncing selected order viewers", error);
+      });
+      return;
     }
-  }, [selectionVersion]);
+
+    if (!hadViewerSelectionRef.current) {
+      return;
+    }
+
+    hadViewerSelectionRef.current = false;
+    if (currentUserId) {
+      syncLocalViewerSelection(currentUserId, []);
+    }
+    void updateOrderViewer([]).catch((error) => {
+      console.error("Error clearing selected order viewers", error);
+    });
+  }, [selectionVersion, session, syncLocalViewerSelection]);
 
   // Hash values
   useEffect(() => {
