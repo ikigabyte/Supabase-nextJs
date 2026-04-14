@@ -11,7 +11,6 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
-import { deleteAllOrders } from "@/utils/actions";
 type Role = "user" | "admin" | "manager";
 
 type ProfileRow = {
@@ -160,13 +159,16 @@ export default function AdminPage() {
 
   // Load full history for a user (all time)
 const loadHistory = async (profile: ProfileRow) => {
+  const today = new Date();
+
   setActive(profile);
+  setSelectedDate(today);
   setLoadingHistory(true);
 
   try {
     const rows = await fetchAllHistoryForUser({ supabase, userId: profile.id, chunkSize: 1000 });
     setFullHistory(rows);
-    setHistory(applyDateFilter(rows, selectedDate));
+    setHistory(applyDateFilter(rows, today));
   } finally {
     setLoadingHistory(false);
   }
