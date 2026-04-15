@@ -13,8 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { HistoryOrderLookup } from "@/components/history-order-lookup";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
+import { convertToSpaces } from "@/lib/utils";
 const ALLOWED_POSITIONS = new Set(["prepress", "printing"]);
+const HISTORY_TIME_ZONE = "America/Toronto";
+
+
 
 type HistorySearchParams = {
   page?: string;
@@ -48,8 +51,6 @@ export default async function HistoryPage({
   const { data: profile } = await supabase.from("profiles").select("role, position").eq("id", user.id).maybeSingle();
   const normalizedPosition = (profile?.position ?? "").trim().toLowerCase().replace(/[^a-z]/g, "");
   const isAdminRole = profile?.role === "admin";
-  console.log(isAdminRole)
-  console.log(normalizedPosition, ALLOWED_POSITIONS.has(normalizedPosition))
   if (!isAdminRole && !ALLOWED_POSITIONS.has(normalizedPosition)) {
     return redirect("/");
   }
@@ -60,7 +61,7 @@ export default async function HistoryPage({
 
   let q = supabase
     .from("history")
-    .select("id, name_id, production_change, inserted_at", { count: "exact" })
+    .select("id, user_id, name_id, production_change, inserted_at", { count: "exact" })
     .order("inserted_at", { ascending: false });
 
   if (orderParamRaw) {
@@ -71,16 +72,33 @@ export default async function HistoryPage({
   }
 
   const { data: historyRows, count } = await q.range(from, to);
+  const profileIds = Array.from(new Set((historyRows ?? []).map((row) => row.user_id).filter(Boolean)));
+  const { data: historyProfiles } = profileIds.length
+    ? await supabase.from("profiles").select("id, identifier").in("id", profileIds)
+    : { data: [] as Array<{ id: string; identifier: string | null }> };
+  const profileIdentifierById = new Map((historyProfiles ?? []).map((row) => [row.id, row.identifier]));
 
   const formatTimestamp = (value: string | null) => {
     if (!value) return "No history yet";
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return value;
-    const hour = String(d.getHours()).padStart(2, "0");
-    const minute = String(d.getMinutes()).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    return `${hour}:${minute} ${day}/${month}`;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: HISTORY_TIME_ZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      year: "numeric",
+      day: "2-digit",
+      month: "long",
+      hour12: true,
+    }).formatToParts(d);
+    const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "00";
+    const hour = getPart("hour");
+    const minute = getPart("minute");
+    const day = getPart("day");
+    const month = getPart("month");
+    const year = getPart("year");
+    const amOrPm = getPart("dayPeriod").toLowerCase();
+    return `${month} ${day}, ${year} at ${hour}:${minute} ${amOrPm}`;
   };
 
   const latestInsertedAt = formatTimestamp(historyRows?.[0]?.inserted_at ?? null);
@@ -125,6 +143,7 @@ export default async function HistoryPage({
         <TableHeader>
           <TableRow className="h-5">
             <TableHead className="h-5 py-1 text-xs">Name ID</TableHead>
+            <TableHead className="h-5 py-1 text-xs">User</TableHead>
             <TableHead className="h-5 py-1 text-xs">Production Change</TableHead>
             <TableHead className="h-5 py-1 text-xs">Inserted At</TableHead>
           </TableRow>
@@ -132,7 +151,10 @@ export default async function HistoryPage({
         <TableBody>
           {(historyRows ?? []).map((row) => (
             <TableRow key={row.id} className="h-5">
-              <TableCell className="py-1 text-xs">{row.name_id ?? "-"}</TableCell>
+              <TableCell className="py-1 text-xs">{convertToSpaces(row.name_id) ?? "-"}</TableCell>
+              <TableCell className="py-1 text-xs">
+                {profileIdentifierById.get(row.user_id) ?? row.user_id ?? "-"}
+              </TableCell>
               <TableCell className="py-1 text-xs">{row.production_change}</TableCell>
               <TableCell className="py-1 text-xs">{formatTimestamp(row.inserted_at)}</TableCell>
             </TableRow>
