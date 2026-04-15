@@ -8,7 +8,7 @@ import { createServer } from "http";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const nextPath = searchParams.get("next")?.startsWith("/") ? searchParams.get("next") : "/";
+  const nextPath = searchParams.get("next")?.startsWith("/") ? searchParams.get("next") : "/database/toprint?rush";
 
   if (!code) {
     console.error("Missing OAuth code");

@@ -28,7 +28,7 @@ export default async function Login({
     data: { user },
   } = await supabase.auth.getUser();
   if (user) {
-    redirect("/database/toprint");
+    redirect("/database/toprint?rush");
   }
   return (
     <section className="h-[calc(100vh-57px)] flex justify-center items-center">

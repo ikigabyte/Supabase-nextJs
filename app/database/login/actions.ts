@@ -24,7 +24,7 @@ export async function emailLogin(formData: FormData) {
   }
   revalidatePath("/", "layout"); // * Clearing the cache here
   console.log("VALID USER LOGGING IN NOW");
-  redirect("/database/toprint"); // * Redirecting to the todos page
+  redirect("/database/toprint?rush"); // * Redirecting to the rush print queue
 }
 
 export async function signup(formData: FormData) {
