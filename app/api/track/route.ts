@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RATE_LIMIT_WINDOW_SECONDS = 300;
-const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 10;
+const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 1000000;
 const RATE_LIMIT_KEY_PREFIX = "track:";
 
 type MemoryRateLimitEntry = {
@@ -125,10 +125,7 @@ function normalizeEmailKey(value: string) {
   if (!trimmed) return "";
 
   const withoutAtPrefix = trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
-  const domainPart = withoutAtPrefix.includes("@") ? withoutAtPrefix.split("@")[1] ?? "" : withoutAtPrefix;
-  const root = domainPart.split(".")[0] ?? "";
-
-  return root.replace(/[^a-z0-9_-]/g, "");
+  return withoutAtPrefix.includes("@") ? withoutAtPrefix.split("@")[1] ?? "" : withoutAtPrefix;
 }
 
 function getJwtRole(token: string) {
@@ -157,12 +154,6 @@ function withSupabaseError(message: string, error: { code?: string; details?: st
 }
 
 export async function GET(request: Request) {
-  const ip = getClientIp(request);
-  const limited = await checkRateLimit(ip);
-  if (limited) {
-    console.warn("track rate limit exceeded", { ip });
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });  }
-
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token")?.trim() ?? "";
   const orderIdRaw = searchParams.get("orderId")?.trim() ?? "";
@@ -213,17 +204,34 @@ export async function GET(request: Request) {
   }
 
   if (!orderIdRaw || !emailKeyRaw) {
+    console.error("track lookup missing parameters", {
+      hasOrderId: Boolean(orderIdRaw),
+      hasEmailKey: Boolean(emailKeyRaw),
+    });
     return NextResponse.json({ error: "Missing token or order lookup parameters" }, { status: 400 });
   }
 
   const orderId = Number.parseInt(orderIdRaw, 10);
   if (!Number.isFinite(orderId) || orderId <= 0) {
+    console.error("track lookup invalid order id", {
+      orderIdRaw,
+      parsedOrderId: orderId,
+    });
     return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
   }
 
   const normalizedEmailKey = normalizeEmailKey(emailKeyRaw);
-  console.log(normalizedEmailKey);
+  console.error("track lookup normalized input", {
+    orderIdRaw,
+    parsedOrderId: orderId,
+    emailKeyRaw,
+    normalizedEmailKey,
+  });
   if (!normalizedEmailKey) {
+    console.error("track lookup invalid email key", {
+      emailKeyRaw,
+      normalizedEmailKey,
+    });
     return NextResponse.json({ error: "Invalid email key" }, { status: 400 });
   }
 
@@ -241,6 +249,30 @@ export async function GET(request: Request) {
 
   const match = data?.[0];
   if (!match?.tracking_token) {
+    const [{ data: orderMatches, error: orderMatchError }, { data: emailMatches, error: emailMatchError }] =
+      await Promise.all([
+        supabase
+          .from("tracking_orders")
+          .select("order_id, email_key, tracking_token")
+          .eq("order_id", orderId)
+          .limit(5),
+        supabase
+          .from("tracking_orders")
+          .select("order_id, email_key, tracking_token")
+          .eq("email_key", normalizedEmailKey)
+          .limit(5),
+      ]);
+
+    console.error("track lookup no combined match", {
+      orderId,
+      orderIdRaw,
+      emailKeyRaw,
+      normalizedEmailKey,
+      orderMatchError,
+      emailMatchError,
+      orderMatches,
+      emailMatches,
+    });
     return NextResponse.json({ error: "Tracking token not found for this order id and email key" }, { status: 404 });
   }
 
