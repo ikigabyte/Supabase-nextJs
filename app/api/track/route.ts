@@ -248,20 +248,45 @@ export async function GET(request: Request) {
   }
 
   const match = data?.[0];
-  if (!match?.tracking_token) {
-    const [{ data: orderMatches, error: orderMatchError }, { data: emailMatches, error: emailMatchError }] =
-      await Promise.all([
-        supabase
-          .from("tracking_orders")
-          .select("order_id, email_key, tracking_token")
-          .eq("order_id", orderId)
-          .limit(5),
-        supabase
-          .from("tracking_orders")
-          .select("order_id, email_key, tracking_token")
-          .eq("email_key", normalizedEmailKey)
-          .limit(5),
-      ]);
+  if (match?.tracking_token) {
+    return NextResponse.json({ tracking_token: match.tracking_token });
+  }
+
+  const { data: onlineIdData, error: onlineIdError } = await supabase
+    .from("tracking_orders")
+    .select("tracking_token")
+    .eq("online_id", orderIdRaw)
+    .eq("email_key", normalizedEmailKey)
+    .limit(1);
+
+  if (onlineIdError) {
+    console.error("track online_id/emailKey lookup error", onlineIdError);
+    return NextResponse.json(withSupabaseError("Failed to resolve tracking token", onlineIdError), { status: 500 });
+  }
+
+  const onlineIdMatch = onlineIdData?.[0];
+  if (!onlineIdMatch?.tracking_token) {
+    const [
+      { data: orderMatches, error: orderMatchError },
+      { data: onlineIdMatches, error: onlineIdMatchError },
+      { data: emailMatches, error: emailMatchError },
+    ] = await Promise.all([
+      supabase
+        .from("tracking_orders")
+        .select("order_id, online_id, email_key, tracking_token")
+        .eq("order_id", orderId)
+        .limit(1),
+      supabase
+        .from("tracking_orders")
+        .select("order_id, online_id, email_key, tracking_token")
+        .eq("online_id", orderIdRaw)
+        .limit(1),
+      supabase
+        .from("tracking_orders")
+        .select("order_id, online_id, email_key, tracking_token")
+        .eq("email_key", normalizedEmailKey)
+        .limit(1),
+    ]);
 
     console.error("track lookup no combined match", {
       orderId,
@@ -269,12 +294,14 @@ export async function GET(request: Request) {
       emailKeyRaw,
       normalizedEmailKey,
       orderMatchError,
+      onlineIdMatchError,
       emailMatchError,
       orderMatches,
+      onlineIdMatches,
       emailMatches,
     });
     return NextResponse.json({ error: "Tracking token not found for this order id and email key" }, { status: 404 });
   }
 
-  return NextResponse.json({ tracking_token: match.tracking_token });
+  return NextResponse.json({ tracking_token: onlineIdMatch.tracking_token });
 }

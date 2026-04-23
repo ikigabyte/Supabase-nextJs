@@ -131,7 +131,7 @@ export default function SearchPage() {
                       <DialogContent className="w-[min(90vw,720px)] max-w-none p-0">
                         <div className="flex aspect-[4/3] flex-col bg-white">
                           <DialogHeader className="border-b border-zinc-200 px-6 py-4">
-                            <DialogTitle>Find your order number here</DialogTitle>
+                            <DialogTitle>Find your Order # Here, or use the Order # from your order email confirmation. </DialogTitle>
                           </DialogHeader>
                           <div className="relative flex-1">
                             <Image
