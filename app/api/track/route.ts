@@ -153,6 +153,34 @@ function withSupabaseError(message: string, error: { code?: string; details?: st
   return { error: message };
 }
 
+async function incrementTrackingOrderCounter(
+  supabase: ReturnType<typeof createClient>,
+  orderId: number
+) {
+  const { data: existingRow, error: fetchError } = await supabase
+    .from("tracking_orders")
+    .select("counter")
+    .eq("order_id", orderId)
+    .maybeSingle();
+
+  if (fetchError) {
+    console.error("track counter fetch error", { orderId, fetchError });
+    return;
+  }
+
+  const currentCounter =
+    typeof existingRow?.counter === "number" && Number.isFinite(existingRow.counter) ? existingRow.counter : 0;
+
+  const { error: updateError } = await supabase
+    .from("tracking_orders")
+    .update({ counter: currentCounter + 1 })
+    .eq("order_id", orderId);
+
+  if (updateError) {
+    console.error("track counter update error", { orderId, updateError });
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token")?.trim() ?? "";
@@ -237,7 +265,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("tracking_orders")
-    .select("tracking_token")
+    .select("order_id, tracking_token")
     .eq("order_id", orderId)
     .eq("email_key", normalizedEmailKey)
     .limit(1);
@@ -249,12 +277,15 @@ export async function GET(request: Request) {
 
   const match = data?.[0];
   if (match?.tracking_token) {
+    if (typeof match.order_id === "number" && Number.isFinite(match.order_id)) {
+      await incrementTrackingOrderCounter(supabase, match.order_id);
+    }
     return NextResponse.json({ tracking_token: match.tracking_token });
   }
 
   const { data: onlineIdData, error: onlineIdError } = await supabase
     .from("tracking_orders")
-    .select("tracking_token")
+    .select("order_id, tracking_token")
     .eq("online_id", orderIdRaw)
     .eq("email_key", normalizedEmailKey)
     .limit(1);
@@ -301,6 +332,10 @@ export async function GET(request: Request) {
       emailMatches,
     });
     return NextResponse.json({ error: "Tracking token not found for this order id and email key" }, { status: 404 });
+  }
+
+  if (typeof onlineIdMatch.order_id === "number" && Number.isFinite(onlineIdMatch.order_id)) {
+    await incrementTrackingOrderCounter(supabase, onlineIdMatch.order_id);
   }
 
   return NextResponse.json({ tracking_token: onlineIdMatch.tracking_token });
