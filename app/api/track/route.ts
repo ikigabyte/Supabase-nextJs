@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RATE_LIMIT_WINDOW_SECONDS = 300;
@@ -154,7 +154,7 @@ function withSupabaseError(message: string, error: { code?: string; details?: st
 }
 
 async function incrementTrackingOrderCounter(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any, "public", any>,
   orderId: number
 ) {
   const { data: existingRow, error: fetchError } = await supabase
