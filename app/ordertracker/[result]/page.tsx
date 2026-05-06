@@ -6,6 +6,9 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
+import { ArrowBigLeftDash } from "lucide-react";
+
+
 type Step = {
   name: string;
   description: string;
@@ -386,16 +389,16 @@ export default function TrackingResultPage() {
 
   return (
     <div className="min-h-screen overscroll-none bg-zinc-50 font-archivo">
-      <header className="sticky top-0 z-50 w-full bg-[#76C043] px-6 py-4 text-white">
-        <div className="grid grid-cols-3 items-center">
+      <header className="sticky top-0 z-50 w-full bg-[#76C043] px-4 py-4 text-white sm:px-6">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4">
           <div className="flex justify-start">
-            <Link href="https://www.stickerbeat.ca" aria-label="Go to Stickerbeat home">
-              <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-12 w-auto" />
+            <Link href="https://www.stickerbeat.ca" aria-label="Go to Stickerbeat home" className="shrink">
+              <img src="/images/stickerbeat-logo-white.png" alt="Stickerbeat Logo" className="h-5 w-auto max-w-none sm:h-12" />
             </Link>
           </div>
-          <h1 className="text-center text-4xl tracking-tight">Order Tracker</h1>
-          <div className="flex justify-end">
-            <Button asChild variant="outline" className="border-white bg-transparent text-white hover:bg-white/15">
+          <h1 className="min-w-0 text-center text-xl tracking-tight sm:text-4xl">Order Tracker</h1>
+          <div className="flex shrink-0 justify-end">
+            <Button asChild variant="outline" className="whitespace-nowrap border-white bg-transparent text-white hover:bg-white/15">
               <Link href="/ordertracker/">Track Order</Link>
             </Button>
           </div>
@@ -413,7 +416,10 @@ export default function TrackingResultPage() {
               <>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button asChild variant="outline">
-                    <Link href="/ordertracker">Track Another</Link>
+                    <Link href="/ordertracker" className="inline-flex items-center gap-2">
+                      <ArrowBigLeftDash className="h-4 w-4" aria-hidden="true" />
+                      <span>Go Back</span>
+                    </Link>
                   </Button>
                 </div>
 
@@ -429,7 +435,7 @@ export default function TrackingResultPage() {
                         </p>
                       )}
                       <p className="text-lg"><span className="font-bold">Shipping Method:</span> {capitalizeFirstLetter(liveShipping) || "-"}</p>
-                        <p className="text-lg"><span className="font-bold">Tracking Link:</span> {trackingLink ? <a href={trackingLink} target="_blank" rel="noopener noreferrer" className="text-purple-600">{trackingNumber}</a> : "N/A"}</p>
+                        <p className="text-lg"><span className="font-bold">Tracking Link:</span> {trackingLink ? <a href={trackingLink} target="_blank" rel="noopener noreferrer" className="underline">{trackingNumber}</a> : "N/A"}</p>
                 </section>
 
                 <section className="space-y-4">
@@ -461,11 +467,11 @@ export default function TrackingResultPage() {
                           </div>
                           <div className="grid flex-10 sm:items-center">
                             <div className="py-1">
-                              <div className="relative z-10 flex items-center">
-                                <p className="bg-white px-2 text-lg font-medium font-bold">{step.name}</p>
+                              <div className="relative z-10 flex flex-col items-start sm:w-full sm:flex-row sm:items-center">
+                                <p className="px-2 text-lg font-medium font-bold">{step.name}</p>
                                 {step.date && (
-                                  <div className="ml-auto mr-4 flex w-60 items-center justify-start pr-4">
-                                    <p className="text-left text-lg text-zinc-700">{step.date}</p>
+                                  <div className="mt-1 flex items-center justify-start px-2 sm:ml-auto sm:mr-4 sm:mt-0 sm:w-60 sm:justify-end sm:pr-4">
+                                    <p className="w-full text-right text-lg text-zinc-700">{step.date}</p>
                                   </div>
                                 )}
                               </div>
