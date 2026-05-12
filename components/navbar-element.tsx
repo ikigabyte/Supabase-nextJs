@@ -11,7 +11,11 @@ import { Search } from "lucide-react";
 const DELAY_BETWEEN_UPDATES = 2000; // 1.5 seconds
 const ALLOWED_POSITIONS = new Set(["prepress", "printing"]);
 
-export function NavBarElement() {
+type NavBarElementProps = {
+  onNavigate?: () => void;
+};
+
+export function NavBarElement({ onNavigate }: NavBarElementProps = {}) {
   // const router = useRouter();
   const [counts, setCounts] = useState<{
     print: number | string;
@@ -154,41 +158,48 @@ export function NavBarElement() {
   }, []);
 
   return (
-    <div className="flex items-center gap-5 text-xs font-medium">
-      <Link id="to-print" href="/database/toprint?rush">
+    <div className="flex flex-col gap-1 text-sm font-medium lg:min-w-max lg:flex-row lg:items-center lg:gap-5 lg:text-[inherit]">
+      <Link id="to-print" href="/database/toprint?rush" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
         To Print ({counts.print})
       </Link>
-      <Link id="to-cut" href="/database/tocut?regular">
+      <Link id="to-cut" href="/database/tocut?regular" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
         To Cut ({counts.cut})
       </Link>
-      <Link id="to-prepack" href="/database/toprepack?regular">
+      <Link id="to-prepack" href="/database/toprepack?regular" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
         To Prepack ({counts.prepack})
       </Link>
-      <Link id="to-pack" href="/database/topack?regular">
+      <Link id="to-pack" href="/database/topack?regular" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
         To Pack ({counts.pack})
       </Link>
-      <Link id="to-ship" href="/database/toship?regular">
+      <Link id="to-ship" href="/database/toship?regular" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
         To Ship ({counts.ship})
       </Link>
       {canViewHistory && (
-        <Link id="history" href="/database/history" className="flex items-center gap-1">
+        <Link id="history" href="/database/history" onClick={onNavigate} className="flex items-center gap-1 whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
           History
           <span className="text-red-600">NEW</span>
         </Link>
       )}
-      <Link id="completed" href="/database/completed">
+      <Link id="completed" href="/database/completed" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
         Completed
       </Link>
-      <Link id="timeline" href="/database/timeline">
+      <Link id="timeline" href="/database/timeline" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
         Timeline
       </Link>
       {isAdmin && (
-        <Link id="admin" href="/database/admin" className="text-red-900">
+        <Link id="admin" href="/database/admin" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 text-red-900 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
           Admin
         </Link>
       )}
-      <Link href="#" onClick={() => setDialogOpen(true)} className="flex items-center gap-1 border border-gray-200 rounded px-3 py-2
-      ">
+      <Link
+        href="#"
+        onClick={(event) => {
+          event.preventDefault();
+          setDialogOpen(true);
+          onNavigate?.();
+        }}
+        className="flex items-center gap-1 whitespace-nowrap rounded border border-gray-200 px-3 py-2 hover:bg-gray-100 lg:px-3 lg:hover:bg-transparent"
+      >
         <Search size={14} className="cursor-pointer" />
         <span>Search Log</span>
       </Link>
