@@ -10,7 +10,7 @@ const normalizeSearchKey = (input: string) => {
   return beforeDash.replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
 };
 
-export function HistoryOrderLookup() {
+export function HistoryOrderLookup({ hash }: { hash?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -38,7 +38,8 @@ export function HistoryOrderLookup() {
     params.set("page", "1");
 
     const qs = params.toString();
-    router.push(qs ? `?${qs}` : "?page=1");
+    const hashSuffix = hash ? `#${hash}` : "";
+    router.push(`${qs ? `?${qs}` : "?page=1"}${hashSuffix}`);
   };
 
   const clear = () => {
@@ -47,7 +48,7 @@ export function HistoryOrderLookup() {
     params.set("page", "1");
 
     setOrderCode("");
-    router.push(`?${params.toString()}`);
+    router.push(`?${params.toString()}${hash ? `#${hash}` : ""}`);
   };
 
   return (

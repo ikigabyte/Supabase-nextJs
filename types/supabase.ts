@@ -42,7 +42,7 @@ export type Database = {
       completed: {
         Row: {
           asignee: string | null
-          quantityColor: string | null
+          assigneeColor: string | null
           color: string | null
           due_date: string | null
           history: Json | null
@@ -64,7 +64,7 @@ export type Database = {
         }
         Insert: {
           asignee?: string | null
-          quantityColor?: string | null
+          assigneeColor?: string | null
           color?: string | null
           due_date?: string | null
           history?: Json | null
@@ -86,7 +86,7 @@ export type Database = {
         }
         Update: {
           asignee?: string | null
-          quantityColor?: string | null
+          assigneeColor?: string | null
           color?: string | null
           due_date?: string | null
           history?: Json | null
@@ -156,7 +156,6 @@ export type Database = {
       orders: {
         Row: {
           asignee: string | null
-          quantityColor: string | null
           color: string | null
           due_date: string
           history: Json | null
@@ -172,13 +171,13 @@ export type Database = {
           print_method: string | null
           production_status: string | null
           quantity: string
+          quantityColor: string | null
           rush: boolean
           shape: string | null
           shipping_method: string | null
         }
         Insert: {
           asignee?: string | null
-          quantityColor?: string | null
           color?: string | null
           due_date: string
           history?: Json | null
@@ -194,13 +193,13 @@ export type Database = {
           print_method?: string | null
           production_status?: string | null
           quantity?: string
+          quantityColor?: string | null
           rush?: boolean
           shape?: string | null
           shipping_method?: string | null
         }
         Update: {
           asignee?: string | null
-          quantityColor?: string | null
           color?: string | null
           due_date?: string
           history?: Json | null
@@ -216,9 +215,34 @@ export type Database = {
           print_method?: string | null
           production_status?: string | null
           quantity?: string
+          quantityColor?: string | null
           rush?: boolean
           shape?: string | null
           shipping_method?: string | null
+        }
+        Relationships: []
+      }
+      orders_performance: {
+        Row: {
+          key: string
+          notes: string | null
+          order_id: number
+          step_name: string | null
+          timestamp: string
+        }
+        Insert: {
+          key?: string
+          notes?: string | null
+          order_id: number
+          step_name?: string | null
+          timestamp?: string
+        }
+        Update: {
+          key?: string
+          notes?: string | null
+          order_id?: number
+          step_name?: string | null
+          timestamp?: string
         }
         Relationships: []
       }
@@ -228,7 +252,8 @@ export type Database = {
           created_at: string
           id: string
           identifier: string | null
-          position: string | null
+          initials: string | null
+          position: Database["public"]["Enums"]["position"] | null
           role: Database["public"]["Enums"]["user_role"]
         }
         Insert: {
@@ -236,7 +261,8 @@ export type Database = {
           created_at?: string
           id: string
           identifier?: string | null
-          position?: string | null
+          initials?: string | null
+          position?: Database["public"]["Enums"]["position"] | null
           role?: Database["public"]["Enums"]["user_role"]
         }
         Update: {
@@ -244,7 +270,8 @@ export type Database = {
           created_at?: string
           id?: string
           identifier?: string | null
-          position?: string | null
+          initials?: string | null
+          position?: Database["public"]["Enums"]["position"] | null
           role?: Database["public"]["Enums"]["user_role"]
         }
         Relationships: []
@@ -273,15 +300,79 @@ export type Database = {
         }
         Relationships: []
       }
+      tracking_orders: {
+        Row: {
+          counter: number | null
+          created_at: string
+          current_status: string | null
+          email_key: string | null
+          history: Json | null
+          isBackdoor: boolean
+          items: Json | null
+          last_update: string | null
+          online_id: number | null
+          order_id: number
+          provided_date: string | null
+          ship_date: string | null
+          shipping_method: string | null
+          tracking_info: string | null
+          tracking_token: string
+        }
+        Insert: {
+          counter?: number | null
+          created_at?: string
+          current_status?: string | null
+          email_key?: string | null
+          history?: Json | null
+          isBackdoor?: boolean
+          items?: Json | null
+          last_update?: string | null
+          online_id?: number | null
+          order_id?: number
+          provided_date?: string | null
+          ship_date?: string | null
+          shipping_method?: string | null
+          tracking_info?: string | null
+          tracking_token?: string
+        }
+        Update: {
+          counter?: number | null
+          created_at?: string
+          current_status?: string | null
+          email_key?: string | null
+          history?: Json | null
+          isBackdoor?: boolean
+          items?: Json | null
+          last_update?: string | null
+          online_id?: number | null
+          order_id?: number
+          provided_date?: string | null
+          ship_date?: string | null
+          shipping_method?: string | null
+          tracking_info?: string | null
+          tracking_token?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      clear_old_tracking_orders: { Args: never; Returns: undefined }
+      debug_old_tracking_orders: { Args: never; Returns: undefined }
       move_order: { Args: { p_id: string }; Returns: undefined }
       scheduler_deleter: { Args: never; Returns: undefined }
     }
     Enums: {
+      position:
+        | "packing"
+        | "production"
+        | "roll-label"
+        | "prepress"
+        | "printing"
+        | "cutting"
+        | "support"
       user_role: "user" | "admin" | "manager"
     }
     CompositeTypes: {
@@ -413,7 +504,16 @@ export const Constants = {
   },
   public: {
     Enums: {
-      user_role: ["user", "admin"],
+      position: [
+        "packing",
+        "production",
+        "roll-label",
+        "prepress",
+        "printing",
+        "cutting",
+        "support",
+      ],
+      user_role: ["user", "admin", "manager"],
     },
   },
 } as const

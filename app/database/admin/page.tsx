@@ -1,361 +1,211 @@
-"use client";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
-
-import { getBrowserClient } from "@/utils/supabase/client";
+import AdminUserHistory from "./admin-user-history";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { HistoryOrderLookup } from "@/components/history-order-lookup";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { convertToSpaces } from "@/lib/utils";
+import { getServerClient } from "@/utils/supabase/server";
 
-type Role = "user" | "admin" | "manager";
+const ALLOWED_POSITIONS = new Set(["prepress", "printing"]);
+const HISTORY_TIME_ZONE = "America/Toronto";
 
-type ProfileRow = {
-  id: string; // auth.users.id
-  identifier: string; // email
-  role: Role;
-  position: string | null;
+type AdminSearchParams = {
+  page?: string;
+  order?: string;
+  view?: "all" | "mine";
 };
 
-type HistoryRow = {
-  id: number;
-  inserted_at: string;
-  name_id: string;
-  production_change: string | null;
-};
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<AdminSearchParams>;
+}) {
+  const sp = (await searchParams) ?? {};
+  const supabase = await getServerClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function AdminPage() {
-  const supabase = getBrowserClient();
-  const router = useRouter();
-
-  const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<ProfileRow[]>([]);
-  const [active, setActive] = useState<ProfileRow | null>(null);
-
-  // Full history for selected user (all time), and the filtered view we render
-  const [fullHistory, setFullHistory] = useState<HistoryRow[]>([]);
-  const [history, setHistory] = useState<HistoryRow[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-
-  // Date filter UI
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const boot = async () => {
-      const { data: userRes } = await supabase.auth.getUser();
-      const user = userRes?.user;
-      if (!user) return router.replace("/database/login");
-
-      const { data: me, error: meErr } = await supabase
-        .from("profiles")
-        .select("role, position")
-        .eq("id", user.id)
-        .single();
-      if (meErr || (me?.role !== "admin" && me?.role !== "manager")) return router.replace("/");
-      const isManager = me?.role === "manager";
-      const position = me?.position as string | null;
-
-      let query = supabase
-        .from("profiles")
-        .select("id, identifier, role, position")
-        .order("identifier", { ascending: true });
-
-      if (isManager && position) {
-        query = query.eq("position", position);
-      }
-
-      const { data, error } = await query;
-      if (!cancelled) {
-        if (error) {
-          console.error("Failed to load users:", error);
-          setUsers([]);
-        } else {
-          setUsers((data ?? []) as ProfileRow[]);
-        }
-        setLoading(false);
-      }
-    };
-
-    boot();
-    return () => {
-      cancelled = true;
-    };
-  }, [router, supabase]);
-  
-
-  async function fetchAllHistoryForUser(params: {
-  supabase: ReturnType<typeof getBrowserClient>;
-  userId: string;
-  chunkSize?: number;
-}): Promise<HistoryRow[]> {
-  const { supabase, userId, chunkSize = 1000 } = params;
-
-  const all: HistoryRow[] = [];
-  let from = 0;
-  let more = true;
-
-  while (more) {
-    const { data, error } = await supabase
-      .from("history")
-      .select("id, inserted_at, name_id, production_change")
-      .eq("user_id", userId)
-      .order("inserted_at", { ascending: false })
-      .order("id", { ascending: false }) // tie-breaker
-      .range(from, from + chunkSize - 1);
-
-    if (error) {
-      console.error("Error fetching history:", error);
-      break;
-    }
-
-    const page = (data ?? []) as HistoryRow[];
-    all.push(...page);
-
-    if (page.length < chunkSize) {
-      more = false;
-    } else {
-      from += chunkSize;
-    }
+  if (!user) {
+    return redirect("/database/login");
   }
 
-  return all;
-}
+  const { data: profile } = await supabase.from("profiles").select("role, position").eq("id", user.id).maybeSingle();
+  const normalizedPosition = (profile?.position ?? "").trim().toLowerCase().replace(/[^a-z]/g, "");
+  const canViewAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const canViewHistory = canViewAdmin || ALLOWED_POSITIONS.has(normalizedPosition);
 
-
-  // Helper: start/end of a day in local time
-  function getDayRange(date: Date) {
-    const start = new Date(date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 1);
-    return { start, end };
+  if (!canViewHistory) {
+    return redirect("/");
   }
 
-  // The “active” day for the counter label and count
-  const activeDay = selectedDate ?? new Date();
+  const pageRaw = sp.page ?? "1";
+  const page = Math.max(parseInt(pageRaw, 10) || 1, 1);
+  const rawOrderQuery = (sp.order ?? "").trim();
+  const parsedSearchKey = rawOrderQuery.split("-")[0].trim().replace(/[^a-zA-Z0-9]/g, "");
+  const orderParamRaw = parsedSearchKey.slice(0, 32);
+  const viewMode = sp.view === "mine" ? "mine" : "all";
 
-  const clicksOnActiveDay = useMemo(() => {
-    const { start, end } = getDayRange(activeDay);
-    return fullHistory.filter((h) => {
-      const t = new Date(h.inserted_at);
-      return t >= start && t < end;
-    }).length;
-  }, [fullHistory, activeDay]);
+  const limit = 100;
+  const from = (page - 1) * limit;
+  const to = page * limit - 1;
 
-  const clicksAllTime = fullHistory.length;
+  let q = supabase
+    .from("history")
+    .select("id, user_id, name_id, production_change, inserted_at", { count: "exact" })
+    .order("inserted_at", { ascending: false });
 
-  // Label text
-  const clicksDayLabel = useMemo(() => {
-    // If no date selected, show Today (optional)
-    if (!selectedDate) return "Clicked today";
-    return `Clicked ${format(selectedDate, "PPP")}`;
-  }, [selectedDate]);
-
-  // Load full history for a user (all time)
-const loadHistory = async (profile: ProfileRow) => {
-  const today = new Date();
-
-  setActive(profile);
-  setSelectedDate(today);
-  setLoadingHistory(true);
-
-  try {
-    const rows = await fetchAllHistoryForUser({ supabase, userId: profile.id, chunkSize: 1000 });
-    setFullHistory(rows);
-    setHistory(applyDateFilter(rows, today));
-  } finally {
-    setLoadingHistory(false);
+  if (orderParamRaw) {
+    q = q.or(`name_id.eq.${orderParamRaw},name_id.ilike.${orderParamRaw}-%`);
   }
-};
-  // Helper: filter by selected date (midnight..next midnight in local time)
-  function applyDateFilter(rows: HistoryRow[], date: Date | null) {
-    if (!date) return rows;
-    const start = new Date(date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 1);
-    return rows.filter((r) => {
-      const t = new Date(r.inserted_at);
-      return t >= start && t < end;
-    });
+  if (viewMode === "mine") {
+    q = q.eq("user_id", user.id);
   }
 
-  // Counters: today and all-time (always based on fullHistory)
-  // const clicksToday = useMemo(() => {
-  //   const start = new Date();
-  //   start.setHours(0, 0, 0, 0);
-  //   return fullHistory.filter((h) => new Date(h.inserted_at) >= start).length;
-  // }, [fullHistory]);
+  const { data: historyRows, count } = await q.range(from, to);
+  const profileIds = Array.from(new Set((historyRows ?? []).map((row) => row.user_id).filter(Boolean)));
+  const { data: historyProfiles } = profileIds.length
+    ? await supabase.from("profiles").select("id, identifier").in("id", profileIds)
+    : { data: [] as Array<{ id: string; identifier: string | null }> };
+  const profileIdentifierById = new Map((historyProfiles ?? []).map((row) => [row.id, row.identifier]));
 
-  // Apply/Clear actions
-  const onApplyDate = () => setHistory(applyDateFilter(fullHistory, selectedDate));
-  const onClearDate = () => {
-    setSelectedDate(null);
-    setHistory(fullHistory);
+  const formatTimestamp = (value: string | null) => {
+    if (!value) return "No history yet";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: HISTORY_TIME_ZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      year: "numeric",
+      day: "2-digit",
+      month: "long",
+      hour12: true,
+    }).formatToParts(d);
+    const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "00";
+    const hour = getPart("hour");
+    const minute = getPart("minute");
+    const day = getPart("day");
+    const month = getPart("month");
+    const year = getPart("year");
+    const amOrPm = getPart("dayPeriod").toLowerCase();
+    return `${month} ${day}, ${year} at ${hour}:${minute} ${amOrPm}`;
   };
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  const latestInsertedAt = formatTimestamp(historyRows?.[0]?.inserted_at ?? null);
+  const total = count || 0;
+  const pages = Math.max(Math.ceil(total / limit), 1);
+  const maxVisiblePages = 5;
+  const windowStart = Math.max(1, Math.min(page - 2, pages - maxVisiblePages + 1));
+  const windowEnd = Math.min(pages, windowStart + maxVisiblePages - 1);
+  const middlePages = Array.from({ length: windowEnd - windowStart + 1 }, (_, idx) => windowStart + idx);
 
-  // useEffect(() => {
-  //   setHistory(applyDateFilter(fullHistory, selectedDate));
-  // }, [fullHistory, selectedDate]);
+  const hrefFor = (p: number) => {
+    const params = new URLSearchParams();
+    params.set("page", String(p));
+    if (orderParamRaw) params.set("order", orderParamRaw);
+    if (viewMode === "mine") params.set("view", "mine");
+    return `?${params.toString()}#history`;
+  };
+
+  const viewHrefFor = (nextView: "all" | "mine") => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    if (orderParamRaw) params.set("order", orderParamRaw);
+    if (nextView === "mine") params.set("view", "mine");
+    return `?${params.toString()}#history`;
+  };
 
   return (
-    <div className="p-10 space-y-6">
-      <h1 className="text-3xl font-semibold">User History</h1>
-      <div className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.2fr] gap-6">
-        {/* Users (Email + Role) */}
-        <div className="min-w-0 overflow-x-auto border rounded">
-          <Table className="w-full table-fixed text-sm">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[60%]">Email</TableHead>
-                <TableHead className="w-[18%]">Role</TableHead>
-                <TableHead className="w-[22%]">Position</TableHead>
+    <div className="w-full">
+      {canViewAdmin && <AdminUserHistory />}
+
+      <section id="history" className="mx-auto mb-40 flex w-[95%] flex-col gap-2 p-1 pt-10">
+        <h1 className="text-3xl font-bold">History</h1>
+        <p>View the most recent actions, last updated: {latestInsertedAt}</p>
+        <div className="flex items-center gap-2">
+          <Button asChild variant={viewMode === "mine" ? "default" : "outline"}>
+            <Link href={viewHrefFor("mine")}>View my orders</Link>
+          </Button>
+          <Button asChild variant={viewMode === "all" ? "default" : "outline"}>
+            <Link href={viewHrefFor("all")}>View all orders</Link>
+          </Button>
+        </div>
+        <HistoryOrderLookup hash="history" />
+
+        <Table>
+          <TableHeader>
+            <TableRow className="h-5">
+              <TableHead className="h-5 py-1 text-xs">Name ID</TableHead>
+              <TableHead className="h-5 py-1 text-xs">User</TableHead>
+              <TableHead className="h-5 py-1 text-xs">Production Change</TableHead>
+              <TableHead className="h-5 py-1 text-xs">Inserted At</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(historyRows ?? []).map((row) => (
+              <TableRow key={row.id} className="h-5">
+                <TableCell className="py-1 text-xs">{row.name_id ? convertToSpaces(row.name_id) : "-"}</TableCell>
+                <TableCell className="py-1 text-xs">
+                  {profileIdentifierById.get(row.user_id) ?? row.user_id ?? "-"}
+                </TableCell>
+                <TableCell className="py-1 text-xs">{row.production_change}</TableCell>
+                <TableCell className="py-1 text-xs">{formatTimestamp(row.inserted_at)}</TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((u) => (
-                <TableRow
-                  key={u.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => loadHistory(u)}
-                  onKeyDown={(e) => e.key === "Enter" && loadHistory(u)}
-                  className={`cursor-pointer ${active?.id === u.id ? "bg-blue-50" : ""}`}
-                >
-                  <TableCell className="font-mono">{u.identifier}</TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${
-                        u.role === "admin"
-                          ? "bg-red-100 text-red-800"
-                          : u.role === "manager"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {u.role}
-                    </span>
-                  </TableCell>
-                  <TableCell>{!u.position ? "unassigned" : u.position}</TableCell>
-                </TableRow>
-              ))}
-              {users.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-sm text-muted-foreground">
-                    No users.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+        </Table>
 
-        {/* Activity for selected user */}
-        <div>
-          <div className="mb-3 flex flex-wrap items-center gap-3">
-            <h2 className="text-lg font-semibold mr-2">
-              {active ? `Activity • ${active.identifier}` : "Select a user to view activity"}
-            </h2>
-          </div>
+        <Pagination>
+          <PaginationPrevious href={hrefFor(Math.max(page - 1, 1))} />
 
-          {active && (
-            <>
-              {/* Counters + Date filter toolbar */}
-              <div className="flex flex-wrap items-center gap-3 mb-3">
-                <div className="rounded border px-4 py-3 bg-emerald-50 text-emerald-700">
-                  <div className="text-xs uppercase tracking-wide">{clicksDayLabel}</div>
-                  <div className="text-2xl font-bold">{clicksOnActiveDay}</div>
-                </div>
-                <div className="rounded border px-4 py-3 bg-slate-50">
-                  <div className="text-xs uppercase tracking-wide text-slate-600 border-none">Clicked all time</div>
-                  <div className="text-2xl font-bold">{clicksAllTime}</div>
-                </div>
+          <PaginationContent>
+            {windowStart > 1 && (
+              <PaginationItem className={page === 1 ? "active" : ""}>
+                <PaginationLink href={hrefFor(1)}>1</PaginationLink>
+              </PaginationItem>
+            )}
 
-                {/* Date picker + buttons (beside the counters) */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="ml-auto">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, "PPP") : "Pick date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate ?? undefined}
-                      onSelect={(d) => setSelectedDate(d ?? null)}
-                    />
-                  </PopoverContent>
-                </Popover>
+            {windowStart > 2 && (
+              <PaginationItem>
+                <PaginationEllipsis />
+              </PaginationItem>
+            )}
 
-                <Button variant="secondary" onClick={onApplyDate}>
-                  Apply
-                </Button>
-                <Button variant="ghost" onClick={onClearDate}>
-                  Clear
-                </Button>
-              </div>
+            {middlePages.map((p) => (
+              <PaginationItem key={p} className={p === page ? "active" : ""}>
+                <PaginationLink href={hrefFor(p)}>{p}</PaginationLink>
+              </PaginationItem>
+            ))}
 
-              {/* Orders table (filtered by date if selected) */}
-              <div className="min-w-0 overflow-x-auto border rounded">
-                {loadingHistory ? (
-                  <div className="p-4 text-sm text-muted-foreground">Loading history…</div>
-                ) : (
-                  <Table className="min-w-[760px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Order</TableHead>
-                        <TableHead>Production change</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {history.map((h) => (
-                        <TableRow key={h.id}>
-                          <TableCell className="whitespace-nowrap">
-                            {new Date(h.inserted_at).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="font-mono">
-                            {h.name_id.length > 30 ? `${h.name_id.slice(0, 30)}…` : h.name_id}
-                          </TableCell>
-                          <TableCell>{h.production_change ?? "—"}</TableCell>
-                        </TableRow>
-                      ))}
-                      {history.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={3} className="text-sm text-muted-foreground">
-                            No orders for the selected date.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-      {/* <Button
-        variant="destructive"
-        disabled={loadingHistory}
-        onClick={async () => {
-          // Disable button while deleting
-          setLoadingHistory(true);
-          await deleteAllOrders();
-          setLoadingHistory(false);
-        }}
-      >
-        Reset Log
-      </Button> */}
+            {windowEnd < pages - 1 && (
+              <PaginationItem>
+                <PaginationEllipsis />
+              </PaginationItem>
+            )}
+
+            {windowEnd < pages && (
+              <PaginationItem className={page === pages ? "active" : ""}>
+                <PaginationLink href={hrefFor(pages)}>{pages}</PaginationLink>
+              </PaginationItem>
+            )}
+          </PaginationContent>
+
+          <PaginationNext href={hrefFor(Math.min(page + 1, pages))} />
+        </Pagination>
+      </section>
     </div>
   );
 }

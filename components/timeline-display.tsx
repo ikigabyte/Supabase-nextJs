@@ -1,6 +1,7 @@
 "use client";
 // import * as React from "react"
 import React, { useState, useEffect, useRef } from "react";
+import { format } from "date-fns";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { redirect } from "next/navigation";
@@ -10,15 +11,16 @@ import { TimelineOrder } from "@/types/custom";
 // import { OrderTableHeader } from "@/components/order-table-header";
 // import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 // Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
-import Papa from "papaparse";
 import { getBrowserClient } from "@/utils/supabase/client";
-import { Download, RefreshCcw } from "lucide-react";
+import { CalendarIcon, RefreshCcw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Info, ExternalLink } from "lucide-react";
+import { Eye, Info, Plus, Minus } from "lucide-react";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
-import { convertToSpaces } from "@/lib/utils";
 // import { Toaster } from "@/components/ui/sonner";
 // const supabase = createClientComponentClient();
 // import { Toaster } from "@/components/ui/sonner";
@@ -30,17 +32,48 @@ const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
 import { forceUpdateTimeline } from "@/utils/actions";
 // import { forceRefreshTimeline } from "@/utils/google-functions";
 
-const STATUS_ORDER = ["print", "cut", "prepack", "ship", "pack"] as const;
-type StatusType = (typeof STATUS_ORDER)[number];
+const TIMELINE_COLUMNS = [
+  { label: "", width: "4%" },
+  { label: "Order #", width: "8%" },
+  { label: "Due Date", width: "8%" },
+  { label: "IHD Date", width: "8%" },
+  { label: "Shipping Method", width: "7%" },
+  { label: "Creatives", width: "12%" },
+  { label: "Status", width: "5%" },
+  { label: "Material", width: "7%" },
+  { label: "Shape", width: "7%" },
+  { label: "Notes", width: "17%" },
+  { label: "Shipped", width: "4%" },
+] as const;
 
-function getStatusIndex(status: string): number {
-  // Ensure the status is a valid member of STATUS_ORDER
-  const normalized = status.toLowerCase();
-  if (STATUS_ORDER.includes(normalized as StatusType)) {
-    return STATUS_ORDER.indexOf(normalized as StatusType);
-  }
-  return -1;
-}
+type TimelineItem = {
+  FileName?: string;
+  Title?: string;
+  Status?: string;
+  Material?: string;
+  Shape?: string;
+  Notes?: string;
+  DueDate?: string;
+  IHDDate?: string;
+  itemIndex?: number | string;
+};
+
+type DragSel = {
+  startRow: number;
+  endRow: number;
+  extras?: Set<number>;
+};
+
+type TrackingTimelineMetadata = {
+  items: TimelineItem[];
+};
+
+const TIMELINE_HEADER_ROW_CLASS = "h-.5 [&>th]:py-0 text-xs bg-gray-500 hover:bg-gray-500";
+const TIMELINE_HEAD_CLASS = "border-r border-gray-200 font-bold text-white truncate text-[11px]";
+const TIMELINE_ROW_CLASS =
+  "[&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white";
+const TIMELINE_CELL_CLASS = "px-3 py-1 font-semibold align-middle truncate";
+const draggingThreshold = 1;
 
 function formatLastUpdated(isoString: string) {
   if (!isoString) return "";
@@ -59,14 +92,141 @@ function formatLastUpdated(isoString: string) {
   return `${time} on ${month}-${day}`;
 }
 
+function parseTimelineDate(value: string | Date | null) {
+  if (!value) return null;
+  if (value instanceof Date) return new Date(value);
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+  return new Date(value);
+}
+
 function getTimelineDateStatus(dateA: string | Date, dateB: string | Date): "past" | "today" | "future" {
-  const a = new Date(dateA);
-  const b = new Date(dateB);
+  const a = parseTimelineDate(dateA);
+  const b = parseTimelineDate(dateB);
+  if (!a || !b || Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return "future";
   a.setHours(0, 0, 0, 0);
   b.setHours(0, 0, 0, 0);
   if (a.getTime() < b.getTime()) return "past";
   if (a.getTime() === b.getTime()) return "today";
   return "future";
+}
+
+function isSameTimelineDay(dateA: string | Date | null, dateB: Date) {
+  const a = parseTimelineDate(dateA);
+  if (!a || Number.isNaN(a.getTime())) return false;
+  const b = new Date(dateB);
+  a.setHours(0, 0, 0, 0);
+  b.setHours(0, 0, 0, 0);
+  return a.getTime() === b.getTime();
+}
+
+function getTimelineDayKey(dateValue: string | Date | null) {
+  const date = parseTimelineDate(dateValue);
+  if (!date || Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return format(date, "yyyy-MM-dd");
+}
+
+function getTimelineDayLabel(dateKey: string) {
+  return format(parseTimelineDate(dateKey) ?? new Date(dateKey), "MMMM do");
+}
+
+function getTimelineDueDayLabel(dateKey: string, activeDate: Date) {
+  const date = parseTimelineDate(dateKey);
+  if (!date) return getTimelineDayLabel(dateKey);
+  return isSameTimelineDay(date, activeDate) ? `${format(date, "MMMM do")} - Due` : format(date, "MMMM do");
+}
+
+function normalizeTimelineItems(items: unknown): TimelineItem[] {
+  if (!items || typeof items !== "object") return [];
+
+  const rawItems = Array.isArray(items) ? items : Object.values(items as Record<string, unknown>);
+  return rawItems
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item) => ({
+      FileName: typeof item.FileName === "string" ? item.FileName : undefined,
+      Title: typeof item.Title === "string" ? item.Title : undefined,
+      Status: typeof item.Status === "string" ? item.Status : undefined,
+      Material: typeof item.Material === "string" ? item.Material : undefined,
+      Shape: typeof item.Shape === "string" ? item.Shape : undefined,
+      Notes: typeof item.Notes === "string" ? item.Notes : undefined,
+      itemIndex:
+        typeof item.itemIndex === "number" || typeof item.itemIndex === "string" ? item.itemIndex : undefined,
+    }))
+    .sort((a, b) => Number(a.itemIndex ?? 0) - Number(b.itemIndex ?? 0));
+}
+
+function formatTimelineItemValue(value?: string) {
+  if (!value) return "-";
+  return capitalizeFirstLetter(value.replace(/_/g, " "));
+}
+
+function getMixedSummary(items: TimelineItem[], field: "Status" | "Material" | "Shape") {
+  const values = Array.from(
+    new Set(items.map((item) => item[field]?.trim()).filter((value): value is string => !!value)),
+  );
+  if (values.length === 0) return "-";
+  if (values.length > 1) return "Mixed";
+  return formatTimelineItemValue(values[0]);
+}
+
+function getCreativeSummary(items: TimelineItem[]) {
+  if (items.length === 0) return "unknown";
+  return `${items.length} creatives`;
+}
+
+function formatCreativeName(fileName?: string, title?: string) {
+  const name = fileName || title || "-";
+  return name.length > 15 ? name.slice(0, 15) : name;
+}
+
+function getTimelineNotesSummary(rows: Order[]) {
+  const notes = Array.from(
+    new Set(rows.map((row) => row.notes?.trim()).filter((note): note is string => !!note)),
+  );
+
+  if (notes.length === 0) return "No notes";
+  return notes.join(" | ");
+}
+
+function getTimelineDataRows(table: HTMLTableElement) {
+  const tbody = table.querySelector("tbody");
+  if (!tbody) return [];
+  return Array.from(tbody.children).filter(
+    (row): row is HTMLTableRowElement =>
+      row instanceof HTMLTableRowElement && row.getAttribute("datatype") === "data",
+  );
+}
+
+function getTimelineRowIndex(row: HTMLTableRowElement) {
+  const table = row.closest("table");
+  if (!table) return -1;
+  return getTimelineDataRows(table).indexOf(row);
+}
+
+function collectSelectedTimelineOrderIds(selectionMap: Map<HTMLTableElement, DragSel>) {
+  const selectedIds = new Set<number>();
+
+  selectionMap.forEach((selection, table) => {
+    const dataRows = getTimelineDataRows(table);
+    const rowStart = Math.min(selection.startRow, selection.endRow);
+    const rowEnd = Math.max(selection.startRow, selection.endRow);
+
+    for (let index = rowStart; index <= rowEnd; index++) {
+      const orderId = Number(dataRows[index]?.getAttribute("data-order-id"));
+      if (Number.isFinite(orderId)) selectedIds.add(orderId);
+    }
+
+    selection.extras?.forEach((index) => {
+      const orderId = Number(dataRows[index]?.getAttribute("data-order-id"));
+      if (Number.isFinite(orderId)) selectedIds.add(orderId);
+    });
+  });
+
+  return selectedIds;
 }
 
 // const formatDate = (dateString: string | null) => {
@@ -106,8 +266,21 @@ export function TimelineOrders() {
 
   // Inline orders rendering state: map order_id -> array of orders
   const [ordersById, setOrdersById] = useState<Record<number, Order[]>>({});
+  const [trackingMetadataByOrderId, setTrackingMetadataByOrderId] = useState<Record<number, TrackingTimelineMetadata>>({});
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
   const [open, setOpen] = useState(false);
+  const [openTabsDialogOpen, setOpenTabsDialogOpen] = useState(false);
+  const [pendingOpenOrderIds, setPendingOpenOrderIds] = useState<number[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  });
+  const [selectedTimelineOrderIds, setSelectedTimelineOrderIds] = useState<Set<number>>(new Set());
+  const [dragging, setDragging] = useState(false);
+  const dragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
+  const pendingDragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
+  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
 
   const [refreshDisabled, setRefreshDisabled] = useState(true);
   const [refreshHint, setRefreshHint] = useState<string>("Checking last refresh...");
@@ -128,6 +301,25 @@ export function TimelineOrders() {
     const m = Math.floor(totalSec / 60);
     const s = totalSec % 60;
     return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
+  const openZendeskOrderTabs = (orderIds: number[]) => {
+    orderIds.forEach((orderId) => {
+      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${orderId}`, "_blank");
+    });
+  };
+
+  const handleOpenSelectedOrders = () => {
+    const orderIds = Array.from(selectedTimelineOrderIds).filter((orderId) => Number.isFinite(orderId)).sort((a, b) => a - b);
+    if (orderIds.length === 0) return;
+
+    if (orderIds.length > 3) {
+      setPendingOpenOrderIds(orderIds);
+      setOpenTabsDialogOpen(true);
+      return;
+    }
+
+    openZendeskOrderTabs(orderIds);
   };
 
   const scheduleEnableWhenReady = (lastMs: number) => {
@@ -227,7 +419,7 @@ export function TimelineOrders() {
 
     supabase
       .from("orders")
-      .select("name_id, production_status, material, order_id")
+      .select("name_id, production_status, material, shape, order_id, notes")
       .in("order_id", allIds)
       .then(({ data, error }) => {
         if (error) {
@@ -249,6 +441,241 @@ export function TimelineOrders() {
       });
   }, [combinedOrders]);
 
+  useEffect(() => {
+    const allIds = Array.from(
+      new Set([...combinedOrders].map((o) => Number(o.order_id)).filter((id) => Number.isFinite(id)) as number[]),
+    );
+    if (allIds.length === 0) {
+      setTrackingMetadataByOrderId({});
+      return;
+    }
+
+    supabase
+      .from("tracking_orders")
+      .select("order_id, items")
+      .in("order_id", allIds)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching timeline item metadata:", error);
+          setTrackingMetadataByOrderId({});
+          return;
+        }
+
+        const nextMetadataByOrderId: Record<number, TrackingTimelineMetadata> = {};
+        (data ?? []).forEach((row) => {
+          const trackingRow = row as Record<string, unknown>;
+          const orderId = Number(trackingRow.order_id);
+          const items = normalizeTimelineItems(row.items);
+
+          if (!Number.isFinite(orderId)) return;
+
+          const existing = nextMetadataByOrderId[orderId] ?? { items: [] };
+          nextMetadataByOrderId[orderId] = {
+            items: items.length > 0 ? items : existing.items,
+          };
+        });
+        setTrackingMetadataByOrderId(nextMetadataByOrderId);
+      });
+  }, [combinedOrders]);
+
+  useEffect(() => {
+    const visibleOrderIds = new Set(
+      combinedOrders.map((order) => Number(order.order_id)).filter((id) => Number.isFinite(id)),
+    );
+
+    if (visibleOrderIds.size === 0) return;
+
+    const channel = supabase
+      .channel("timeline_orders_realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
+        const newOrder = payload.new as Order;
+        const orderId = Number(newOrder.order_id);
+        if (!visibleOrderIds.has(orderId)) return;
+
+        setOrdersById((prev) => {
+          const existingRows = prev[orderId] ?? [];
+          if (existingRows.some((row) => row.name_id === newOrder.name_id)) {
+            return {
+              ...prev,
+              [orderId]: existingRows.map((row) => (row.name_id === newOrder.name_id ? newOrder : row)),
+            };
+          }
+
+          return {
+            ...prev,
+            [orderId]: [...existingRows, newOrder],
+          };
+        });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+        const updated = payload.new as Order;
+        const orderId = Number(updated.order_id);
+        if (!visibleOrderIds.has(orderId)) return;
+
+        setOrdersById((prev) => {
+          const existingRows = prev[orderId] ?? [];
+          if (existingRows.length === 0) {
+            return {
+              ...prev,
+              [orderId]: [updated],
+            };
+          }
+
+          return {
+            ...prev,
+            [orderId]: existingRows.map((row) => (row.name_id === updated.name_id ? updated : row)),
+          };
+        });
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
+        const deleted = payload.old as Partial<Order>;
+        const orderId = Number(deleted.order_id);
+        if (!visibleOrderIds.has(orderId)) return;
+
+        setOrdersById((prev) => {
+          const existingRows = prev[orderId] ?? [];
+          return {
+            ...prev,
+            [orderId]: existingRows.filter((row) => row.name_id !== deleted.name_id),
+          };
+        });
+      })
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error("Timeline orders realtime subscription failed:", status);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [combinedOrders]);
+
+  useEffect(() => {
+    const applySelection = (selectionMap: Map<HTMLTableElement, DragSel>) => {
+      setSelectedTimelineOrderIds(collectSelectedTimelineOrderIds(selectionMap));
+    };
+
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-ignore-selection='true']")) {
+        dragStartPos.current = null;
+        return;
+      }
+
+      const row = target.closest("tr[datatype='data']") as HTMLTableRowElement | null;
+      if (!row) return;
+      const table = row.closest("table") as HTMLTableElement | null;
+      if (!table) return;
+      const rowIndex = getTimelineRowIndex(row);
+      if (rowIndex === -1) return;
+
+      if (!event.shiftKey) {
+        dragSelections.current.clear();
+        pendingDragSelections.current.clear();
+      }
+
+      dragStartPos.current = { x: event.clientX, y: event.clientY };
+      pendingDragSelections.current.set(table, {
+        startRow: rowIndex,
+        endRow: rowIndex,
+        extras: dragSelections.current.get(table)?.extras ?? new Set(),
+      });
+    };
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (!dragStartPos.current) return;
+
+      const dx = Math.abs(event.clientX - dragStartPos.current.x);
+      const dy = Math.abs(event.clientY - dragStartPos.current.y);
+      if ((dx > draggingThreshold || dy > draggingThreshold) && !dragging) {
+        if (!event.shiftKey) return;
+        document.body.style.cursor = "grabbing";
+        setDragging(true);
+      }
+
+      if (!dragging) return;
+      const target = event.target as HTMLElement;
+      const row = target.closest("tr[datatype='data']") as HTMLTableRowElement | null;
+      if (!row) return;
+      const table = row.closest("table") as HTMLTableElement | null;
+      if (!table) return;
+      const rowIndex = getTimelineRowIndex(row);
+      if (rowIndex === -1) return;
+
+      const prev = pendingDragSelections.current.get(table);
+      pendingDragSelections.current.set(table, {
+        startRow: prev?.startRow ?? rowIndex,
+        endRow: rowIndex,
+        extras: prev?.extras ?? new Set(),
+      });
+      applySelection(pendingDragSelections.current);
+    };
+
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target as HTMLElement;
+      document.body.style.cursor = "";
+
+      if (target.closest("[data-ignore-selection='true']")) {
+        if (dragging) {
+          dragSelections.current = new Map(pendingDragSelections.current);
+          applySelection(dragSelections.current);
+        }
+        pendingDragSelections.current.clear();
+        dragStartPos.current = null;
+        setDragging(false);
+        return;
+      }
+
+      if (dragging) {
+        dragSelections.current = new Map(pendingDragSelections.current);
+        applySelection(dragSelections.current);
+      } else {
+        const row = target.closest("tr[datatype='data']") as HTMLTableRowElement | null;
+        const table = row?.closest("table") as HTMLTableElement | null;
+        const rowIndex = row ? getTimelineRowIndex(row) : -1;
+
+        if (!row || !table || rowIndex === -1) {
+          if (!event.shiftKey) {
+            dragSelections.current.clear();
+            setSelectedTimelineOrderIds(new Set());
+          }
+        } else if (event.shiftKey) {
+          const prev = dragSelections.current.get(table);
+          const next: DragSel = prev
+            ? { ...prev, extras: new Set(prev.extras ?? []) }
+            : { startRow: rowIndex, endRow: rowIndex, extras: new Set<number>() };
+
+          if (next.extras?.has(rowIndex)) next.extras.delete(rowIndex);
+          else next.extras?.add(rowIndex);
+          dragSelections.current.set(table, next);
+          applySelection(dragSelections.current);
+        } else {
+          dragSelections.current.clear();
+          dragSelections.current.set(table, { startRow: rowIndex, endRow: rowIndex, extras: new Set() });
+          applySelection(dragSelections.current);
+        }
+      }
+
+      pendingDragSelections.current.clear();
+      dragStartPos.current = null;
+      setDragging(false);
+    };
+
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      document.body.style.cursor = "";
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [dragging]);
+
   // const [user, setUser] = useState<string>("Guest");
   // const clientUser = supabase.auth.getUser();
 
@@ -269,8 +696,16 @@ export function TimelineOrders() {
       .from("timeline")
       .select()
       .order("ship_date", { ascending: false })
-      .then(({ data }) => {
-        if (!data) return;
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching timeline orders:", error);
+          setCombinedOrders([]);
+          return;
+        }
+        if (!data) {
+          setCombinedOrders([]);
+          return;
+        }
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -399,35 +834,7 @@ export function TimelineOrders() {
     };
   }, []);
 
-  const HEADER_COLS = 6;
-
-  const getStatus = (orders: Order[]): string => {
-    // console.log(orders);
-    if (orders.length === 0) return "No Data Found";
-
-    const statusCounts: Record<StatusType, number> = {
-      print: 0,
-      pack: 0,
-      cut: 0,
-      ship: 0,
-      prepack: 0,
-    };
-
-    for (const order of orders) {
-      const status = order.production_status ?? "";
-      if (STATUS_ORDER.includes(status as StatusType)) {
-        statusCounts[status as StatusType]++;
-      }
-    }
-
-    for (const status of STATUS_ORDER) {
-      if (statusCounts[status] > 0) {
-        return status;
-      }
-    }
-
-    return "No Data Found";
-  };
+  const HEADER_COLS = TIMELINE_COLUMNS.length;
 
   // const handleClick = (orderId: string | number) => {
   //   navigator.clipboard.writeText(String(orderId));
@@ -438,44 +845,193 @@ export function TimelineOrders() {
   //   // await new Promise((resolve) => setTimeout(resolve, 1000));
   // };
 
-  const openZendeskLink = (orderId: number) => {
-    const url = `https://stickerbeat.zendesk.com/agent/tickets/${orderId}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
+  const pastDueOrders = combinedOrders.filter(
+    (order) => order.ship_date && getTimelineDateStatus(order.ship_date, new Date()) === "past",
+  );
+  const upcomingOrders = combinedOrders.filter(
+    (order) =>
+      !!order.ship_date &&
+      getTimelineDateStatus(order.ship_date, new Date()) !== "past" &&
+      (!selectedDate || isSameTimelineDay(order.ship_date, selectedDate)),
+  );
+  const upcomingOrdersByDay = upcomingOrders.reduce<Record<string, TimelineOrder[]>>((groups, order) => {
+    const dayKey = getTimelineDayKey(order.ship_date);
+    if (!dayKey) return groups;
+    groups[dayKey] = [...(groups[dayKey] ?? []), order];
+    return groups;
+  }, {});
+  const upcomingDayKeys = Object.keys(upcomingOrdersByDay).sort();
+  const activeViewDate = selectedDate ?? (() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  })();
+  const currentDayLabel = format(activeViewDate, "PPP");
 
-  const handleDownloadCSV = () => {
-    if (combinedOrders.length === 0) {
-      alert("No due orders to export.");
-      return;
-    }
+  const renderTimelineTable = (title: string, orders: TimelineOrder[], emptyMessage: string) => (
+    <section className="flex flex-col gap-2">
+      <h2 className="font-bold text-lg">{title}</h2>
+      <Table className="mb-5 w-full table-fixed min-w-0">
+        <TableHeader>
+          <TableRow className={TIMELINE_HEADER_ROW_CLASS}>
+            {TIMELINE_COLUMNS.map((column) => (
+              <TableHead key={column.label} className={TIMELINE_HEAD_CLASS} style={{ width: column.width }}>
+                {column.label.toUpperCase()}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody className="py-5">
+          {orders.length === 0 && (
+            <TableRow className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}>
+              <TableCell colSpan={HEADER_COLS} className="px-3 py-2 text-xs font-medium text-muted-foreground">
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          )}
+          {orders.map((order) => {
+            const orderIdNum = Number(order.order_id);
+            const rows = ordersById[orderIdNum] ?? [];
+            const trackingMetadata = trackingMetadataByOrderId[orderIdNum];
+            const metadataItems = trackingMetadata?.items ?? [];
+            const orderItems: TimelineItem[] = rows.map((row, index) => ({
+              FileName: row.name_id,
+              Status: row.production_status ?? undefined,
+              Material: row.material ?? undefined,
+              Shape: row.shape ?? undefined,
+              Notes: row.notes ?? undefined,
+              itemIndex: index + 1,
+            }));
+            const items = orderItems.length > 0 ? orderItems : metadataItems;
+            const hasRows = !ordersLoading && rows.length > 0;
+            const hasCreatives = items.length > 0;
+            const dueDateStatus = order.ship_date ? getTimelineDateStatus(order.ship_date, new Date()) : "future";
+            const dueDateRowClass =
+              dueDateStatus === "past"
+                ? "bg-red-200 hover:bg-red-200"
+                : dueDateStatus === "today"
+                ? "bg-yellow-200 hover:bg-yellow-200"
+                : "bg-gray-200 hover:bg-gray-200";
+            const notesSummary = hasRows ? getTimelineNotesSummary(rows) : "-";
+            const notesByNameId = new Map(rows.map((row) => [row.name_id, row.notes?.trim() || "-"]));
+            const isOpen = openIds.has(orderIdNum);
+            const creativeSummary = getCreativeSummary(items);
+            const statusSummary = getMixedSummary(items, "Status");
+            const materialSummary = getMixedSummary(items, "Material");
+            const shapeSummary = getMixedSummary(items, "Shape");
+            const isSelected = selectedTimelineOrderIds.has(orderIdNum);
 
-    const csv = Papa.unparse(
-      combinedOrders.map((order) => {
-        const currentIdx = getStatusIndex(order.production_status ?? "");
-        // Option 1: Use checkmark (✓) and blank
-        // Option 2: Use TRUE/FALSE
-        return {
-          "Order ID": order.order_id,
-          "Shipping Method": order.shipping_method,
-          "Due Date": order.ship_date,
-          "IHD Date": order.ihd_date,
-          Print: currentIdx >= 0 ? "✓" : "",
-          Cut: currentIdx >= 1 ? "✓" : "",
-          Ship: currentIdx >= 2 ? "✓" : "",
-          Pack: currentIdx >= 3 ? "✓" : "",
-        };
-      }),
-    );
+            return (
+              <React.Fragment key={`due-group-${orderIdNum}`}>
+                <TableRow
+                  datatype="data"
+                  data-order-id={orderIdNum}
+                  className={`${TIMELINE_ROW_CLASS} ${dueDateRowClass} h-6 ${
+                    isSelected ? "bg-blue-100 hover:bg-blue-100" : ""
+                  }`}
+                >
+                  <TableCell className="px-1 py-1 text-center align-middle">
+                    <Button
+                      data-ignore-selection="true"
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={!hasCreatives}
+                      aria-label={`${isOpen ? "Hide" : "Show"} creatives for order ${orderIdNum || "unknown"}`}
+                      className="h-6 w-6 p-0 text-black hover:bg-white/40 disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!hasCreatives) return;
+                        toggleOpen(orderIdNum, !isOpen);
+                      }}
+                    >
+                      {isOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    </Button>
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS}>
+                    <span>{orderIdNum || "—"}</span>
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS}>
+                    {order.ship_date || "-"}
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS}>
+                    {order.ihd_date || "-"}
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS}>
+                    {formatTimelineItemValue(order.shipping_method ?? undefined)}
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS}>
+                    {creativeSummary}
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS} title={statusSummary}>
+                    {statusSummary}
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS}>
+                    {materialSummary}
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS}>
+                    {shapeSummary}
+                  </TableCell>
+                  <TableCell className={TIMELINE_CELL_CLASS} title={notesSummary}>
+                    {notesSummary}
+                  </TableCell>
+                  <TableCell className="px-1 py-1 text-center align-middle" data-ignore-selection="true">
+                    <Checkbox
+                      checked={selectedTimelineOrderIds.has(orderIdNum)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
+                      onCheckedChange={(checked) => {
+                        setSelectedTimelineOrderIds((prev) => {
+                          const next = new Set(prev);
+                          if (checked) next.add(orderIdNum);
+                          else next.delete(orderIdNum);
+                          return next;
+                        });
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
+                {hasCreatives && isOpen &&
+                  items.map((item, index) => {
+                    const creativeName = item.FileName || item.Title || "-";
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "due_orders.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+                    return (
+                      <TableRow
+                        key={`${orderIdNum}-${item.itemIndex ?? index}-${item.FileName ?? item.Title ?? "creative"}`}
+                        className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}
+                      >
+                        <TableCell className="px-1 py-1 align-middle" />
+                        <TableCell className={TIMELINE_CELL_CLASS}>{orderIdNum || "—"}</TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS}>{order.ship_date || "-"}</TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS}>{order.ihd_date || "-"}</TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS}>
+                          {formatTimelineItemValue(order.shipping_method ?? undefined)}
+                        </TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS} title={creativeName}>
+                          {formatCreativeName(item.FileName, item.Title)}
+                        </TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS} title={item.Status ?? "-"}>
+                          {formatTimelineItemValue(item.Status)}
+                        </TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Material)}</TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Shape)}</TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS} title={item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "-"}>
+                          {item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "-"}
+                        </TableCell>
+                        <TableCell className="px-1 py-1 align-middle" />
+                      </TableRow>
+                    );
+                  })}
+              </React.Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </section>
+  );
+
   // console.log("Timeline Orders:", orders);
 
   // console.log("Due Orders:", dueOrders);
@@ -502,167 +1058,128 @@ export function TimelineOrders() {
         </DialogContent>
       </Dialog>
 
-      <section className="p-2 pt-10 max-w-8xl w-[80%] flex flex-col gap-2">
-        <h1 className="font-bold text-3xl "> Timeline Orders (Last 30 Days) </h1>
-        <p className="text-left font-regular text-sm">Last Scanned Zendesk: {timeUpdated} </p>
-        <div className="w-full flex justify-end gap-2">
-          <Button onClick={() => setOpen(true)}>
-            <Info />
-          </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Timeline</DialogTitle>
-                <DialogDescription className="text-sm">
-                  This scans Zendesk categories: To Print, To Cut, To Pack, ToPrePack and To Ship every hour on Zendesk.
-                  It organizes all the orders by due date and displays them here. Orders with ship dates longer then 30
-                  days are not shown here
-                </DialogDescription>
-              </DialogHeader>
-            </DialogContent>
-          </Dialog>
-          <div className="flex gap-2">
-            <Button onClick={handleDownloadCSV}>
-              <Download className="mr-2" />
-              Download CSV
+      <Dialog open={openTabsDialogOpen} onOpenChange={setOpenTabsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Open Orders</DialogTitle>
+            <DialogDescription>
+              You're about to open {pendingOpenOrderIds.length} orders on new tabs
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpenTabsDialogOpen(false)}>
+              Cancel
             </Button>
             <Button
-              onClick={handleForceRefresh}
-              aria-disabled={refreshDisabled}
-              className={refreshDisabled ? "opacity-50 cursor-not-allowed" : ""}
+              type="button"
+              onClick={() => {
+                openZendeskOrderTabs(pendingOpenOrderIds);
+                setOpenTabsDialogOpen(false);
+                setPendingOpenOrderIds([]);
+              }}
             >
-              <RefreshCcw className="mr-2" />
-              Force Refresh
+              Open Tabs
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <section className="p-2 pt-10 w-[96%] max-w-none flex flex-col gap-2">
+        <h1 className="font-bold text-5xl "> Day View </h1>
+        <p className="text-sm font-medium text-zinc-700">Current day: {currentDayLabel}</p>
+        <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+          <span className="relative h-4 w-4">
+            <span className="absolute inset-0 rounded-full bg-[#76C043]" />
+            <span className="active-pulse-ring absolute inset-0 rounded-full border-2 border-[#76C043]" />
+          </span>
+          <span>Realtime status: active:</span>
+        </div>
+        <div className="w-full flex justify-end gap-2">
+          <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "PPP") : "All upcoming"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate ?? undefined}
+                  onSelect={(date) => {
+                    if (!date) return;
+                    const nextDate = new Date(date);
+                    nextDate.setHours(0, 0, 0, 0);
+                    setSelectedDate(nextDate);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button type="button" variant="ghost" onClick={() => setSelectedDate(null)}>
+              Clear
             </Button>
           </div>
         </div>
-        {/* Orders Due */}
-        <Table className="w-full table-fixed min-w-0 mb-2 bg-black">
-          <TableHeader className="bg-black">
-            <TableRow className="">
-              <TableHead className="w-[20%] px-3 py-2 font-bold text-white">Order ID</TableHead>
-              <TableHead className="w-[20%] px-3 py-2 font-bold text-white">Shipping Method</TableHead>
-              <TableHead className="w-[20%] px-3 py-2 font-bold text-white">Due Date</TableHead>
-              <TableHead className="w-[20%] px-3 py-2 font-bold text-white">IHD Date</TableHead>
-              <TableHead className="w-[15%] px-3 py-2 font-bold text-white">Status</TableHead>
-              <TableHead className="w-[5%] px-3 py-2 font-bold text-white">Zendesk</TableHead>
-            </TableRow>
-          </TableHeader>
-        </Table>
-        {combinedOrders.map((order) => {
-          const orderIdNum = Number(order.order_id);
-          const rows = ordersById[orderIdNum] ?? [];
-          const hasRows = !ordersLoading && rows.length > 0;
-          const dueDateStatus = order.ship_date ? getTimelineDateStatus(order.ship_date, new Date()) : "future";
-          const dueDateRowClass =
-            dueDateStatus === "past" ? "bg-red-200" : dueDateStatus === "today" ? "bg-yellow-200" : "bg-gray-200";
-          const latestStatus = getStatus(rows);
-          return (
-            <React.Fragment key={`due-group-${orderIdNum}`}>
-              {hasRows ? (
-                <>
-                  {/* TRIGGER ROW: spans full table */}
-                  <TableRow
-                    className={`${dueDateRowClass} h-6`}
-                    onClick={() => toggleOpen(orderIdNum, !openIds.has(orderIdNum))}
-                  >
-                    <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-                        <Table className="w-full table-fixed min-w-0">
-                          <TableBody>
-                          <TableRow>
-                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
-                              <span>
-                                &nbsp;{orderIdNum || "—"}&nbsp;{openIds.has(orderIdNum) ? "▾" : "▸"}
-                              </span>
-                            </TableCell>
-                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
-                              <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
-                            </TableCell>
-                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
-                              <div> {order.ship_date || "-"}</div>
-                            </TableCell>
-                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
-                              <div> {order.ihd_date || "-"}</div>
-                            </TableCell>
-                            <TableCell className="w-[15%] px-3 py-1 font-semibold align-middle">
-                              <div>Status: To {capitalizeFirstLetter(latestStatus)}</div>
-                            </TableCell>
-                            <TableCell className="w-[5%] px-3 py-1 align-middle text-center">
-                              <Button
-                                onClick={() => openZendeskLink(orderIdNum)}
-                                variant="ghost"
-                                className="h-6 w-6 p-0 text-black hover:bg-transparent hover:text-black"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableCell>
-                  </TableRow>
-                  {/* DETAILS ROW */}
-                  {openIds.has(orderIdNum) && (
-                    <TableRow className="bg-gray-50 h-6">
-                      <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-                        <Table className="w-full table-fixed min-w-0">
-                          <TableBody>
-                            {rows.map((o) => (
-                              <TableRow key={`${orderIdNum}-${o.name_id}`} className="h-6">
-                                <TableCell className="text-xs truncate py-1 align-middle">{convertToSpaces(o.name_id)}</TableCell>
-                                <TableCell className="text-xs w-[20%] text-left py-1 align-middle">
-                                  To {capitalizeFirstLetter(o.production_status)}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </>
-              ) : (
-                <>
-                  <TableRow className={`${dueDateRowClass} h-6`}>
-                    <TableCell colSpan={HEADER_COLS} className="p-0 overflow-hidden">
-                        <Table className="w-full table-fixed min-w-0">
-                          <TableBody>
-                          <TableRow>
-                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
-                              <span>&nbsp;{orderIdNum || "—"}</span>
-                            </TableCell>
-                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
-                              <div>{order.shipping_method ? capitalizeFirstLetter(order.shipping_method) : "-"}</div>
-                            </TableCell>
-                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
-                              <div> {order.ship_date || "-"}</div>
-                            </TableCell>
-                            <TableCell className="w-[20%] px-3 py-1 font-semibold align-middle">
-                              <div> {order.ihd_date || "-"}</div>
-                            </TableCell>
-                            <TableCell className="w-[15%] px-3 py-1 font-semibold align-middle">
-                              <div>Not In Log</div>
-                            </TableCell>
-                            <TableCell className="w-[5%] px-3 py-1 align-middle text-center">
-                              <Button
-                                onClick={() => openZendeskLink(orderIdNum)}
-                                variant="ghost"
-                                className="h-6 w-6 p-0 text-black hover:bg-transparent hover:text-black"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableCell>
-                  </TableRow>
-                </>
-              )}
-            </React.Fragment>
-          );
-        })}
+        {renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")}
+        {upcomingDayKeys.length === 0
+          ? renderTimelineTable(
+              selectedDate ? `Upcoming Orders - ${format(selectedDate, "PPP")}` : "Upcoming Orders",
+              [],
+              selectedDate ? "No upcoming orders for this date." : "No upcoming orders.",
+            )
+          : upcomingDayKeys.map((dayKey) => (
+              <React.Fragment key={dayKey}>
+                {renderTimelineTable(
+                  getTimelineDueDayLabel(dayKey, activeViewDate),
+                  upcomingOrdersByDay[dayKey],
+                  "No upcoming orders.",
+                )}
+              </React.Fragment>
+            ))}
       </section>
+      {selectedTimelineOrderIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-200 shadow-lg" data-ignore-selection="true">
+          <div className="flex h-14 w-full items-center gap-3 px-4">
+            <div className="min-w-0 flex-1 text-sm">
+              <span className="block font-semibold">Selected: {selectedTimelineOrderIds.size}</span>
+            </div>
+            <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full bg-red-500 hover:bg-red-600" aria-label="Red color" />
+            <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full bg-pink-400 hover:bg-pink-500" aria-label="Pink color" />
+            <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full bg-white hover:bg-gray-100" aria-label="White color" />
+            <Button
+              type="button"
+              variant="default"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-full"
+              aria-label="View selected orders"
+              onClick={handleOpenSelectedOrders}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+      <style jsx>{`
+        .active-pulse-ring {
+          animation: activePulse 3s ease-out infinite;
+        }
+
+        @keyframes activePulse {
+          0% {
+            transform: scale(1);
+            opacity: 0.8;
+          }
+          30% {
+            transform: scale(2);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </>
   );
 }

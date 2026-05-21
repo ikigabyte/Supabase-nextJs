@@ -174,8 +174,8 @@ export function NavBarElement({ onNavigate }: NavBarElementProps = {}) {
       <Link id="to-ship" href="/database/toship?regular" onClick={onNavigate} className="whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
         To Ship ({counts.ship})
       </Link>
-      {canViewHistory && (
-        <Link id="history" href="/database/history" onClick={onNavigate} className="flex items-center gap-1 whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
+      {canViewHistory && !isAdmin && (
+        <Link id="history" href="/database/admin#history" onClick={onNavigate} className="flex items-center gap-1 whitespace-nowrap rounded px-3 py-2 hover:bg-gray-100 lg:px-0 lg:py-0 lg:hover:bg-transparent">
           History
           <span className="text-red-600">NEW</span>
         </Link>
