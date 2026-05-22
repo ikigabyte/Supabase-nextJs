@@ -1,7 +1,8 @@
 "use client";
 // import * as React from "react"
 import React, { useState, useEffect, useRef } from "react";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
+import { type DateRange } from "react-day-picker";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { redirect } from "next/navigation";
@@ -14,35 +15,36 @@ import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Toaster } from "@/components/ui/sonner";
 // Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
-import { CalendarIcon, RefreshCcw } from "lucide-react";
+import { CalendarIcon, RefreshCcw, X } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Eye, Info, Plus, Minus } from "lucide-react";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
 // import { Toaster } from "@/components/ui/sonner";
 // const supabase = createClientComponentClient();
 // import { Toaster } from "@/components/ui/sonner";
-// import { toast } from "sonner";
+import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
 
-import { forceUpdateTimeline } from "@/utils/actions";
+import { forceUpdateTimeline, updateOrderStatus, updateTrackingOrderSpecialColor } from "@/utils/actions";
 // import { forceRefreshTimeline } from "@/utils/google-functions";
 
 const TIMELINE_COLUMNS = [
   { label: "", width: "4%" },
   { label: "Order #", width: "8%" },
-  { label: "Due Date", width: "8%" },
-  { label: "IHD Date", width: "8%" },
-  { label: "Shipping Method", width: "7%" },
+  { label: "Due Date", width: "6%" },
+  { label: "IHD Date", width: "6%" },
+  { label: "Shipping Method", width: "6%" },
   { label: "Creatives", width: "12%" },
-  { label: "Status", width: "5%" },
-  { label: "Material", width: "7%" },
-  { label: "Shape", width: "7%" },
-  { label: "Notes", width: "17%" },
+  { label: "Status", width: "3%" },
+  { label: "Material", width: "3%" },
+  { label: "Shape", width: "3%" },
+  { label: "Notes", width: "25%" },
   { label: "Shipped", width: "4%" },
 ] as const;
 
@@ -50,6 +52,7 @@ type TimelineItem = {
   FileName?: string;
   Title?: string;
   Status?: string;
+  StatusColor?: string | null;
   Material?: string;
   Shape?: string;
   Notes?: string;
@@ -66,6 +69,7 @@ type DragSel = {
 
 type TrackingTimelineMetadata = {
   items: TimelineItem[];
+  specialColor?: string | null;
 };
 
 const TIMELINE_HEADER_ROW_CLASS = "h-.5 [&>th]:py-0 text-xs bg-gray-500 hover:bg-gray-500";
@@ -74,6 +78,11 @@ const TIMELINE_ROW_CLASS =
   "[&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white";
 const TIMELINE_CELL_CLASS = "px-3 py-1 font-semibold align-middle truncate";
 const draggingThreshold = 1;
+const STATUS_COLOR_OPTIONS = [
+  { label: "Blue", value: "#00c8ff" },
+  { label: "Green", value: "#15fb69" },
+  { label: "Pink", value: "#ff36de" },
+] as const;
 
 function formatLastUpdated(isoString: string) {
   if (!isoString) return "";
@@ -101,6 +110,47 @@ function parseTimelineDate(value: string | Date | null) {
     return new Date(Number(year), Number(month) - 1, Number(day));
   }
   return new Date(value);
+}
+
+function getTimelineDayStart(date: Date) {
+  const nextDate = new Date(date);
+  nextDate.setHours(0, 0, 0, 0);
+  return nextDate;
+}
+
+function getDefaultTimelineDateRange(): DateRange {
+  const from = getTimelineDayStart(new Date());
+  return { from, to: addDays(from, 7) };
+}
+
+function areTimelineDateRangesEqual(left?: DateRange, right?: DateRange) {
+  if (!left?.from || !right?.from) return false;
+
+  const leftFrom = getTimelineDayStart(left.from).getTime();
+  const rightFrom = getTimelineDayStart(right.from).getTime();
+  const leftTo = getTimelineDayStart(left.to ?? left.from).getTime();
+  const rightTo = getTimelineDayStart(right.to ?? right.from).getTime();
+
+  return leftFrom === rightFrom && leftTo === rightTo;
+}
+
+function formatTimelineDateRange(range?: DateRange) {
+  if (!range?.from) return "Pick a date range";
+  if (!range.to) return format(range.from, "LLL dd, y");
+  return `${format(range.from, "LLL dd, y")} - ${format(range.to, "LLL dd, y")}`;
+}
+
+function isTimelineDateWithinRange(dateValue: string | Date | null, range?: DateRange) {
+  const date = parseTimelineDate(dateValue);
+  if (!date || Number.isNaN(date.getTime()) || !range?.from) return false;
+
+  const day = getTimelineDayStart(date).getTime();
+  const from = getTimelineDayStart(range.from).getTime();
+  const to = getTimelineDayStart(range.to ?? range.from).getTime();
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+
+  return start <= day && day <= end;
 }
 
 function getTimelineDateStatus(dateA: string | Date, dateB: string | Date): "past" | "today" | "future" {
@@ -173,6 +223,25 @@ function getMixedSummary(items: TimelineItem[], field: "Status" | "Material" | "
   return formatTimelineItemValue(values[0]);
 }
 
+function getTimelineStatusCellBackground(fallbackItems: TimelineItem[], overrideColor?: string | null) {
+  if (overrideColor !== undefined) return overrideColor ?? undefined;
+
+  const itemColors = fallbackItems.map((item) => item.StatusColor?.trim()).filter((color): color is string => !!color);
+  const colors = Array.from(new Set(itemColors));
+
+  if (colors.length === 0) return undefined;
+  if (colors.length === 1) return colors[0];
+
+  const segmentSize = 100 / colors.length;
+  return `linear-gradient(90deg, ${colors
+    .map((color, index) => `${color} ${index * segmentSize}%, ${color} ${(index + 1) * segmentSize}%`)
+    .join(", ")})`;
+}
+
+function isTimelineOrderShipped(rows: Order[]) {
+  return rows.length > 0 && rows.every((row) => row.production_status === "ship" || row.production_status === "completed");
+}
+
 function getCreativeSummary(items: TimelineItem[]) {
   if (items.length === 0) return "unknown";
   return `${items.length} creatives`;
@@ -205,6 +274,18 @@ function getTimelineRowIndex(row: HTMLTableRowElement) {
   const table = row.closest("table");
   if (!table) return -1;
   return getTimelineDataRows(table).indexOf(row);
+}
+
+function clearBrowserSelection() {
+  const selection = window.getSelection();
+  if (selection?.rangeCount) {
+    selection.removeAllRanges();
+  }
+}
+
+function isEditableElement(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  return !!element?.closest("input, textarea, [contenteditable='true']");
 }
 
 function collectSelectedTimelineOrderIds(selectionMap: Map<HTMLTableElement, DragSel>) {
@@ -271,12 +352,13 @@ export function TimelineOrders() {
   const [open, setOpen] = useState(false);
   const [openTabsDialogOpen, setOpenTabsDialogOpen] = useState(false);
   const [pendingOpenOrderIds, setPendingOpenOrderIds] = useState<number[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today;
-  });
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRange>(() => getDefaultTimelineDateRange());
+  const [pendingSelectedDateRange, setPendingSelectedDateRange] = useState<DateRange | undefined>(selectedDateRange);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [showShippedOrders, setShowShippedOrders] = useState(false);
+  const [showPastDueOrders, setShowPastDueOrders] = useState(true);
   const [selectedTimelineOrderIds, setSelectedTimelineOrderIds] = useState<Set<number>>(new Set());
+  const [statusColorOverridesByOrderId, setStatusColorOverridesByOrderId] = useState<Record<number, string | null>>({});
   const [dragging, setDragging] = useState(false);
   const dragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
   const pendingDragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
@@ -320,6 +402,83 @@ export function TimelineOrders() {
     }
 
     openZendeskOrderTabs(orderIds);
+  };
+
+  const handleStatusColorSelect = async (color: string | null) => {
+    const selectedOrderIds = Array.from(selectedTimelineOrderIds);
+    if (selectedOrderIds.length === 0) return;
+
+    const previousOverrides = statusColorOverridesByOrderId;
+    const previousTrackingMetadata = trackingMetadataByOrderId;
+
+    setStatusColorOverridesByOrderId((prev) => {
+      const next = { ...prev };
+      selectedOrderIds.forEach((orderId) => {
+        next[orderId] = color;
+      });
+      return next;
+    });
+    setTrackingMetadataByOrderId((prev) => {
+      const next = { ...prev };
+      selectedOrderIds.forEach((orderId) => {
+        next[orderId] = {
+          items: next[orderId]?.items ?? [],
+          specialColor: color,
+        };
+      });
+      return next;
+    });
+
+    try {
+      const result = await updateTrackingOrderSpecialColor(selectedOrderIds, color);
+      if (!result.ok) {
+        toast.error(result.message);
+        setStatusColorOverridesByOrderId(previousOverrides);
+        setTrackingMetadataByOrderId(previousTrackingMetadata);
+      }
+    } catch (error) {
+      console.error("Failed to assign timeline status color:", error);
+      toast.error("Could not update status color.");
+      setStatusColorOverridesByOrderId(previousOverrides);
+      setTrackingMetadataByOrderId(previousTrackingMetadata);
+    }
+  };
+
+  const handleShipTimelineOrder = async (orderId: number) => {
+    const rows = ordersById[orderId] ?? [];
+    const rowsToShip = rows.filter((row) => row.production_status !== "ship" && row.production_status !== "completed");
+    if (rowsToShip.length === 0) return;
+
+    const previousOrdersById = ordersById;
+    setOrdersById((prev) => ({
+      ...prev,
+      [orderId]: (prev[orderId] ?? []).map((row) => ({ ...row, production_status: "ship" })),
+    }));
+
+    try {
+      console.log("Shipping timeline order", orderId, "with name_ids", rowsToShip.map((row) => row.name_id));
+      // await Promise.all(rowsToShip.map((row) => updateOrderStatus(row, false, "ship")));
+    } catch (error) {
+      console.error("Failed to ship timeline order:", error);
+      setOrdersById(previousOrdersById);
+    }
+  };
+
+  const handleConfirmSelectedDate = () => {
+    const nextRange = pendingSelectedDateRange ?? getDefaultTimelineDateRange();
+    setSelectedDateRange(nextRange);
+    if (areTimelineDateRangesEqual(nextRange, getDefaultTimelineDateRange())) {
+      setShowPastDueOrders(false);
+    }
+    setDatePickerOpen(false);
+  };
+
+  const handleClearSelectedDate = () => {
+    const defaultRange = getDefaultTimelineDateRange();
+    setSelectedDateRange(defaultRange);
+    setPendingSelectedDateRange(defaultRange);
+    setShowPastDueOrders(false);
+    setDatePickerOpen(false);
   };
 
   const scheduleEnableWhenReady = (lastMs: number) => {
@@ -452,7 +611,7 @@ export function TimelineOrders() {
 
     supabase
       .from("tracking_orders")
-      .select("order_id, items")
+      .select("order_id, items, special_color")
       .in("order_id", allIds)
       .then(({ data, error }) => {
         if (error) {
@@ -466,12 +625,14 @@ export function TimelineOrders() {
           const trackingRow = row as Record<string, unknown>;
           const orderId = Number(trackingRow.order_id);
           const items = normalizeTimelineItems(row.items);
+          const specialColor = typeof trackingRow.special_color === "string" ? trackingRow.special_color : null;
 
           if (!Number.isFinite(orderId)) return;
 
           const existing = nextMetadataByOrderId[orderId] ?? { items: [] };
           nextMetadataByOrderId[orderId] = {
             items: items.length > 0 ? items : existing.items,
+            specialColor,
           };
         });
         setTrackingMetadataByOrderId(nextMetadataByOrderId);
@@ -571,6 +732,12 @@ export function TimelineOrders() {
       const rowIndex = getTimelineRowIndex(row);
       if (rowIndex === -1) return;
 
+      if (event.shiftKey) {
+        event.preventDefault();
+        clearBrowserSelection();
+        document.body.classList.add("multi-select-mode");
+      }
+
       if (!event.shiftKey) {
         dragSelections.current.clear();
         pendingDragSelections.current.clear();
@@ -591,6 +758,9 @@ export function TimelineOrders() {
       const dy = Math.abs(event.clientY - dragStartPos.current.y);
       if ((dx > draggingThreshold || dy > draggingThreshold) && !dragging) {
         if (!event.shiftKey) return;
+        event.preventDefault();
+        clearBrowserSelection();
+        document.body.classList.add("multi-select-mode", "is-dragging");
         document.body.style.cursor = "grabbing";
         setDragging(true);
       }
@@ -617,6 +787,7 @@ export function TimelineOrders() {
       if (event.button !== 0) return;
       const target = event.target as HTMLElement;
       document.body.style.cursor = "";
+      document.body.classList.remove("is-dragging");
 
       if (target.closest("[data-ignore-selection='true']")) {
         if (dragging) {
@@ -664,15 +835,33 @@ export function TimelineOrders() {
       setDragging(false);
     };
 
+    const onSelectStart = (event: Event) => {
+      if (!document.body.classList.contains("multi-select-mode") || isEditableElement(event.target)) return;
+      event.preventDefault();
+      clearBrowserSelection();
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== "Shift") return;
+      document.body.classList.remove("multi-select-mode", "is-dragging");
+      document.body.style.cursor = "";
+      clearBrowserSelection();
+    };
+
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("selectstart", onSelectStart);
+    window.addEventListener("keyup", onKeyUp);
 
     return () => {
       document.body.style.cursor = "";
+      document.body.classList.remove("multi-select-mode", "is-dragging");
       document.removeEventListener("mousedown", onMouseDown);
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("selectstart", onSelectStart);
+      window.removeEventListener("keyup", onKeyUp);
     };
   }, [dragging]);
 
@@ -845,14 +1034,18 @@ export function TimelineOrders() {
   //   // await new Promise((resolve) => setTimeout(resolve, 1000));
   // };
 
-  const pastDueOrders = combinedOrders.filter(
+  const visibleTimelineOrders = combinedOrders.filter((order) => {
+    if (showShippedOrders) return true;
+    const orderId = Number(order.order_id);
+    return !isTimelineOrderShipped(ordersById[orderId] ?? []);
+  });
+
+  const isCurrentWeekView = areTimelineDateRangesEqual(selectedDateRange, getDefaultTimelineDateRange());
+  const pastDueOrders = visibleTimelineOrders.filter(
     (order) => order.ship_date && getTimelineDateStatus(order.ship_date, new Date()) === "past",
   );
-  const upcomingOrders = combinedOrders.filter(
-    (order) =>
-      !!order.ship_date &&
-      getTimelineDateStatus(order.ship_date, new Date()) !== "past" &&
-      (!selectedDate || isSameTimelineDay(order.ship_date, selectedDate)),
+  const upcomingOrders = visibleTimelineOrders.filter(
+    (order) => !!order.ship_date && isTimelineDateWithinRange(order.ship_date, selectedDateRange),
   );
   const upcomingOrdersByDay = upcomingOrders.reduce<Record<string, TimelineOrder[]>>((groups, order) => {
     const dayKey = getTimelineDayKey(order.ship_date);
@@ -861,12 +1054,7 @@ export function TimelineOrders() {
     return groups;
   }, {});
   const upcomingDayKeys = Object.keys(upcomingOrdersByDay).sort();
-  const activeViewDate = selectedDate ?? (() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today;
-  })();
-  const currentDayLabel = format(activeViewDate, "PPP");
+  const currentDateRangeLabel = formatTimelineDateRange(selectedDateRange);
 
   const renderTimelineTable = (title: string, orders: TimelineOrder[], emptyMessage: string) => (
     <section className="flex flex-col gap-2">
@@ -910,16 +1098,25 @@ export function TimelineOrders() {
               dueDateStatus === "past"
                 ? "bg-red-200 hover:bg-red-200"
                 : dueDateStatus === "today"
-                ? "bg-yellow-200 hover:bg-yellow-200"
+                ? "bg-yellow-100 hover:bg-yellow-100"
                 : "bg-gray-200 hover:bg-gray-200";
             const notesSummary = hasRows ? getTimelineNotesSummary(rows) : "-";
             const notesByNameId = new Map(rows.map((row) => [row.name_id, row.notes?.trim() || "-"]));
             const isOpen = openIds.has(orderIdNum);
             const creativeSummary = getCreativeSummary(items);
             const statusSummary = getMixedSummary(items, "Status");
+            const hasPendingStatusColorOverride = Object.prototype.hasOwnProperty.call(
+              statusColorOverridesByOrderId,
+              orderIdNum,
+            );
+            const statusCellBackground = getTimelineStatusCellBackground(
+              items,
+              hasPendingStatusColorOverride ? statusColorOverridesByOrderId[orderIdNum] : trackingMetadata?.specialColor,
+            );
             const materialSummary = getMixedSummary(items, "Material");
             const shapeSummary = getMixedSummary(items, "Shape");
             const isSelected = selectedTimelineOrderIds.has(orderIdNum);
+            const isShipped = isTimelineOrderShipped(rows);
 
             return (
               <React.Fragment key={`due-group-${orderIdNum}`}>
@@ -964,7 +1161,11 @@ export function TimelineOrders() {
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {creativeSummary}
                   </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS} title={statusSummary}>
+                  <TableCell
+                    className={TIMELINE_CELL_CLASS}
+                    title={statusSummary}
+                    style={{ background: statusCellBackground }}
+                  >
                     {statusSummary}
                   </TableCell>
                   <TableCell className={TIMELINE_CELL_CLASS}>
@@ -978,17 +1179,13 @@ export function TimelineOrders() {
                   </TableCell>
                   <TableCell className="px-1 py-1 text-center align-middle" data-ignore-selection="true">
                     <Checkbox
-                      checked={selectedTimelineOrderIds.has(orderIdNum)}
+                      checked={isShipped}
+                      disabled={ordersLoading || rows.length === 0}
                       onClick={(event) => {
                         event.stopPropagation();
                       }}
-                      onCheckedChange={(checked) => {
-                        setSelectedTimelineOrderIds((prev) => {
-                          const next = new Set(prev);
-                          if (checked) next.add(orderIdNum);
-                          else next.delete(orderIdNum);
-                          return next;
-                        });
+                      onCheckedChange={() => {
+                        void handleShipTimelineOrder(orderIdNum);
                       }}
                     />
                   </TableCell>
@@ -1012,7 +1209,11 @@ export function TimelineOrders() {
                         <TableCell className={TIMELINE_CELL_CLASS} title={creativeName}>
                           {formatCreativeName(item.FileName, item.Title)}
                         </TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS} title={item.Status ?? "-"}>
+                        <TableCell
+                          className={TIMELINE_CELL_CLASS}
+                          title={item.Status ?? "-"}
+                          style={{ background: statusCellBackground }}
+                        >
                           {formatTimelineItemValue(item.Status)}
                         </TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Material)}</TableCell>
@@ -1049,6 +1250,7 @@ export function TimelineOrders() {
   // How do we get the last updated thing, maybe we keep just an order
   return (
     <>
+      <Toaster theme="dark" richColors={true} />
       <Dialog open={cooldownOpen} onOpenChange={setCooldownOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1085,8 +1287,8 @@ export function TimelineOrders() {
       </Dialog>
 
       <section className="p-2 pt-10 w-[96%] max-w-none flex flex-col gap-2">
-        <h1 className="font-bold text-5xl "> Day View </h1>
-        <p className="text-sm font-medium text-zinc-700">Current day: {currentDayLabel}</p>
+        <h1 className="font-bold text-5xl "> Daily List </h1>
+        <p className="text-sm font-medium text-zinc-700">Current range: {currentDateRangeLabel}</p>
         <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
           <span className="relative h-4 w-4">
             <span className="absolute inset-0 rounded-full bg-[#76C043]" />
@@ -1094,44 +1296,84 @@ export function TimelineOrders() {
           </span>
           <span>Realtime status: active:</span>
         </div>
-        <div className="w-full flex justify-end gap-2">
+        <div className="flex w-full items-center justify-between gap-2">
           <div className="flex gap-2">
-            <Popover>
+            {!isCurrentWeekView && (
+              <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium">
+                <Checkbox
+                  checked={showPastDueOrders}
+                  onCheckedChange={(checked) => setShowPastDueOrders(checked === true)}
+                />
+                <span>Show past due</span>
+              </label>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium">
+              <Checkbox
+                checked={showShippedOrders}
+                onCheckedChange={(checked) => setShowShippedOrders(checked === true)}
+              />
+              <span>Show shipped orders</span>
+            </label>
+
+            <Popover
+              open={datePickerOpen}
+              onOpenChange={(open) => {
+                setDatePickerOpen(open);
+                if (open) setPendingSelectedDateRange(selectedDateRange);
+              }}
+            >
               <PopoverTrigger asChild>
                 <Button type="button" variant="outline">
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "PPP") : "All upcoming"}
+                  {formatTimelineDateRange(selectedDateRange)}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
-                  mode="single"
-                  selected={selectedDate ?? undefined}
-                  onSelect={(date) => {
-                    if (!date) return;
-                    const nextDate = new Date(date);
-                    nextDate.setHours(0, 0, 0, 0);
-                    setSelectedDate(nextDate);
-                  }}
+                  mode="range"
+                  defaultMonth={pendingSelectedDateRange?.from}
+                  selected={pendingSelectedDateRange}
+                  onSelect={setPendingSelectedDateRange}
+                  numberOfMonths={2}
                 />
+                <div className="flex items-center justify-end gap-2 border-t p-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setDatePickerOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="button" size="sm" onClick={handleConfirmSelectedDate}>
+                    Confirm
+                  </Button>
+                </div>
               </PopoverContent>
             </Popover>
-            <Button type="button" variant="ghost" onClick={() => setSelectedDate(null)}>
-              Clear
+            
+            <Button
+              type="button"
+              variant={isCurrentWeekView ? "secondary" : "ghost"}
+              className={isCurrentWeekView ? "border border-gray-400 font-semibold" : ""}
+              onClick={handleClearSelectedDate}
+            >
+              {isCurrentWeekView ? "Current week" : "Clear"}
             </Button>
+            
           </div>
         </div>
-        {renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")}
+        {!isCurrentWeekView && showPastDueOrders
+          ? renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")
+          : null}
         {upcomingDayKeys.length === 0
           ? renderTimelineTable(
-              selectedDate ? `Upcoming Orders - ${format(selectedDate, "PPP")}` : "Upcoming Orders",
+              `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
               [],
-              selectedDate ? "No upcoming orders for this date." : "No upcoming orders.",
+              "No orders in this date range.",
             )
           : upcomingDayKeys.map((dayKey) => (
               <React.Fragment key={dayKey}>
                 {renderTimelineTable(
-                  getTimelineDueDayLabel(dayKey, activeViewDate),
+                  getTimelineDayLabel(dayKey),
                   upcomingOrdersByDay[dayKey],
                   "No upcoming orders.",
                 )}
@@ -1144,9 +1386,29 @@ export function TimelineOrders() {
             <div className="min-w-0 flex-1 text-sm">
               <span className="block font-semibold">Selected: {selectedTimelineOrderIds.size}</span>
             </div>
-            <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full bg-red-500 hover:bg-red-600" aria-label="Red color" />
-            <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full bg-pink-400 hover:bg-pink-500" aria-label="Pink color" />
-            <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full bg-white hover:bg-gray-100" aria-label="White color" />
+            <div className="flex shrink-0 items-center gap-1">
+              {STATUS_COLOR_OPTIONS.map((color) => (
+                <Button
+                  key={color.value}
+                  type="button"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 rounded-full border border-gray-500 hover:opacity-80"
+                  style={{ backgroundColor: color.value }}
+                  aria-label={`Set status cell color ${color.label}`}
+                  onClick={() => handleStatusColorSelect(color.value)}
+                />
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0 rounded-full bg-white hover:bg-gray-100"
+                aria-label="Clear status cell color"
+                onClick={() => handleStatusColorSelect(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
             <Button
               type="button"
               variant="default"

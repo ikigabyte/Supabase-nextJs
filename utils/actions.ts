@@ -291,6 +291,36 @@ export async function assignColorToQuantityRow(nameIds: string[], colorValue?: s
   // }
 }
 
+export async function updateTrackingOrderSpecialColor(orderIds: number[], colorValue?: string | null) {
+  if (!orderIds || orderIds.length === 0) throw new Error("No orderIds provided");
+
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("User is not logged in");
+
+  const role = await retrieveUserRole(user);
+  if (role !== "admin" && role !== "manager") {
+    return { ok: false, message: "you need permissions to do this" };
+  }
+
+  const uniqueOrderIds = Array.from(new Set(orderIds.filter((orderId) => Number.isFinite(orderId))));
+  if (uniqueOrderIds.length === 0) throw new Error("No valid orderIds provided");
+
+  const { error } = await supabase
+    .from("tracking_orders")
+    .update({ special_color: colorValue ?? null })
+    .in("order_id", uniqueOrderIds);
+
+  if (error) {
+    console.error("Error updating tracking order special color", error);
+    throw new Error("Error updating tracking order special color");
+  }
+
+  return { ok: true };
+}
+
 
 
 export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: string | null) {

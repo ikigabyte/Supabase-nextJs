@@ -2,6 +2,24 @@
   @tailwind components;
   @tailwind utilities;
 
+  body.multi-select-mode,
+  body.multi-select-mode *:not(input):not(textarea) {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+  }
+
+  body.multi-select-mode table,
+  body.multi-select-mode tr,
+  body.multi-select-mode td,
+  body.multi-select-mode th {
+    cursor: default;
+  }
+
+  body.multi-select-mode.is-dragging,
+  body.multi-select-mode.is-dragging *:not(input):not(textarea) {
+    cursor: grabbing !important;
+  }
+
   @layer base {
     :root {
       --background: 0 0% 100%;
