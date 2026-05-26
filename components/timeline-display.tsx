@@ -254,7 +254,9 @@ function getCreativeSummary(items: TimelineItem[]) {
 
 function formatCreativeName(fileName?: string, title?: string) {
   const name = (fileName || title || "-").replace(/(^|-)BDO[A-Za-z0-9]*-/g, "$1");
-  return name.length > 40 ? `${name.slice(0, 40)}...` : name;
+  if (name.length <= 60) return name;
+
+  return `${name.slice(0, 52)}...${name.slice(-5)}`;
 }
 
 function getTimelineNotesSummary(rows: Order[]) {
@@ -1161,11 +1163,11 @@ export function TimelineOrders() {
                               type="button"
                               variant="ghost"
                               size="sm"
-                              className="flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold text-blue-700 hover:bg-white/50 hover:text-blue-900"
+                              className="flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold hover:bg-white/50"
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                window.location.href = getZendeskTicketUrl(orderIdNum);
+                                window.open(getZendeskTicketUrl(orderIdNum), "_blank", "noopener,noreferrer");
                               }}
                             >
                               <span className="truncate">{orderIdNum}</span>
