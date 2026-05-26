@@ -16,12 +16,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Toaster } from "@/components/ui/sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 // Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
-import { CalendarIcon, RefreshCcw, X } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Eye, Info, Plus, Minus } from "lucide-react";
+import { Eye, Info, Plus, Minus, ExternalLink, CalendarIcon, RefreshCcw, X } from "lucide-react";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
 // import { Toaster } from "@/components/ui/sonner";
 // const supabase = createClientComponentClient();
@@ -30,23 +30,26 @@ import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+const ZENDESK_TICKET_BASE_URL = "https://stickerbeat.zendesk.com/agent/tickets";
 
 import { forceUpdateTimeline, updateOrderStatus, updateTrackingOrderSpecialColor } from "@/utils/actions";
 // import { forceRefreshTimeline } from "@/utils/google-functions";
 
 const TIMELINE_COLUMNS = [
   { label: "", width: "4%" },
-  { label: "Order #", width: "8%" },
-  { label: "Due Date", width: "6%" },
-  { label: "IHD Date", width: "6%" },
+  { label: "Order #", width: "5%" },
+  { label: "Due Date", width: "5%" },
+  { label: "IHD Date", width: "5%" },
   { label: "Shipping Method", width: "6%" },
-  { label: "Creatives", width: "12%" },
-  { label: "Status", width: "3%" },
-  { label: "Material", width: "3%" },
-  { label: "Shape", width: "3%" },
-  { label: "Notes", width: "25%" },
+  { label: "Creatives", width: "14%" },
+  { label: "Status", width: "5%" },
+  { label: "Material", width: "5%" },
+  { label: "Shape", width: "5%" },
+  { label: "Notes", width: "15%" },
   { label: "Shipped", width: "4%" },
 ] as const;
+
+
 
 type TimelineItem = {
   FileName?: string;
@@ -77,6 +80,8 @@ const TIMELINE_HEAD_CLASS = "border-r border-gray-200 font-bold text-white trunc
 const TIMELINE_ROW_CLASS =
   "[&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white";
 const TIMELINE_CELL_CLASS = "px-3 py-1 font-semibold align-middle truncate";
+const TIMELINE_NOTES_CELL_CLASS =
+  "px-3 py-1 font-semibold align-top whitespace-normal break-words [overflow-wrap:anywhere]";
 const draggingThreshold = 1;
 const STATUS_COLOR_OPTIONS = [
   { label: "Blue", value: "#00c8ff" },
@@ -248,8 +253,8 @@ function getCreativeSummary(items: TimelineItem[]) {
 }
 
 function formatCreativeName(fileName?: string, title?: string) {
-  const name = fileName || title || "-";
-  return name.length > 15 ? name.slice(0, 15) : name;
+  const name = (fileName || title || "-").replace(/(^|-)BDO[A-Za-z0-9]*-/g, "$1");
+  return name.length > 40 ? `${name.slice(0, 40)}...` : name;
 }
 
 function getTimelineNotesSummary(rows: Order[]) {
@@ -257,8 +262,12 @@ function getTimelineNotesSummary(rows: Order[]) {
     new Set(rows.map((row) => row.notes?.trim()).filter((note): note is string => !!note)),
   );
 
-  if (notes.length === 0) return "No notes";
+  if (notes.length === 0) return "-";
   return notes.join(" | ");
+}
+
+function getZendeskTicketUrl(orderId: number) {
+  return `${ZENDESK_TICKET_BASE_URL}/${orderId}`;
 }
 
 function getTimelineDataRows(table: HTMLTableElement) {
@@ -387,7 +396,7 @@ export function TimelineOrders() {
 
   const openZendeskOrderTabs = (orderIds: number[]) => {
     orderIds.forEach((orderId) => {
-      window.open(`https://stickerbeat.zendesk.com/agent/tickets/${orderId}`, "_blank");
+      window.open(getZendeskTicketUrl(orderId), "_blank");
     });
   };
 
@@ -467,9 +476,6 @@ export function TimelineOrders() {
   const handleConfirmSelectedDate = () => {
     const nextRange = pendingSelectedDateRange ?? getDefaultTimelineDateRange();
     setSelectedDateRange(nextRange);
-    if (areTimelineDateRangesEqual(nextRange, getDefaultTimelineDateRange())) {
-      setShowPastDueOrders(false);
-    }
     setDatePickerOpen(false);
   };
 
@@ -477,7 +483,6 @@ export function TimelineOrders() {
     const defaultRange = getDefaultTimelineDateRange();
     setSelectedDateRange(defaultRange);
     setPendingSelectedDateRange(defaultRange);
-    setShowPastDueOrders(false);
     setDatePickerOpen(false);
   };
 
@@ -1147,7 +1152,32 @@ export function TimelineOrders() {
                     </Button>
                   </TableCell>
                   <TableCell className={TIMELINE_CELL_CLASS}>
-                    <span>{orderIdNum || "—"}</span>
+                    {orderIdNum ? (
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              data-ignore-selection="true"
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold text-blue-700 hover:bg-white/50 hover:text-blue-900"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                window.location.href = getZendeskTicketUrl(orderIdNum);
+                              }}
+                            >
+                              <span className="truncate">{orderIdNum}</span>
+                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">View on Zendesk</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span>—</span>
+                    )}
                   </TableCell>
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {order.ship_date || "-"}
@@ -1174,7 +1204,7 @@ export function TimelineOrders() {
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {shapeSummary}
                   </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS} title={notesSummary}>
+                  <TableCell className={TIMELINE_NOTES_CELL_CLASS} title={notesSummary}>
                     {notesSummary}
                   </TableCell>
                   <TableCell className="px-1 py-1 text-center align-middle" data-ignore-selection="true">
@@ -1218,7 +1248,10 @@ export function TimelineOrders() {
                         </TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Material)}</TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Shape)}</TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS} title={item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "-"}>
+                        <TableCell
+                          className={TIMELINE_NOTES_CELL_CLASS}
+                          title={item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "-"}
+                        >
                           {item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "-"}
                         </TableCell>
                         <TableCell className="px-1 py-1 align-middle" />
@@ -1294,19 +1327,17 @@ export function TimelineOrders() {
             <span className="absolute inset-0 rounded-full bg-[#76C043]" />
             <span className="active-pulse-ring absolute inset-0 rounded-full border-2 border-[#76C043]" />
           </span>
-          <span>Realtime status: active:</span>
+          <span>Realtime status: ACTIVE</span>
         </div>
         <div className="flex w-full items-center justify-between gap-2">
           <div className="flex gap-2">
-            {!isCurrentWeekView && (
-              <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium">
-                <Checkbox
-                  checked={showPastDueOrders}
-                  onCheckedChange={(checked) => setShowPastDueOrders(checked === true)}
-                />
-                <span>Show past due</span>
-              </label>
-            )}
+            <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium">
+              <Checkbox
+                checked={showPastDueOrders}
+                onCheckedChange={(checked) => setShowPastDueOrders(checked === true)}
+              />
+              <span>Show past due</span>
+            </label>
           </div>
 
           <div className="flex gap-2">
@@ -1361,7 +1392,7 @@ export function TimelineOrders() {
             
           </div>
         </div>
-        {!isCurrentWeekView && showPastDueOrders
+        {showPastDueOrders
           ? renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")
           : null}
         {upcomingDayKeys.length === 0
@@ -1412,12 +1443,12 @@ export function TimelineOrders() {
             <Button
               type="button"
               variant="default"
-              size="icon"
-              className="h-8 w-8 shrink-0 rounded-full"
+              className="flex h-8 shrink-0 items-center gap-2 rounded-full px-3"
               aria-label="View selected orders"
               onClick={handleOpenSelectedOrders}
             >
-              <Eye className="h-4 w-4" />
+              <Eye className="h-4 w-4 shrink-0" />
+              <span>View On Zendesk</span>
             </Button>
           </div>
         </div>
