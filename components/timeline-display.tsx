@@ -38,17 +38,17 @@ import { forceUpdateTimeline, updateOrderNotes, updateOrderStatus, updateTrackin
 // import { forceRefreshTimeline } from "@/utils/google-functions";
 
 const TIMELINE_COLUMNS = [
-  { label: "", width: "4%" },
-  { label: "Order #", width: "5%" },
-  { label: "Due Date", width: "5%" },
-  { label: "IHD Date", width: "5%" },
-  { label: "Shipping Method", width: "6%" },
-  { label: "Creatives", width: "14%" },
-  { label: "Status", width: "5%" },
-  { label: "Material", width: "5%" },
-  { label: "Shape", width: "5%" },
-  { label: "Notes", width: "15%" },
-  { label: "Shipped", width: "4%" },
+  { label: "", width: "44px", minWidth: "44px" },
+  { label: "Order #", width: "104px", minWidth: "104px" },
+  { label: "Due", width: "76px", minWidth: "76px" },
+  { label: "IHD", width: "72px", minWidth: "72px" },
+  { label: "Shipping Method", width: "112px", minWidth: "96px" },
+  { label: "Creatives", width: "220px", minWidth: "140px" },
+  { label: "Status", width: "92px", minWidth: "80px" },
+  { label: "Material", width: "92px", minWidth: "80px" },
+  { label: "Shape", width: "92px", minWidth: "80px" },
+  { label: "Notes", width: "240px", minWidth: "220px" },
+  { label: "Shipped", width: "72px", minWidth: "64px" },
 ] as const;
 
 
@@ -82,6 +82,7 @@ const TIMELINE_HEAD_CLASS = "border-r border-gray-200 font-bold text-white trunc
 const TIMELINE_ROW_CLASS =
   "[&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white";
 const TIMELINE_CELL_CLASS = "px-3 py-1 font-semibold align-middle truncate";
+const TIMELINE_PRIORITY_CELL_CLASS = "px-2 py-1 font-semibold align-middle whitespace-nowrap";
 const TIMELINE_NOTES_CELL_CLASS =
   "px-3 py-1 font-semibold align-top whitespace-normal break-words [overflow-wrap:anywhere]";
 const draggingThreshold = 1;
@@ -143,10 +144,16 @@ function areTimelineDateRangesEqual(left?: DateRange, right?: DateRange) {
   return leftFrom === rightFrom && leftTo === rightTo;
 }
 
+function formatTimelineMonthDay(dateValue?: string | Date | null) {
+  const date = parseTimelineDate(dateValue ?? null);
+  if (!date || Number.isNaN(date.getTime())) return "-";
+  return format(date, "MM-dd");
+}
+
 function formatTimelineDateRange(range?: DateRange) {
   if (!range?.from) return "Pick a date range";
-  if (!range.to) return format(range.from, "LLL dd, y");
-  return `${format(range.from, "LLL dd, y")} - ${format(range.to, "LLL dd, y")}`;
+  if (!range.to) return formatTimelineMonthDay(range.from);
+  return `${formatTimelineMonthDay(range.from)} - ${formatTimelineMonthDay(range.to)}`;
 }
 
 function isTimelineDateWithinRange(dateValue: string | Date | null, range?: DateRange) {
@@ -190,13 +197,14 @@ function getTimelineDayKey(dateValue: string | Date | null) {
 }
 
 function getTimelineDayLabel(dateKey: string) {
-  return format(parseTimelineDate(dateKey) ?? new Date(dateKey), "MMMM do");
+  return formatTimelineMonthDay(dateKey);
 }
 
 function getTimelineDueDayLabel(dateKey: string, activeDate: Date) {
   const date = parseTimelineDate(dateKey);
   if (!date) return getTimelineDayLabel(dateKey);
-  return isSameTimelineDay(date, activeDate) ? `${format(date, "MMMM do")} - Due` : format(date, "MMMM do");
+  const label = formatTimelineMonthDay(date);
+  return isSameTimelineDay(date, activeDate) ? `${label} - Due` : label;
 }
 
 function normalizeTimelineItems(items: unknown): TimelineItem[] {
@@ -1183,17 +1191,27 @@ export function TimelineOrders() {
       <h2 className="font-bold text-lg">
         {title} ({orders.length} {orders.length === 1 ? "Order" : "Orders"})
       </h2>
-      <Table className="mb-5 w-full table-fixed min-w-0">
-        <TableHeader>
-          <TableRow className={TIMELINE_HEADER_ROW_CLASS}>
+      <div className="w-full overflow-x-auto">
+        <Table className="mb-5 w-full min-w-[1056px] table-fixed">
+          <colgroup>
             {TIMELINE_COLUMNS.map((column) => (
-              <TableHead key={column.label} className={TIMELINE_HEAD_CLASS} style={{ width: column.width }}>
-                {column.label.toUpperCase()}
-              </TableHead>
+              <col key={column.label} style={{ width: column.width, minWidth: column.minWidth }} />
             ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody className="py-5">
+          </colgroup>
+          <TableHeader>
+            <TableRow className={TIMELINE_HEADER_ROW_CLASS}>
+              {TIMELINE_COLUMNS.map((column) => (
+                <TableHead
+                  key={column.label}
+                  className={TIMELINE_HEAD_CLASS}
+                  style={{ width: column.width, minWidth: column.minWidth }}
+                >
+                  {column.label.toUpperCase()}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody className="py-5">
           {orders.length === 0 && (
             <TableRow className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}>
               <TableCell colSpan={HEADER_COLS} className="px-3 py-2 text-xs font-medium text-muted-foreground">
@@ -1256,7 +1274,7 @@ export function TimelineOrders() {
                     isSelected ? "bg-blue-100 hover:bg-blue-100" : ""
                   }`}
                 >
-                  <TableCell className="px-1 py-1 text-center align-middle">
+                  <TableCell className="px-1 py-1 text-center align-middle whitespace-nowrap">
                     <Button
                       data-ignore-selection="true"
                       type="button"
@@ -1276,7 +1294,7 @@ export function TimelineOrders() {
                     </Button>
                   </TableCell>
                   <TableCell
-                    className={`${TIMELINE_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
+                    className={`${TIMELINE_PRIORITY_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
                     style={{ background: orderNumberCellBackground }}
                   >
                     {orderIdNum ? (
@@ -1297,7 +1315,7 @@ export function TimelineOrders() {
                                 window.open(getZendeskTicketUrl(orderIdNum), "_blank", "noopener,noreferrer");
                               }}
                             >
-                              <span className="truncate">{orderIdNum}</span>
+                              <span>{orderIdNum}</span>
                               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
                             </Button>
                           </TooltipTrigger>
@@ -1308,11 +1326,11 @@ export function TimelineOrders() {
                       <span>—</span>
                     )}
                   </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS}>
-                    {order.ship_date || "-"}
+                  <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
+                    {formatTimelineMonthDay(order.ship_date)}
                   </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS}>
-                    {order.ihd_date || "-"}
+                  <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
+                    {formatTimelineMonthDay(order.ihd_date)}
                   </TableCell>
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {formatTimelineItemValue(order.shipping_method ?? undefined)}
@@ -1362,15 +1380,19 @@ export function TimelineOrders() {
                         key={`${orderIdNum}-${item.itemIndex ?? index}-${item.FileName ?? item.Title ?? "creative"}`}
                         className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}
                       >
-                        <TableCell className="px-1 py-1 align-middle" />
+                        <TableCell className="px-1 py-1 align-middle whitespace-nowrap" />
                         <TableCell
-                          className={`${TIMELINE_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
+                          className={`${TIMELINE_PRIORITY_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
                           style={{ background: orderNumberCellBackground }}
                         >
                           {orderIdNum || "—"}
                         </TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS}>{order.ship_date || "-"}</TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS}>{order.ihd_date || "-"}</TableCell>
+                        <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
+                          {formatTimelineMonthDay(order.ship_date)}
+                        </TableCell>
+                        <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
+                          {formatTimelineMonthDay(order.ihd_date)}
+                        </TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>
                           {formatTimelineItemValue(order.shipping_method ?? undefined)}
                         </TableCell>
@@ -1409,8 +1431,9 @@ export function TimelineOrders() {
               </React.Fragment>
             );
           })}
-        </TableBody>
-      </Table>
+          </TableBody>
+        </Table>
+      </div>
     </section>
   );
 
