@@ -93,6 +93,7 @@ const STATUS_COLOR_OPTIONS = [
   { label: "Pink", value: "#ff36de" },
   { label: "Deep magenta", value: ORDER_NUMBER_SPECIAL_COLOR },
 ] as const;
+const ACTIVE_PRODUCTION_STATUSES = new Set(["print", "cut", "prepack", "pack", "ship"]);
 
 function formatLastUpdated(isoString: string) {
   if (!isoString) return "";
@@ -260,7 +261,10 @@ function isOrderNumberSpecialColor(color?: string | null) {
 }
 
 function isTimelineOrderShipped(rows: Order[]) {
-  return rows.length > 0 && rows.every((row) => row.production_status === "ship" || row.production_status === "completed");
+  return (
+    rows.length > 0 &&
+    rows.every((row) => !ACTIVE_PRODUCTION_STATUSES.has((row.production_status ?? "").toLowerCase()))
+  );
 }
 
 function getCreativeSummary(items: TimelineItem[]) {
