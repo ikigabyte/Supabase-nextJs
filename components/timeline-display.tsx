@@ -15,6 +15,7 @@ import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 // Removed dialog imports since orders will render inline under each row
@@ -30,9 +31,10 @@ import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+const NOTE_COOLDOWN_MS = 10 * 1000;
 const ZENDESK_TICKET_BASE_URL = "https://stickerbeat.zendesk.com/agent/tickets";
 
-import { forceUpdateTimeline, updateOrderStatus, updateTrackingOrderSpecialColor } from "@/utils/actions";
+import { forceUpdateTimeline, updateOrderNotes, updateOrderStatus, updateTrackingOrderSpecialColor } from "@/utils/actions";
 // import { forceRefreshTimeline } from "@/utils/google-functions";
 
 const TIMELINE_COLUMNS = [
@@ -83,10 +85,12 @@ const TIMELINE_CELL_CLASS = "px-3 py-1 font-semibold align-middle truncate";
 const TIMELINE_NOTES_CELL_CLASS =
   "px-3 py-1 font-semibold align-top whitespace-normal break-words [overflow-wrap:anywhere]";
 const draggingThreshold = 1;
+const ORDER_NUMBER_SPECIAL_COLOR = "#b0006d";
 const STATUS_COLOR_OPTIONS = [
   { label: "Blue", value: "#00c8ff" },
   { label: "Green", value: "#15fb69" },
   { label: "Pink", value: "#ff36de" },
+  { label: "Deep magenta", value: ORDER_NUMBER_SPECIAL_COLOR },
 ] as const;
 
 function formatLastUpdated(isoString: string) {
@@ -243,6 +247,10 @@ function getTimelineStatusCellBackground(fallbackItems: TimelineItem[], override
     .join(", ")})`;
 }
 
+function isOrderNumberSpecialColor(color?: string | null) {
+  return color?.trim().toLowerCase() === ORDER_NUMBER_SPECIAL_COLOR.toLowerCase();
+}
+
 function isTimelineOrderShipped(rows: Order[]) {
   return rows.length > 0 && rows.every((row) => row.production_status === "ship" || row.production_status === "completed");
 }
@@ -266,6 +274,68 @@ function getTimelineNotesSummary(rows: Order[]) {
 
   if (notes.length === 0) return "-";
   return notes.join(" | ");
+}
+
+function TimelineNoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
+  const [value, setValue] = useState(note);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const lastCommittedRef = useRef<string>(note);
+  const commitLockRef = useRef(false);
+
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      setValue(note);
+      lastCommittedRef.current = note;
+    }
+  }, [note]);
+
+  const resizeInput = () => {
+    if (!inputRef.current) return;
+    inputRef.current.style.height = "auto";
+    inputRef.current.style.height = `${inputRef.current.scrollHeight}px`;
+  };
+
+  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(event.target.value);
+    resizeInput();
+  };
+
+  useEffect(() => {
+    resizeInput();
+  }, [value]);
+
+  const commitOnce = (nextValue: string) => {
+    if (commitLockRef.current || nextValue === lastCommittedRef.current) return;
+
+    commitLockRef.current = true;
+    lastCommittedRef.current = nextValue;
+    onCommit(nextValue);
+
+    queueMicrotask(() => {
+      commitLockRef.current = false;
+    });
+  };
+
+  return (
+    <Textarea
+      ref={inputRef}
+      className="min-h-0 resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0 text-[11px] font-semibold focus:bg-gray-200"
+      value={value}
+      rows={1}
+      onInput={handleInput}
+      onChange={handleInput}
+      onBlur={() => commitOnce(value)}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          commitOnce(value);
+          inputRef.current?.blur();
+        }
+      }}
+    />
+  );
 }
 
 function getZendeskTicketUrl(orderId: number) {
@@ -367,13 +437,14 @@ export function TimelineOrders() {
   const [pendingSelectedDateRange, setPendingSelectedDateRange] = useState<DateRange | undefined>(selectedDateRange);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showShippedOrders, setShowShippedOrders] = useState(false);
-  const [showPastDueOrders, setShowPastDueOrders] = useState(true);
   const [selectedTimelineOrderIds, setSelectedTimelineOrderIds] = useState<Set<number>>(new Set());
   const [statusColorOverridesByOrderId, setStatusColorOverridesByOrderId] = useState<Record<number, string | null>>({});
   const [dragging, setDragging] = useState(false);
   const dragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
   const pendingDragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+  const noteCooldownUntilRef = useRef<Record<string, number>>({});
+  const noteInFlightRef = useRef<Record<string, boolean>>({});
 
   const [refreshDisabled, setRefreshDisabled] = useState(true);
   const [refreshHint, setRefreshHint] = useState<string>("Checking last refresh...");
@@ -472,6 +543,50 @@ export function TimelineOrders() {
     } catch (error) {
       console.error("Failed to ship timeline order:", error);
       setOrdersById(previousOrdersById);
+    }
+  };
+
+  const handleTimelineNoteChange = async (order: Order, newNotes: string) => {
+    const nameId = order.name_id;
+    const orderId = Number(order.order_id);
+    const now = Date.now();
+    const cooldownUntil = noteCooldownUntilRef.current[nameId] ?? 0;
+    const inFlight = noteInFlightRef.current[nameId] ?? false;
+
+    if (inFlight || now < cooldownUntil) {
+      toast.error("Please wait before updating notes again.", {
+        description: "You can only update notes every 10 seconds, please try again shortly",
+        duration: 3000,
+      });
+      return;
+    }
+
+    const previousRows = ordersById[orderId] ?? [];
+    setOrdersById((prev) => ({
+      ...prev,
+      [orderId]: (prev[orderId] ?? []).map((row) =>
+        row.name_id === nameId ? { ...row, notes: newNotes } : row,
+      ),
+    }));
+
+    noteCooldownUntilRef.current[nameId] = now + NOTE_COOLDOWN_MS;
+    noteInFlightRef.current[nameId] = true;
+
+    try {
+      await updateOrderNotes(order, newNotes);
+      toast.success("Notes updated", {
+        description: `Notes for ${(order.order_id ?? "")} have been updated.`,
+      });
+    } catch (error) {
+      console.error("Failed to update timeline notes:", error);
+      delete noteCooldownUntilRef.current[nameId];
+      setOrdersById((prev) => ({
+        ...prev,
+        [orderId]: previousRows,
+      }));
+      toast.error("Could not update notes.");
+    } finally {
+      noteInFlightRef.current[nameId] = false;
     }
   };
 
@@ -1065,7 +1180,9 @@ export function TimelineOrders() {
 
   const renderTimelineTable = (title: string, orders: TimelineOrder[], emptyMessage: string) => (
     <section className="flex flex-col gap-2">
-      <h2 className="font-bold text-lg">{title}</h2>
+      <h2 className="font-bold text-lg">
+        {title} ({orders.length} {orders.length === 1 ? "Order" : "Orders"})
+      </h2>
       <Table className="mb-5 w-full table-fixed min-w-0">
         <TableHeader>
           <TableRow className={TIMELINE_HEADER_ROW_CLASS}>
@@ -1116,10 +1233,15 @@ export function TimelineOrders() {
               statusColorOverridesByOrderId,
               orderIdNum,
             );
+            const specialColor = hasPendingStatusColorOverride
+              ? statusColorOverridesByOrderId[orderIdNum]
+              : trackingMetadata?.specialColor;
+            const shouldColorOrderNumberCell = isOrderNumberSpecialColor(specialColor);
             const statusCellBackground = getTimelineStatusCellBackground(
               items,
-              hasPendingStatusColorOverride ? statusColorOverridesByOrderId[orderIdNum] : trackingMetadata?.specialColor,
+              shouldColorOrderNumberCell ? undefined : specialColor,
             );
+            const orderNumberCellBackground = shouldColorOrderNumberCell ? specialColor ?? undefined : undefined;
             const materialSummary = getMixedSummary(items, "Material");
             const shapeSummary = getMixedSummary(items, "Shape");
             const isSelected = selectedTimelineOrderIds.has(orderIdNum);
@@ -1153,7 +1275,10 @@ export function TimelineOrders() {
                       {isOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                     </Button>
                   </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS}>
+                  <TableCell
+                    className={`${TIMELINE_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
+                    style={{ background: orderNumberCellBackground }}
+                  >
                     {orderIdNum ? (
                       <TooltipProvider delayDuration={150}>
                         <Tooltip>
@@ -1163,7 +1288,9 @@ export function TimelineOrders() {
                               type="button"
                               variant="ghost"
                               size="sm"
-                              className="flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold hover:bg-white/50"
+                              className={`flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold ${
+                                orderNumberCellBackground ? "text-white hover:bg-black/10" : "hover:bg-white/50"
+                              }`}
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
@@ -1225,6 +1352,10 @@ export function TimelineOrders() {
                 {hasCreatives && isOpen &&
                   items.map((item, index) => {
                     const creativeName = item.FileName || item.Title || "-";
+                    const sourceRow = item.FileName
+                      ? rows.find((row) => row.name_id === item.FileName)
+                      : rows[index];
+                    const itemNotes = sourceRow?.notes ?? item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "";
 
                     return (
                       <TableRow
@@ -1232,7 +1363,12 @@ export function TimelineOrders() {
                         className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}
                       >
                         <TableCell className="px-1 py-1 align-middle" />
-                        <TableCell className={TIMELINE_CELL_CLASS}>{orderIdNum || "—"}</TableCell>
+                        <TableCell
+                          className={`${TIMELINE_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
+                          style={{ background: orderNumberCellBackground }}
+                        >
+                          {orderIdNum || "—"}
+                        </TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>{order.ship_date || "-"}</TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>{order.ihd_date || "-"}</TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>
@@ -1252,9 +1388,19 @@ export function TimelineOrders() {
                         <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Shape)}</TableCell>
                         <TableCell
                           className={TIMELINE_NOTES_CELL_CLASS}
-                          title={item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "-"}
+                          title={itemNotes || "-"}
+                          data-ignore-selection="true"
                         >
-                          {item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "-"}
+                          {sourceRow ? (
+                            <TimelineNoteInput
+                              note={itemNotes}
+                              onCommit={(value) => {
+                                void handleTimelineNoteChange(sourceRow, value);
+                              }}
+                            />
+                          ) : (
+                            itemNotes || "-"
+                          )}
                         </TableCell>
                         <TableCell className="px-1 py-1 align-middle" />
                       </TableRow>
@@ -1331,17 +1477,7 @@ export function TimelineOrders() {
           </span>
           <span>Realtime status: ACTIVE</span>
         </div>
-        <div className="flex w-full items-center justify-between gap-2">
-          <div className="flex gap-2">
-            <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium">
-              <Checkbox
-                checked={showPastDueOrders}
-                onCheckedChange={(checked) => setShowPastDueOrders(checked === true)}
-              />
-              <span>Show past due</span>
-            </label>
-          </div>
-
+        <div className="flex w-full items-center justify-end gap-2">
           <div className="flex gap-2">
             <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium">
               <Checkbox
@@ -1394,9 +1530,7 @@ export function TimelineOrders() {
             
           </div>
         </div>
-        {showPastDueOrders
-          ? renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")
-          : null}
+        {renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")}
         {upcomingDayKeys.length === 0
           ? renderTimelineTable(
               `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
@@ -1427,7 +1561,7 @@ export function TimelineOrders() {
                   size="icon"
                   className="h-8 w-8 shrink-0 rounded-full border border-gray-500 hover:opacity-80"
                   style={{ backgroundColor: color.value }}
-                  aria-label={`Set status cell color ${color.label}`}
+                  aria-label={`Set ${isOrderNumberSpecialColor(color.value) ? "order number" : "status"} cell color ${color.label}`}
                   onClick={() => handleStatusColorSelect(color.value)}
                 />
               ))}
