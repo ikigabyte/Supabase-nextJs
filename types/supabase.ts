@@ -316,6 +316,7 @@ export type Database = {
           ship_date: string | null
           shipping_method: string | null
           special_color: string | null
+          ticket_status: string | null
           tracking_info: string | null
           tracking_token: string
         }
@@ -334,6 +335,7 @@ export type Database = {
           ship_date?: string | null
           shipping_method?: string | null
           special_color?: string | null
+          ticket_status?: string | null
           tracking_info?: string | null
           tracking_token?: string
         }
@@ -352,6 +354,7 @@ export type Database = {
           ship_date?: string | null
           shipping_method?: string | null
           special_color?: string | null
+          ticket_status?: string | null
           tracking_info?: string | null
           tracking_token?: string
         }

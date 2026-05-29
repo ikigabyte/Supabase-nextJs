@@ -5,7 +5,7 @@ import { getServerClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 // import { OrderTypes } from "./orderTypes";
 
-import { updateZendeskNotes, reprintInternalNote, forceRefreshTimeline } from "@/utils/google-functions";
+import { updateZendeskNotes, updateZendeskStatus, reprintInternalNote, forceRefreshTimeline } from "@/utils/google-functions";
 // import { GoTrueAdminApi } from "@supabase/supabase-js";
 
 type AdminRow = { role: "admin" | string };
@@ -557,36 +557,6 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
     .from("orders")
     .update({ ...order, production_status: newStatus, history, asignee: null })
     .match({ name_id: order.name_id });
-  // Always overwrite the history for order_id 0 with a single entry
-  // Check if order_id 0 exists before updating its history
-  const { data: zeroOrder, error: zeroOrderError } = await supabase
-    .from("orders")
-    .select("order_id")
-    .eq("order_id", 0)
-    .single();
-
-  if (!zeroOrderError && zeroOrder) {
-    await supabase.from("orders").update({ notes: timestamp }).eq("order_id", 0);
-  }
-  // If order_id is 0, also update its history with just a timestamp
-  // if (order.order_id === 0) {
-  //   const { data: zeroOrder, error: zeroOrderError } = await supabase
-  //     .from("orders")
-  //     .select("history")
-  //     .eq("order_id", 0)
-  //     .single();
-
-  //   if (!zeroOrderError) {
-  //     const zeroHistory: string[] = Array.isArray(zeroOrder?.history)
-  //       ? zeroOrder.history.filter((h: unknown): h is string => typeof h === "string")
-  //       : [];
-  //     zeroHistory.push(`Updated at ${timestamp}`);
-  //     await supabase
-  //       .from("orders")
-  //       .update({ history: zeroHistory })
-  //       .eq("order_id", 0);
-  //   }
-  // }
 
   // Run both in parallel
   await Promise.all([addHistoryPromise, updateOrderPromise]);
@@ -596,6 +566,52 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   //   console.log("Triggering Zendesk webhook…");
   //   void updateZendeskStatus(order.order_id, newStatus); // don't block
   // }
+}
+
+export async function sendOrderShipped(orderId: number) {
+  if (!Number.isFinite(orderId)) throw new Error("No valid order_id provided");
+
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("User is not logged in");
+
+  const { data: orderRows, error: fetchError } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("order_id", orderId);
+
+  if (fetchError) {
+    console.error("Error fetching orders to ship", fetchError);
+    throw new Error("Error fetching orders to ship");
+  }
+
+  const rowsToComplete = orderRows ?? [];
+  if (rowsToComplete.length === 0) return true;
+
+  await Promise.all(
+    rowsToComplete.map(async (row) => {
+      const previousStatus = row.production_status || "";
+
+      const { error } = await supabase.rpc("move_order", { p_id: row.name_id });
+      if (error) {
+        console.error("move_order RPC failed while shipping order", {
+          nameId: row.name_id,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        });
+        throw new Error("Error moving order row to completed");
+      }
+
+      await addHistoryForUser(row.name_id, "completed", previousStatus);
+    }),
+  );
+
+  await updateZendeskStatus(orderId, "shipped");
+  return true;
 }
 
 

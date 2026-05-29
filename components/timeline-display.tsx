@@ -34,7 +34,7 @@ const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
 const NOTE_COOLDOWN_MS = 10 * 1000;
 const ZENDESK_TICKET_BASE_URL = "https://stickerbeat.zendesk.com/agent/tickets";
 
-import { forceUpdateTimeline, updateOrderNotes, updateOrderStatus, updateTrackingOrderSpecialColor } from "@/utils/actions";
+import { forceUpdateTimeline, updateOrderNotes, sendOrderShipped, updateTrackingOrderSpecialColor } from "@/utils/actions";
 // import { forceRefreshTimeline } from "@/utils/google-functions";
 
 const TIMELINE_COLUMNS = [
@@ -93,7 +93,18 @@ const STATUS_COLOR_OPTIONS = [
   { label: "Pink", value: "#ff36de" },
   { label: "Deep magenta", value: ORDER_NUMBER_SPECIAL_COLOR },
 ] as const;
-const ACTIVE_PRODUCTION_STATUSES = new Set(["print", "cut", "prepack", "pack", "ship"]);
+const ACTIVE_STATUSES = new Set([
+  "approved",
+  "to_print",
+  "to_cut",
+  "to_prepack",
+  "to_pack",
+  "to_ship",
+  "pack_and_ship",
+]);
+
+const TRACKING_LOOKBACK_DAYS = 14;
+const SHIPPED_RECENT_UPDATE_MS = 15 * 60 * 60 * 1000;
 
 function formatLastUpdated(isoString: string) {
   if (!isoString) return "";
@@ -201,6 +212,12 @@ function getTimelineDayLabel(dateKey: string) {
   return formatTimelineMonthDay(dateKey);
 }
 
+function getTimelineTableTitleDate(dateKey: string) {
+  const date = parseTimelineDate(dateKey);
+  if (!date || Number.isNaN(date.getTime())) return getTimelineDayLabel(dateKey);
+  return format(date, "MMMM - d");
+}
+
 function getTimelineDueDayLabel(dateKey: string, activeDate: Date) {
   const date = parseTimelineDate(dateKey);
   if (!date) return getTimelineDayLabel(dateKey);
@@ -229,7 +246,9 @@ function normalizeTimelineItems(items: unknown): TimelineItem[] {
 
 function formatTimelineItemValue(value?: string) {
   if (!value) return "-";
-  return capitalizeFirstLetter(value.replace(/_/g, " "));
+  const normalizedValue = value.replace(/_/g, " ").replace(/\bto\b/gi, "").replace(/\s+/g, "").trim();
+  if (!normalizedValue) return "-";
+  return capitalizeFirstLetter(normalizedValue);
 }
 
 function getMixedSummary(items: TimelineItem[], field: "Status" | "Material" | "Shape") {
@@ -260,11 +279,53 @@ function isOrderNumberSpecialColor(color?: string | null) {
   return color?.trim().toLowerCase() === ORDER_NUMBER_SPECIAL_COLOR.toLowerCase();
 }
 
-function isTimelineOrderShipped(rows: Order[]) {
+function normalizeTrackingStatus(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function toTimelineTime(value?: string | null) {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function hasTimelineShipDate(order: TimelineOrder) {
+  return toTimelineTime(order.ship_date) !== null;
+}
+
+function isTimelineTicketSolved(order: TimelineOrder) {
+  return normalizeTrackingStatus(order.ticket_status) === "solved";
+}
+
+function isTimelineOrderRecentlyUpdated(order: TimelineOrder, now = Date.now()) {
+  const lastUpdateTime = toTimelineTime(order.last_update);
+  if (lastUpdateTime === null) return false;
+
+  const age = now - lastUpdateTime;
+  return age >= 0 && age <= SHIPPED_RECENT_UPDATE_MS;
+}
+
+function isTimelineOrderActive(order: TimelineOrder) {
   return (
-    rows.length > 0 &&
-    rows.every((row) => !ACTIVE_PRODUCTION_STATUSES.has((row.production_status ?? "").toLowerCase()))
+    hasTimelineShipDate(order) &&
+    !isTimelineTicketSolved(order) &&
+    ACTIVE_STATUSES.has(normalizeTrackingStatus(order.current_status))
   );
+}
+
+function isTimelineOrderShipped(order: TimelineOrder) {
+  if (!hasTimelineShipDate(order)) return false;
+  return isTimelineTicketSolved(order) && isTimelineOrderRecentlyUpdated(order);
+}
+
+function shouldParseTrackingOrder(order: TimelineOrder, oldestShipDate: Date) {
+  const shipTime = toTimelineTime(order.ship_date);
+  if (shipTime === null) return false;
+
+  const shipDate = new Date(shipTime);
+  shipDate.setHours(0, 0, 0, 0);
+
+  return shipDate.getTime() >= oldestShipDate.getTime();
 }
 
 function getCreativeSummary(items: TimelineItem[]) {
@@ -457,6 +518,8 @@ export function TimelineOrders() {
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const noteCooldownUntilRef = useRef<Record<string, number>>({});
   const noteInFlightRef = useRef<Record<string, boolean>>({});
+  const shipActionInFlightRef = useRef(false);
+  const [shipOrderInFlightId, setShipOrderInFlightId] = useState<number | null>(null);
 
   const [refreshDisabled, setRefreshDisabled] = useState(true);
   const [refreshHint, setRefreshHint] = useState<string>("Checking last refresh...");
@@ -539,22 +602,38 @@ export function TimelineOrders() {
   };
 
   const handleShipTimelineOrder = async (orderId: number) => {
+    if (shipActionInFlightRef.current) {
+      toast.error("Please wait for the current ship action to finish.");
+      return;
+    }
+
     const rows = ordersById[orderId] ?? [];
-    const rowsToShip = rows.filter((row) => row.production_status !== "ship" && row.production_status !== "completed");
+    const rowsToShip = rows.filter((row) => (row.production_status ?? "").toLowerCase() !== "completed");
     if (rowsToShip.length === 0) return;
 
+    shipActionInFlightRef.current = true;
+    setShipOrderInFlightId(orderId);
+
     const previousOrdersById = ordersById;
+    const previousCombinedOrders = combinedOrders;
     setOrdersById((prev) => ({
       ...prev,
-      [orderId]: (prev[orderId] ?? []).map((row) => ({ ...row, production_status: "ship" })),
+      [orderId]: (prev[orderId] ?? []).map((row) => ({ ...row, production_status: "completed" })),
     }));
+    setCombinedOrders((prev) =>
+      prev.map((order) => (Number(order.order_id) === orderId ? { ...order, current_status: "shipped" } : order)),
+    );
 
     try {
       console.log("Shipping timeline order", orderId, "with name_ids", rowsToShip.map((row) => row.name_id));
-      // await Promise.all(rowsToShip.map((row) => updateOrderStatus(row, false, "ship")));
+      await sendOrderShipped(orderId);
     } catch (error) {
       console.error("Failed to ship timeline order:", error);
       setOrdersById(previousOrdersById);
+      setCombinedOrders(previousCombinedOrders);
+    } finally {
+      shipActionInFlightRef.current = false;
+      setShipOrderInFlightId(null);
     }
   };
 
@@ -735,42 +814,17 @@ export function TimelineOrders() {
   }, [combinedOrders]);
 
   useEffect(() => {
-    const allIds = Array.from(
-      new Set([...combinedOrders].map((o) => Number(o.order_id)).filter((id) => Number.isFinite(id)) as number[]),
-    );
-    if (allIds.length === 0) {
-      setTrackingMetadataByOrderId({});
-      return;
-    }
+    const nextMetadataByOrderId: Record<number, TrackingTimelineMetadata> = {};
+    combinedOrders.forEach((row) => {
+      const orderId = Number(row.order_id);
+      if (!Number.isFinite(orderId)) return;
 
-    supabase
-      .from("tracking_orders")
-      .select("order_id, items, special_color")
-      .in("order_id", allIds)
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Error fetching timeline item metadata:", error);
-          setTrackingMetadataByOrderId({});
-          return;
-        }
-
-        const nextMetadataByOrderId: Record<number, TrackingTimelineMetadata> = {};
-        (data ?? []).forEach((row) => {
-          const trackingRow = row as Record<string, unknown>;
-          const orderId = Number(trackingRow.order_id);
-          const items = normalizeTimelineItems(row.items);
-          const specialColor = typeof trackingRow.special_color === "string" ? trackingRow.special_color : null;
-
-          if (!Number.isFinite(orderId)) return;
-
-          const existing = nextMetadataByOrderId[orderId] ?? { items: [] };
-          nextMetadataByOrderId[orderId] = {
-            items: items.length > 0 ? items : existing.items,
-            specialColor,
-          };
-        });
-        setTrackingMetadataByOrderId(nextMetadataByOrderId);
-      });
+      nextMetadataByOrderId[orderId] = {
+        items: normalizeTimelineItems(row.items),
+        specialColor: typeof row.special_color === "string" ? row.special_color : null,
+      };
+    });
+    setTrackingMetadataByOrderId(nextMetadataByOrderId);
   }, [combinedOrders]);
 
   useEffect(() => {
@@ -1015,142 +1069,82 @@ export function TimelineOrders() {
   }
 
   useEffect(() => {
-    supabase
-      .from("timeline")
-      .select()
-      .order("ship_date", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Error fetching timeline orders:", error);
-          setCombinedOrders([]);
-          return;
-        }
-        if (!data) {
-          setCombinedOrders([]);
-          return;
-        }
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+    let cancelled = false;
 
-        // Helper to check if order is within 30 days from today
-        const isWithin7Days = (orderDate: Date) => {
-          const diffTime = today.getTime() - orderDate.getTime();
-          const diffDays = diffTime / (1000 * 60 * 60 * 24);
-          return diffDays <= 7 && diffDays >= 0;
-        };
+    const compareNullableTime = (a: number | null, b: number | null): number => {
+      if (a === null && b === null) return 0;
+      if (a === null) return 1;
+      if (b === null) return -1;
+      return a - b;
+    };
 
-        const toTimeOrNull = (value?: string | null): number | null => {
-          if (!value) return null;
-          const t = new Date(value).getTime();
-          return Number.isFinite(t) ? t : null;
-        };
+    const shippingMethodOrder = (method?: string | null) => {
+      const m = (method ?? "").toLowerCase();
+      if (m === "express") return 0;
+      if (m === "rush_shipping") return 1;
+      if (m === "standard") return 2;
+      return 3;
+    };
 
-        const compareNullableTime = (a: number | null, b: number | null): number => {
-          // nulls last
-          if (a === null && b === null) return 0;
-          if (a === null) return 1;
-          if (b === null) return -1;
-          return a - b;
-        };
+    const sortAllOrders = (orders: TimelineOrder[]) => {
+      return [...orders].sort((a, b) => {
+        const shipCmp = compareNullableTime(toTimelineTime(a.ship_date), toTimelineTime(b.ship_date));
+        if (shipCmp !== 0) return shipCmp;
 
-        const shippingMethodOrder = (method?: string | null) => {
-          const m = (method ?? "").toLowerCase();
-          if (m === "express") return 0;
-          if (m === "rush_shipping") return 1;
-          if (m === "standard") return 2;
-          return 3;
-        };
+        const providedDateCmp = compareNullableTime(toTimelineTime(a.provided_date), toTimelineTime(b.provided_date));
+        if (providedDateCmp !== 0) return providedDateCmp;
 
-        const sortAllOrders = (orders: TimelineOrder[]) => {
-          return [...orders].sort((a, b) => {
-            const shipA = toTimeOrNull(a.ship_date);
-            const shipB = toTimeOrNull(b.ship_date);
-
-            const shipCmp = compareNullableTime(shipA, shipB);
-            if (shipCmp !== 0) return shipCmp;
-
-            const ihdA = toTimeOrNull(a.ihd_date);
-            const ihdB = toTimeOrNull(b.ihd_date);
-
-            const ihdCmp = compareNullableTime(ihdA, ihdB);
-            if (ihdCmp !== 0) return ihdCmp;
-
-            return shippingMethodOrder(a.shipping_method) - shippingMethodOrder(b.shipping_method);
-          });
-        };
-        const combinedOrders = sortAllOrders(
-          data.filter((order) => {
-            const orderDate = new Date(order.ship_date ?? "");
-            return !isNaN(orderDate.getTime()) && (orderDate >= today || isWithin7Days(orderDate));
-          }),
-        );
-
-        setCombinedOrders(combinedOrders);
+        return shippingMethodOrder(a.shipping_method) - shippingMethodOrder(b.shipping_method);
       });
-  }, []);
+    };
 
-  useEffect(() => {
-    setRefreshDisabled(true);
-    setRefreshHint("Checking last refresh...");
+    const fetchTrackingTimelineOrders = () => {
+      const oldestShipDate = addDays(getTimelineDayStart(new Date()), -TRACKING_LOOKBACK_DAYS);
 
-    supabase
-      .from("timeline")
-      .select()
-      .eq("order_id", 0)
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) {
-          setRefreshDisabled(false); // fail open so you are not locked out
-          setRefreshHint("Ready");
-          return;
+      supabase
+        .from("tracking_orders")
+        .select("*")
+        .gte("ship_date", format(oldestShipDate, "yyyy-MM-dd"))
+        .order("ship_date", { ascending: false })
+        .then(({ data, error }) => {
+          if (cancelled) return;
+
+          if (error) {
+            console.error("Error fetching tracking timeline orders:", error);
+            setCombinedOrders([]);
+            return;
+          }
+
+          const nextOrders = sortAllOrders(
+            ((data ?? []) as TimelineOrder[]).filter((order) => shouldParseTrackingOrder(order, oldestShipDate)),
+          );
+
+          setCombinedOrders(nextOrders);
+        });
+    };
+
+    fetchTrackingTimelineOrders();
+
+    const channel = supabase
+      .channel("tracking_timeline_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tracking_orders" }, () => {
+        fetchTrackingTimelineOrders();
+      })
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error("Tracking timeline realtime subscription failed:", status);
         }
-
-        // IMPORTANT: this assumes data.production_status is an ISO timestamp string
-        const ms = parseLastRefreshMs(data.production_status ?? "");
-        if (ms === null) {
-          setRefreshDisabled(false); // if unparseable, fail open
-          setRefreshHint("Ready");
-          return;
-        }
-
-        setLastRefreshMs(ms);
-        setTimeUpdated(formatLastUpdated(data.production_status ?? ""));
-        scheduleEnableWhenReady(ms);
       });
 
     return () => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      cancelled = true;
+      supabase.removeChannel(channel);
     };
   }, []);
 
   useEffect(() => {
-    setRefreshDisabled(true);
-    setRefreshHint("Checking last refresh...");
-
-    supabase
-      .from("timeline")
-      .select()
-      .eq("order_id", 0)
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) {
-          setRefreshDisabled(false); // fail open so you are not locked out
-          setRefreshHint("Ready");
-          return;
-        }
-
-        // IMPORTANT: this assumes data.production_status is an ISO timestamp string
-        const ms = parseLastRefreshMs(data.production_status ?? "");
-        if (ms === null) {
-          setRefreshDisabled(false); // if unparseable, fail open
-          setRefreshHint("Ready");
-          return;
-        }
-
-        setLastRefreshMs(ms);
-        setTimeUpdated(formatLastUpdated(data.production_status ?? ""));
-        scheduleEnableWhenReady(ms);
-      });
+    setRefreshDisabled(false);
+    setRefreshHint("Ready");
 
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -1169,9 +1163,8 @@ export function TimelineOrders() {
   // };
 
   const visibleTimelineOrders = combinedOrders.filter((order) => {
-    if (showShippedOrders) return true;
-    const orderId = Number(order.order_id);
-    return !isTimelineOrderShipped(ordersById[orderId] ?? []);
+    if (isTimelineTicketSolved(order)) return showShippedOrders && isTimelineOrderShipped(order);
+    return isTimelineOrderActive(order);
   });
 
   const isCurrentWeekView = areTimelineDateRangesEqual(selectedDateRange, getDefaultTimelineDateRange());
@@ -1193,7 +1186,7 @@ export function TimelineOrders() {
   const renderTimelineTable = (title: string, orders: TimelineOrder[], emptyMessage: string) => (
     <section className="flex flex-col gap-2">
       <h2 className="font-bold text-lg">
-        {title} ({orders.length} {orders.length === 1 ? "Order" : "Orders"})
+        {title} ({orders.length})
       </h2>
       <div className="w-full overflow-x-auto">
         <Table className="mb-5 w-full min-w-[1056px] table-fixed">
@@ -1250,7 +1243,9 @@ export function TimelineOrders() {
             const notesByNameId = new Map(rows.map((row) => [row.name_id, row.notes?.trim() || "-"]));
             const isOpen = openIds.has(orderIdNum);
             const creativeSummary = getCreativeSummary(items);
-            const statusSummary = getMixedSummary(items, "Status");
+            const trackingStatusSummary = formatTimelineItemValue(order.current_status ?? undefined);
+            const statusSummary =
+              trackingStatusSummary === "-" ? getMixedSummary(items, "Status") : trackingStatusSummary;
             const hasPendingStatusColorOverride = Object.prototype.hasOwnProperty.call(
               statusColorOverridesByOrderId,
               orderIdNum,
@@ -1267,7 +1262,7 @@ export function TimelineOrders() {
             const materialSummary = getMixedSummary(items, "Material");
             const shapeSummary = getMixedSummary(items, "Shape");
             const isSelected = selectedTimelineOrderIds.has(orderIdNum);
-            const isShipped = isTimelineOrderShipped(rows);
+            const isShipped = isTimelineOrderShipped(order);
 
             return (
               <React.Fragment key={`due-group-${orderIdNum}`}>
@@ -1276,7 +1271,7 @@ export function TimelineOrders() {
                   data-order-id={orderIdNum}
                   className={`${TIMELINE_ROW_CLASS} ${dueDateRowClass} h-6 ${
                     isSelected ? "bg-blue-100 hover:bg-blue-100" : ""
-                  }`}
+                  } ${isShipped ? "text-gray-500" : ""}`}
                 >
                   <TableCell className="px-1 py-1 text-center align-middle whitespace-nowrap">
                     <Button
@@ -1286,7 +1281,9 @@ export function TimelineOrders() {
                       size="icon"
                       disabled={!hasCreatives}
                       aria-label={`${isOpen ? "Hide" : "Show"} creatives for order ${orderIdNum || "unknown"}`}
-                      className="h-6 w-6 p-0 text-black hover:bg-white/40 disabled:cursor-not-allowed disabled:opacity-40"
+                      className={`h-6 w-6 p-0 hover:bg-white/40 disabled:cursor-not-allowed disabled:opacity-40 ${
+                        isShipped ? "text-gray-500" : "text-black"
+                      }`}
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -1334,7 +1331,7 @@ export function TimelineOrders() {
                     {formatTimelineMonthDay(order.ship_date)}
                   </TableCell>
                   <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
-                    {formatTimelineMonthDay(order.ihd_date)}
+                    {formatTimelineMonthDay(order.provided_date)}
                   </TableCell>
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {formatTimelineItemValue(order.shipping_method ?? undefined)}
@@ -1361,11 +1358,12 @@ export function TimelineOrders() {
                   <TableCell className="px-1 py-1 text-center align-middle" data-ignore-selection="true">
                     <Checkbox
                       checked={isShipped}
-                      disabled={ordersLoading || rows.length === 0}
+                      disabled={ordersLoading || rows.length === 0 || shipOrderInFlightId !== null}
                       onClick={(event) => {
                         event.stopPropagation();
                       }}
-                      onCheckedChange={() => {
+                      onCheckedChange={(checked) => {
+                        if (checked !== true) return;
                         void handleShipTimelineOrder(orderIdNum);
                       }}
                     />
@@ -1395,7 +1393,7 @@ export function TimelineOrders() {
                           {formatTimelineMonthDay(order.ship_date)}
                         </TableCell>
                         <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
-                          {formatTimelineMonthDay(order.ihd_date)}
+                          {formatTimelineMonthDay(order.provided_date)}
                         </TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>
                           {formatTimelineItemValue(order.shipping_method ?? undefined)}
@@ -1445,14 +1443,6 @@ export function TimelineOrders() {
 
   // console.log("Due Orders:", dueOrders);
   // console.log("Future Orders:", futureOrders);
-
-  // const order0 = dueOrders.find(order => order.order_id === 0);
-  // let lastUpdatedDate = ""
-  // if (order0) {
-  //   console.log("order0", order0);
-  //   console.log("order0.production_status", order0.production_status);
-  //   lastUpdatedDate = new Date(order0.production_status + 'T00:00:00Z').toLocaleString();
-  // }
 
   // console.log(orders);
   // How do we get the last updated thing, maybe we keep just an order
@@ -1514,7 +1504,7 @@ export function TimelineOrders() {
               <span>Show shipped orders</span>
             </label>
 
-            <Popover
+            {/* <Popover
               open={datePickerOpen}
               onOpenChange={(open) => {
                 setDatePickerOpen(open);
@@ -1554,7 +1544,7 @@ export function TimelineOrders() {
             >
               {isCurrentWeekView ? "Current week" : "Clear"}
             </Button>
-            
+             */}
           </div>
         </div>
         {renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")}
@@ -1567,7 +1557,7 @@ export function TimelineOrders() {
           : upcomingDayKeys.map((dayKey) => (
               <React.Fragment key={dayKey}>
                 {renderTimelineTable(
-                  getTimelineDayLabel(dayKey),
+                  getTimelineTableTitleDate(dayKey),
                   upcomingOrdersByDay[dayKey],
                   "No upcoming orders.",
                 )}
