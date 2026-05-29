@@ -6,6 +6,7 @@ export async function updateZendeskStatus(orderId: number, newStatus: string): P
   // if (!googleFunctionUrl) {
   //   throw new Error("Missing GOOGLE_ZENDESK_FUNCTION_URL env variable");
   // }
+  console.log("Updating Zendesk status for order", orderId, "to", newStatus);
   const response = await fetch(googleFunctionUrl + "/updateZendesk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

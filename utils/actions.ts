@@ -609,7 +609,7 @@ export async function sendOrderShipped(orderId: number) {
       await addHistoryForUser(row.name_id, "completed", previousStatus);
     }),
   );
-
+  console.log("All order rows marked as completed for order_id", orderId);
   await updateZendeskStatus(orderId, "shipped");
   return true;
 }
