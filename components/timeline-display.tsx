@@ -104,7 +104,9 @@ const ACTIVE_STATUSES = new Set([
 ]);
 
 const TRACKING_LOOKBACK_DAYS = 14;
-const SHIPPED_RECENT_UPDATE_MS = 15 * 60 * 60 * 1000;
+const SHIPPED_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const PRODUCTION_STATUS_ORDER = ["print", "cut", "prepack", "pack", "ship"] as const;
+type ProductionStatus = (typeof PRODUCTION_STATUS_ORDER)[number];
 
 function formatLastUpdated(isoString: string) {
   if (!isoString) return "";
@@ -190,6 +192,17 @@ function getTimelineDateStatus(dateA: string | Date, dateB: string | Date): "pas
   if (a.getTime() < b.getTime()) return "past";
   if (a.getTime() === b.getTime()) return "today";
   return "future";
+}
+
+function getTimelineDayDiff(dateA: string | Date | null, dateB: string | Date) {
+  const a = parseTimelineDate(dateA);
+  const b = parseTimelineDate(dateB);
+  if (!a || !b || Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+
+  a.setHours(0, 0, 0, 0);
+  b.setHours(0, 0, 0, 0);
+
+  return Math.round((a.getTime() - b.getTime()) / (24 * 60 * 60 * 1000));
 }
 
 function isSameTimelineDay(dateA: string | Date | null, dateB: Date) {
@@ -283,6 +296,49 @@ function normalizeTrackingStatus(value?: string | null) {
   return (value ?? "").trim().toLowerCase();
 }
 
+function normalizeProductionStatus(value?: string | null): ProductionStatus | null {
+  const normalized = normalizeTrackingStatus(value).replace(/^to_/, "").replace(/^to\s+/, "");
+  if (normalized === "pack_and_ship") return "pack";
+  return PRODUCTION_STATUS_ORDER.includes(normalized as ProductionStatus) ? (normalized as ProductionStatus) : null;
+}
+
+function getLowerTimelineStatus(items: TimelineItem[], fallbackStatus?: string | null) {
+  const statuses = items
+    .map((item) => normalizeProductionStatus(item.Status))
+    .filter((status): status is ProductionStatus => !!status);
+
+  const fallbackProductionStatus = normalizeProductionStatus(fallbackStatus);
+  if (fallbackProductionStatus) statuses.push(fallbackProductionStatus);
+
+  if (statuses.length === 0) return fallbackStatus ?? undefined;
+
+  return statuses.reduce((lowest, status) =>
+    PRODUCTION_STATUS_ORDER.indexOf(status) < PRODUCTION_STATUS_ORDER.indexOf(lowest) ? status : lowest,
+  );
+}
+
+function isBeforePack(status?: string | null) {
+  const productionStatus = normalizeProductionStatus(status);
+  return !!productionStatus && PRODUCTION_STATUS_ORDER.indexOf(productionStatus) < PRODUCTION_STATUS_ORDER.indexOf("pack");
+}
+
+type TimelineProductionWarning = "normal" | "warning" | "important";
+
+function getTimelineProductionWarning(status: string | undefined, shipDate?: string | Date | null): TimelineProductionWarning {
+  if (!isBeforePack(status)) return "normal";
+  const dayDiff = getTimelineDayDiff(shipDate ?? null, new Date());
+  if (dayDiff === null) return "normal";
+  if (dayDiff < 0) return "important";
+  if (dayDiff === 1) return "warning";
+  return "normal";
+}
+
+function getTimelineProductionWarningClassName(warning: TimelineProductionWarning) {
+  if (warning === "important") return "text-red-600";
+  if (warning === "warning") return "text-yellow-600";
+  return "";
+}
+
 function toTimelineTime(value?: string | null) {
   if (!value) return null;
   const time = new Date(value).getTime();
@@ -297,12 +353,12 @@ function isTimelineTicketSolved(order: TimelineOrder) {
   return normalizeTrackingStatus(order.ticket_status) === "solved";
 }
 
-function isTimelineOrderRecentlyUpdated(order: TimelineOrder, now = Date.now()) {
-  const lastUpdateTime = toTimelineTime(order.last_update);
-  if (lastUpdateTime === null) return false;
+function isTimelineOrderRecentlyShipped(order: TimelineOrder, now = Date.now()) {
+  const shippedTime = toTimelineTime(order.shipped_stamp);
+  if (shippedTime === null) return false;
 
-  const age = now - lastUpdateTime;
-  return age >= 0 && age <= SHIPPED_RECENT_UPDATE_MS;
+  const age = now - shippedTime;
+  return age >= 0 && age <= SHIPPED_VISIBLE_WINDOW_MS;
 }
 
 function isTimelineOrderActive(order: TimelineOrder) {
@@ -315,7 +371,7 @@ function isTimelineOrderActive(order: TimelineOrder) {
 
 function isTimelineOrderShipped(order: TimelineOrder) {
   if (!hasTimelineShipDate(order)) return false;
-  return isTimelineTicketSolved(order) && isTimelineOrderRecentlyUpdated(order);
+  return isTimelineTicketSolved(order) && isTimelineOrderRecentlyShipped(order);
 }
 
 function shouldParseTrackingOrder(order: TimelineOrder, oldestShipDate: Date) {
@@ -621,7 +677,11 @@ export function TimelineOrders() {
       [orderId]: (prev[orderId] ?? []).map((row) => ({ ...row, production_status: "completed" })),
     }));
     setCombinedOrders((prev) =>
-      prev.map((order) => (Number(order.order_id) === orderId ? { ...order, current_status: "shipped" } : order)),
+      prev.map((order) =>
+        Number(order.order_id) === orderId
+          ? { ...order, current_status: "shipped", shipped_stamp: new Date().toISOString() }
+          : order,
+      ),
     );
 
     try {
@@ -1243,9 +1303,11 @@ export function TimelineOrders() {
             const notesByNameId = new Map(rows.map((row) => [row.name_id, row.notes?.trim() || "-"]));
             const isOpen = openIds.has(orderIdNum);
             const creativeSummary = getCreativeSummary(items);
-            const trackingStatusSummary = formatTimelineItemValue(order.current_status ?? undefined);
-            const statusSummary =
-              trackingStatusSummary === "-" ? getMixedSummary(items, "Status") : trackingStatusSummary;
+            const lowerStatus = getLowerTimelineStatus(items, order.current_status);
+            const statusSummary = formatTimelineItemValue(lowerStatus);
+            const productionWarning = getTimelineProductionWarning(lowerStatus, order.ship_date);
+            const hasProductionWarning = productionWarning !== "normal";
+            const statusTitle = hasProductionWarning ? `${statusSummary} - Production warning` : statusSummary;
             const hasPendingStatusColorOverride = Object.prototype.hasOwnProperty.call(
               statusColorOverridesByOrderId,
               orderIdNum,
@@ -1340,11 +1402,11 @@ export function TimelineOrders() {
                     {creativeSummary}
                   </TableCell>
                   <TableCell
-                    className={TIMELINE_CELL_CLASS}
-                    title={statusSummary}
+                    className={`${TIMELINE_CELL_CLASS} ${getTimelineProductionWarningClassName(productionWarning)}`}
+                    title={statusTitle}
                     style={{ background: statusCellBackground }}
                   >
-                    {statusSummary}
+                    {hasProductionWarning ? `${statusSummary} ⚠` : statusSummary}
                   </TableCell>
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {materialSummary}
