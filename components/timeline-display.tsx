@@ -100,6 +100,7 @@ const ACTIVE_STATUSES = new Set([
   "to_prepack",
   "to_pack",
   "to_ship",
+  "bda_production",
   "pack_and_ship",
 ]);
 
