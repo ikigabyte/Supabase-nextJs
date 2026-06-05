@@ -104,8 +104,16 @@ const ACTIVE_STATUSES = new Set([
   "pack_and_ship",
 ]);
 
+
+const SHIPPED_STATUSES = new Set([
+  "shipped",
+  "to_ship",
+  "pack_and_ship",
+]);
+
 const TRACKING_LOOKBACK_DAYS = 14;
 const SHIPPED_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const SHIPPED_STATUS_VISIBLE_WINDOW_MS = 25 * 60 * 60 * 1000;
 const PRODUCTION_STATUS_ORDER = ["bda_production", "print", "cut", "prepack", "pack", "ship"] as const;
 type ProductionStatus = (typeof PRODUCTION_STATUS_ORDER)[number];
 
@@ -362,6 +370,18 @@ function isTimelineOrderRecentlyShipped(order: TimelineOrder, now = Date.now()) 
   return age >= 0 && age <= SHIPPED_VISIBLE_WINDOW_MS;
 }
 
+function isTimelineOrderRecentlyUpdated(order: TimelineOrder, now = Date.now()) {
+  const updatedTime = toTimelineTime(order.last_update);
+  if (updatedTime === null) return false;
+
+  const age = now - updatedTime;
+  return age >= 0 && age <= SHIPPED_STATUS_VISIBLE_WINDOW_MS;
+}
+
+function hasTimelineShippedStatus(order: TimelineOrder) {
+  return SHIPPED_STATUSES.has(normalizeTrackingStatus(order.current_status));
+}
+
 function isTimelineOrderActive(order: TimelineOrder) {
   return (
     hasTimelineShipDate(order) &&
@@ -372,7 +392,11 @@ function isTimelineOrderActive(order: TimelineOrder) {
 
 function isTimelineOrderShipped(order: TimelineOrder) {
   if (!hasTimelineShipDate(order)) return false;
-  return isTimelineTicketSolved(order) && isTimelineOrderRecentlyShipped(order);
+  return (
+    isTimelineTicketSolved(order) &&
+    (isTimelineOrderRecentlyShipped(order) ||
+      (hasTimelineShippedStatus(order) && isTimelineOrderRecentlyUpdated(order)))
+  );
 }
 
 function shouldParseTrackingOrder(order: TimelineOrder, oldestShipDate: Date) {
