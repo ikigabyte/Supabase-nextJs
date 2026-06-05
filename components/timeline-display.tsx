@@ -106,7 +106,7 @@ const ACTIVE_STATUSES = new Set([
 
 const TRACKING_LOOKBACK_DAYS = 14;
 const SHIPPED_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
-const PRODUCTION_STATUS_ORDER = ["print", "cut", "prepack", "pack", "ship"] as const;
+const PRODUCTION_STATUS_ORDER = ["bda_production", "print", "cut", "prepack", "pack", "ship"] as const;
 type ProductionStatus = (typeof PRODUCTION_STATUS_ORDER)[number];
 
 function formatLastUpdated(isoString: string) {
