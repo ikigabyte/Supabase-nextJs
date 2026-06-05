@@ -6,7 +6,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Order } from "@/types/custom";
 import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
 import { Separator } from "./ui/separator";
-import { headers } from "next/headers";
 import { convertToSpaces } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
 import { Button } from "@/components/ui/button";

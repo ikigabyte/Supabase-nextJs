@@ -368,6 +368,7 @@ export type Database = {
       clear_old_tracking_orders: { Args: never; Returns: undefined }
       debug_old_tracking_orders: { Args: never; Returns: undefined }
       move_order: { Args: { p_id: string }; Returns: undefined }
+      move_orderId: { Args: { orderId: number }; Returns: undefined }
       scheduler_deleter: { Args: never; Returns: undefined }
     }
     Enums: {

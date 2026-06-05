@@ -1,6 +1,6 @@
 "use client";
 // import * as React from "react"
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { addDays, format } from "date-fns";
 import { type DateRange } from "react-day-picker";
 import { Button } from "./ui/button";
@@ -657,41 +657,72 @@ export function TimelineOrders() {
     }
   };
 
+  const fetchTimelineOrderRows = useCallback(async () => {
+    const allIds = Array.from(
+      new Set([...combinedOrders].map((o) => Number(o.order_id)).filter((id) => Number.isFinite(id)) as number[]),
+    );
+
+    if (allIds.length === 0) {
+      setOrdersById({});
+      setOrdersLoading(false);
+      return;
+    }
+
+    setOrdersLoading(true);
+
+    const base: Record<number, Order[]> = {};
+    for (const id of allIds) base[id] = [];
+
+    const { data, error } = await supabase
+      .from("orders")
+      .select("name_id, production_status, material, shape, order_id, notes")
+      .in("order_id", allIds);
+
+    if (error) {
+      console.error("Error fetching orders for timeline:", error);
+      setOrdersById(base);
+      setOrdersLoading(false);
+      return;
+    }
+
+    const grouped: Record<number, Order[]> = { ...base };
+    (data ?? []).forEach((row: any) => {
+      const id = Number(row.order_id);
+      if (!Number.isFinite(id)) return;
+      if (!grouped[id]) grouped[id] = [];
+      grouped[id].push(row as Order);
+    });
+
+    setOrdersById(grouped);
+    setOrdersLoading(false);
+  }, [combinedOrders]);
+
   const handleShipTimelineOrder = async (orderId: number) => {
+    console.log("[timeline shipped] ship click received", {
+      orderId,
+      inFlight: shipActionInFlightRef.current,
+    });
+
     if (shipActionInFlightRef.current) {
+      console.log("[timeline shipped] blocked duplicate ship action", { orderId });
       toast.error("Please wait for the current ship action to finish.");
       return;
     }
 
-    const rows = ordersById[orderId] ?? [];
-    const rowsToShip = rows.filter((row) => (row.production_status ?? "").toLowerCase() !== "completed");
-    if (rowsToShip.length === 0) return;
-
     shipActionInFlightRef.current = true;
     setShipOrderInFlightId(orderId);
 
-    const previousOrdersById = ordersById;
-    const previousCombinedOrders = combinedOrders;
-    setOrdersById((prev) => ({
-      ...prev,
-      [orderId]: (prev[orderId] ?? []).map((row) => ({ ...row, production_status: "completed" })),
-    }));
-    setCombinedOrders((prev) =>
-      prev.map((order) =>
-        Number(order.order_id) === orderId
-          ? { ...order, current_status: "shipped", shipped_stamp: new Date().toISOString() }
-          : order,
-      ),
-    );
-
     try {
-      console.log("Shipping timeline order", orderId, "with name_ids", rowsToShip.map((row) => row.name_id));
-      await sendOrderShipped(orderId);
+      console.log("[timeline shipped] calling sendOrderShipped", { orderId });
+      const result = await sendOrderShipped(orderId);
+      console.log("[timeline shipped] sendOrderShipped completed", { orderId, result });
+      console.log("[timeline shipped] refreshing timeline order rows", { orderId });
+      await fetchTimelineOrderRows();
+      console.log("[timeline shipped] refreshed timeline order rows", { orderId });
     } catch (error) {
-      console.error("Failed to ship timeline order:", error);
-      setOrdersById(previousOrdersById);
-      setCombinedOrders(previousCombinedOrders);
+      console.error("[timeline shipped] failed", { orderId, error });
     } finally {
+      console.log("[timeline shipped] ship action finished", { orderId });
       shipActionInFlightRef.current = false;
       setShipOrderInFlightId(null);
     }
@@ -753,6 +784,7 @@ export function TimelineOrders() {
     setPendingSelectedDateRange(defaultRange);
     setDatePickerOpen(false);
   };
+
 
   const scheduleEnableWhenReady = (lastMs: number) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -836,42 +868,8 @@ export function TimelineOrders() {
 
   // Fetch all orders for the visible timeline (due + future) in bulk and group by order_id
   useEffect(() => {
-    const allIds = Array.from(
-      new Set([...combinedOrders].map((o) => Number(o.order_id)).filter((id) => Number.isFinite(id)) as number[]),
-    );
-    if (allIds.length === 0) {
-      setOrdersById({});
-      return;
-    }
-
-    setOrdersLoading(true);
-    // Initialize base map so ids with no rows still render a message
-    const base: Record<number, Order[]> = {};
-    for (const id of allIds) base[id] = [];
-
-    supabase
-      .from("orders")
-      .select("name_id, production_status, material, shape, order_id, notes")
-      .in("order_id", allIds)
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Error fetching orders for timeline:", error);
-          setOrdersById(base);
-          setOrdersLoading(false);
-          return;
-        }
-
-        const grouped: Record<number, Order[]> = { ...base };
-        (data ?? []).forEach((row: any) => {
-          const id = Number(row.order_id);
-          if (!Number.isFinite(id)) return;
-          if (!grouped[id]) grouped[id] = [];
-          grouped[id].push(row as Order);
-        });
-        setOrdersById(grouped);
-        setOrdersLoading(false);
-      });
-  }, [combinedOrders]);
+    void fetchTimelineOrderRows();
+  }, [fetchTimelineOrderRows]);
 
   useEffect(() => {
     const nextMetadataByOrderId: Record<number, TrackingTimelineMetadata> = {};
@@ -1420,7 +1418,7 @@ export function TimelineOrders() {
                   <TableCell className="px-1 py-1 text-center align-middle" data-ignore-selection="true">
                     <Checkbox
                       checked={isShipped}
-                      disabled={ordersLoading || rows.length === 0 || shipOrderInFlightId !== null}
+                      disabled={ordersLoading || shipOrderInFlightId !== null}
                       onClick={(event) => {
                         event.stopPropagation();
                       }}

@@ -569,6 +569,7 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 }
 
 export async function sendOrderShipped(orderId: number) {
+  console.log("[sendOrderShipped] started", { orderId });
   if (!Number.isFinite(orderId)) throw new Error("No valid order_id provided");
 
   const supabase = await getServerClient();
@@ -576,41 +577,50 @@ export async function sendOrderShipped(orderId: number) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) throw new Error("User is not logged in");
+  console.log("[sendOrderShipped] auth checked", {
+    orderId,
+    hasUser: Boolean(user),
+    userId: user?.id,
+  });
+
+  if (!user) {
+    console.error("[sendOrderShipped] missing user", { orderId });
+    throw new Error("User is not logged in");
+  }
 
   const { data: orderRows, error: fetchError } = await supabase
     .from("orders")
-    .select("*")
+    .select("order_id")
     .eq("order_id", orderId);
 
   if (fetchError) {
-    console.error("Error fetching orders to ship", fetchError);
+    console.error("[sendOrderShipped] error fetching orders to ship", { orderId, fetchError });
     throw new Error("Error fetching orders to ship");
   }
 
-  const rowsToComplete = orderRows ?? [];
-  if (rowsToComplete.length === 0) return true;
+  const rowCount = orderRows?.length ?? 0;
+  console.log("[sendOrderShipped] verified order rows", { orderId, rowCount });
 
-  await Promise.all(
-    rowsToComplete.map(async (row) => {
-      const previousStatus = row.production_status || "";
+  if (rowCount > 0) {
+    const { error: moveError } = await supabase.rpc("move_orderId", { orderId });
+    if (moveError) {
+      console.error("[sendOrderShipped] move_orderId RPC failed", {
+        orderId,
+        code: moveError.code,
+        message: moveError.message,
+        details: moveError.details,
+      });
+      throw new Error("Error moving order_id to completed");
+    }
 
-      const { error } = await supabase.rpc("move_order", { p_id: row.name_id });
-      if (error) {
-        console.error("move_order RPC failed while shipping order", {
-          nameId: row.name_id,
-          code: error.code,
-          message: error.message,
-          details: error.details,
-        });
-        throw new Error("Error moving order row to completed");
-      }
+    console.log("[sendOrderShipped] move_orderId RPC completed", { orderId });
+  } else {
+    console.log("[sendOrderShipped] no order rows found; skipping move_orderId only", { orderId });
+  }
 
-      await addHistoryForUser(row.name_id, "completed", previousStatus);
-    }),
-  );
-  console.log("All order rows marked as completed for order_id", orderId);
+  console.log("[sendOrderShipped] updating Zendesk status", { orderId, status: "shipped" });
   await updateZendeskStatus(orderId, "shipped");
+  console.log("[sendOrderShipped] Zendesk status updated", { orderId, status: "shipped" });
   return true;
 }
 
