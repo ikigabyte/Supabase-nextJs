@@ -111,7 +111,8 @@ const SHIPPED_STATUSES = new Set([
   "pack_and_ship",
 ]);
 
-const TRACKING_LOOKBACK_DAYS = 14;
+const TIMELINE_FETCH_STATUSES = Array.from(new Set([...ACTIVE_STATUSES, ...SHIPPED_STATUSES]));
+
 const SHIPPED_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const SHIPPED_STATUS_VISIBLE_WINDOW_MS = 25 * 60 * 60 * 1000;
 const PRODUCTION_STATUS_ORDER = ["bda_production", "print", "cut", "prepack", "pack", "ship"] as const;
@@ -399,14 +400,8 @@ function isTimelineOrderShipped(order: TimelineOrder) {
   );
 }
 
-function shouldParseTrackingOrder(order: TimelineOrder, oldestShipDate: Date) {
-  const shipTime = toTimelineTime(order.ship_date);
-  if (shipTime === null) return false;
-
-  const shipDate = new Date(shipTime);
-  shipDate.setHours(0, 0, 0, 0);
-
-  return shipDate.getTime() >= oldestShipDate.getTime();
+function shouldParseTrackingOrder(order: TimelineOrder) {
+  return hasTimelineShipDate(order);
 }
 
 function getCreativeSummary(items: TimelineItem[]) {
@@ -1182,12 +1177,11 @@ export function TimelineOrders() {
     };
 
     const fetchTrackingTimelineOrders = () => {
-      const oldestShipDate = addDays(getTimelineDayStart(new Date()), -TRACKING_LOOKBACK_DAYS);
-
       supabase
         .from("tracking_orders")
         .select("*")
-        .gte("ship_date", format(oldestShipDate, "yyyy-MM-dd"))
+        .not("ship_date", "is", null)
+        .in("current_status", TIMELINE_FETCH_STATUSES)
         .order("ship_date", { ascending: false })
         .then(({ data, error }) => {
           if (cancelled) return;
@@ -1198,9 +1192,7 @@ export function TimelineOrders() {
             return;
           }
 
-          const nextOrders = sortAllOrders(
-            ((data ?? []) as TimelineOrder[]).filter((order) => shouldParseTrackingOrder(order, oldestShipDate)),
-          );
+          const nextOrders = sortAllOrders(((data ?? []) as TimelineOrder[]).filter(shouldParseTrackingOrder));
 
           setCombinedOrders(nextOrders);
         });
