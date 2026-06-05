@@ -350,7 +350,7 @@ function hasTimelineShipDate(order: TimelineOrder) {
 }
 
 function isTimelineTicketSolved(order: TimelineOrder) {
-  return normalizeTrackingStatus(order.ticket_status) === "solved";
+  return normalizeTrackingStatus(order.ticket_status) === "solved" || normalizeTrackingStatus(order.current_status) === "closed";
 }
 
 function isTimelineOrderRecentlyShipped(order: TimelineOrder, now = Date.now()) {
