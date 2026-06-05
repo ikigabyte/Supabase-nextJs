@@ -112,6 +112,7 @@ const SHIPPED_STATUSES = new Set([
 ]);
 
 const TIMELINE_FETCH_STATUSES = Array.from(new Set([...ACTIVE_STATUSES, ...SHIPPED_STATUSES]));
+const ACTIVE_TICKET_STATUSES = new Set(["pending", "open"]);
 
 const SHIPPED_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const SHIPPED_STATUS_VISIBLE_WINDOW_MS = 25 * 60 * 60 * 1000;
@@ -363,6 +364,10 @@ function isTimelineTicketSolved(order: TimelineOrder) {
   return normalizeTrackingStatus(order.ticket_status) === "solved" || normalizeTrackingStatus(order.current_status) === "closed";
 }
 
+function isTimelineTicketActive(order: TimelineOrder) {
+  return ACTIVE_TICKET_STATUSES.has(normalizeTrackingStatus(order.ticket_status));
+}
+
 function isTimelineOrderRecentlyShipped(order: TimelineOrder, now = Date.now()) {
   const shippedTime = toTimelineTime(order.shipped_stamp);
   if (shippedTime === null) return false;
@@ -386,6 +391,7 @@ function hasTimelineShippedStatus(order: TimelineOrder) {
 function isTimelineOrderActive(order: TimelineOrder) {
   return (
     hasTimelineShipDate(order) &&
+    isTimelineTicketActive(order) &&
     !isTimelineTicketSolved(order) &&
     ACTIVE_STATUSES.has(normalizeTrackingStatus(order.current_status))
   );
