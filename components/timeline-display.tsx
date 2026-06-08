@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { addDays, format } from "date-fns";
 import { type DateRange } from "react-day-picker";
 import { Button } from "./ui/button";
-import { Separator } from "./ui/separator";
 import { redirect } from "next/navigation";
 // import { OrderTypes } from "@/utils/orderTypes";
 // import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -12,7 +11,7 @@ import { TimelineOrder } from "@/types/custom";
 // import { OrderTableHeader } from "@/components/order-table-header";
 // import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,8 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 // Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Eye, Info, Plus, Minus, ExternalLink, CalendarIcon, RefreshCcw, X } from "lucide-react";
+import { Eye, Plus, Minus, ExternalLink, CalendarIcon, X } from "lucide-react";
 import { capitalizeFirstLetter } from "@/utils/stringfunctions";
 // import { Toaster } from "@/components/ui/sonner";
 // const supabase = createClientComponentClient();
@@ -158,27 +156,16 @@ function getDefaultTimelineDateRange(): DateRange {
   return { from, to: addDays(from, 7) };
 }
 
-function areTimelineDateRangesEqual(left?: DateRange, right?: DateRange) {
-  if (!left?.from || !right?.from) return false;
-
-  const leftFrom = getTimelineDayStart(left.from).getTime();
-  const rightFrom = getTimelineDayStart(right.from).getTime();
-  const leftTo = getTimelineDayStart(left.to ?? left.from).getTime();
-  const rightTo = getTimelineDayStart(right.to ?? right.from).getTime();
-
-  return leftFrom === rightFrom && leftTo === rightTo;
-}
-
 function formatTimelineMonthDay(dateValue?: string | Date | null) {
   const date = parseTimelineDate(dateValue ?? null);
   if (!date || Number.isNaN(date.getTime())) return "-";
-  return format(date, "MM-dd");
+  return format(date, "MMM d ");
 }
 
 function formatTimelineDateRange(range?: DateRange) {
   if (!range?.from) return "Pick a date range";
   if (!range.to) return formatTimelineMonthDay(range.from);
-  return `${formatTimelineMonthDay(range.from)} - ${formatTimelineMonthDay(range.to)}`;
+  return `${formatTimelineMonthDay(range.from)} -> ${formatTimelineMonthDay(range.to)}`;
 }
 
 function isTimelineDateWithinRange(dateValue: string | Date | null, range?: DateRange) {
@@ -240,13 +227,6 @@ function getTimelineTableTitleDate(dateKey: string) {
   const date = parseTimelineDate(dateKey);
   if (!date || Number.isNaN(date.getTime())) return getTimelineDayLabel(dateKey);
   return format(date, "MMMM - d");
-}
-
-function getTimelineDueDayLabel(dateKey: string, activeDate: Date) {
-  const date = parseTimelineDate(dateKey);
-  if (!date) return getTimelineDayLabel(dateKey);
-  const label = formatTimelineMonthDay(date);
-  return isSameTimelineDay(date, activeDate) ? `${label} - Due` : label;
 }
 
 function normalizeTimelineItems(items: unknown): TimelineItem[] {
@@ -585,11 +565,11 @@ export function TimelineOrders() {
   const [ordersById, setOrdersById] = useState<Record<number, Order[]>>({});
   const [trackingMetadataByOrderId, setTrackingMetadataByOrderId] = useState<Record<number, TrackingTimelineMetadata>>({});
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
-  const [open, setOpen] = useState(false);
   const [openTabsDialogOpen, setOpenTabsDialogOpen] = useState(false);
   const [pendingOpenOrderIds, setPendingOpenOrderIds] = useState<number[]>([]);
-  const [selectedDateRange, setSelectedDateRange] = useState<DateRange>(() => getDefaultTimelineDateRange());
-  const [pendingSelectedDateRange, setPendingSelectedDateRange] = useState<DateRange | undefined>(selectedDateRange);
+  const [selectedDateRange] = useState<DateRange>(() => getDefaultTimelineDateRange());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [pendingSelectedDate, setPendingSelectedDate] = useState<Date | undefined>(undefined);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showShippedOrders, setShowShippedOrders] = useState(false);
   const [selectedTimelineOrderIds, setSelectedTimelineOrderIds] = useState<Set<number>>(new Set());
@@ -610,6 +590,7 @@ export function TimelineOrders() {
 
   const [cooldownOpen, setCooldownOpen] = useState(false);
   const [cooldownMessage, setCooldownMessage] = useState("");
+  const [displayWarning, setDisplayWarning] = useState("");
 
   const parseLastRefreshMs = (value?: string | null): number | null => {
     if (!value) return null;
@@ -641,6 +622,34 @@ export function TimelineOrders() {
     }
 
     openZendeskOrderTabs(orderIds);
+  };
+
+  const applySelectedDate = () => {
+    if (!pendingSelectedDate) return;
+    dragSelections.current.clear();
+    pendingDragSelections.current.clear();
+    setSelectedTimelineOrderIds(new Set());
+    setSelectedDate(getTimelineDayStart(pendingSelectedDate));
+    setDatePickerOpen(false);
+  };
+
+  const handleClearSelectedDate = () => {
+    dragSelections.current.clear();
+    pendingDragSelections.current.clear();
+    setSelectedTimelineOrderIds(new Set());
+    setSelectedDate(null);
+    setPendingSelectedDate(undefined);
+  };
+
+  const markRealtimeDown = (reason: string) => {
+    console.warn("Timeline realtime down:", reason);
+    setDisplayWarning("⚠️ Realtime disconnected. Please refresh the page");
+  };
+
+  const clearRealtimeDownWarning = () => {
+    setDisplayWarning((current) =>
+      current === "⚠️ Realtime disconnected. Please refresh the page" ? "" : current,
+    );
   };
 
   const handleStatusColorSelect = async (color: string | null) => {
@@ -798,20 +807,6 @@ export function TimelineOrders() {
     }
   };
 
-  const handleConfirmSelectedDate = () => {
-    const nextRange = pendingSelectedDateRange ?? getDefaultTimelineDateRange();
-    setSelectedDateRange(nextRange);
-    setDatePickerOpen(false);
-  };
-
-  const handleClearSelectedDate = () => {
-    const defaultRange = getDefaultTimelineDateRange();
-    setSelectedDateRange(defaultRange);
-    setPendingSelectedDateRange(defaultRange);
-    setDatePickerOpen(false);
-  };
-
-
   const scheduleEnableWhenReady = (lastMs: number) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
@@ -916,8 +911,6 @@ export function TimelineOrders() {
       combinedOrders.map((order) => Number(order.order_id)).filter((id) => Number.isFinite(id)),
     );
 
-    if (visibleOrderIds.size === 0) return;
-
     const channel = supabase
       .channel("timeline_orders_realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
@@ -941,8 +934,22 @@ export function TimelineOrders() {
         });
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+        const oldRow = payload.old as Partial<Order>;
         const updated = payload.new as Order;
         const orderId = Number(updated.order_id);
+
+        if (orderId === 0) {
+          if (updated.name_id === "0") {
+            setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
+            return;
+          }
+
+          if (oldRow.name_id !== updated.name_id) {
+            setDisplayWarning("🟢 New update on the website, please refresh the page.");
+            return;
+          }
+        }
+
         if (!visibleOrderIds.has(orderId)) return;
 
         setOrdersById((prev) => {
@@ -974,8 +981,13 @@ export function TimelineOrders() {
         });
       })
       .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          clearRealtimeDownWarning();
+        }
+
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error("Timeline orders realtime subscription failed:", status);
+          markRealtimeDown(status);
         }
       });
 
@@ -1212,8 +1224,13 @@ export function TimelineOrders() {
         fetchTrackingTimelineOrders();
       })
       .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          clearRealtimeDownWarning();
+        }
+
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error("Tracking timeline realtime subscription failed:", status);
+          markRealtimeDown(status);
         }
       });
 
@@ -1247,8 +1264,29 @@ export function TimelineOrders() {
     if (isTimelineTicketSolved(order)) return showShippedOrders && isTimelineOrderShipped(order);
     return isTimelineOrderActive(order);
   });
+  const calendarOrderCountsByDay = visibleTimelineOrders.reduce<Record<string, number>>((counts, order) => {
+    const dayKey = getTimelineDayKey(order.ship_date);
+    if (!dayKey) return counts;
+    counts[dayKey] = (counts[dayKey] ?? 0) + 1;
+    return counts;
+  }, {});
+  const renderCalendarDayButton = (props: React.ComponentProps<typeof CalendarDayButton>) => {
+    const count = calendarOrderCountsByDay[format(props.day.date, "yyyy-MM-dd")] ?? 0;
 
-  const isCurrentWeekView = areTimelineDateRangesEqual(selectedDateRange, getDefaultTimelineDateRange());
+    return (
+      <CalendarDayButton
+        {...props}
+        onClick={(event) => {
+          props.onClick?.(event);
+          setPendingSelectedDate(getTimelineDayStart(props.day.date));
+        }}
+      >
+        {props.children}
+        {count > 0 && <span className="text-[10px] leading-none opacity-75">({count})</span>}
+      </CalendarDayButton>
+    );
+  };
+
   const pastDueOrders = visibleTimelineOrders.filter(
     (order) => order.ship_date && getTimelineDateStatus(order.ship_date, new Date()) === "past",
   );
@@ -1262,7 +1300,11 @@ export function TimelineOrders() {
     return groups;
   }, {});
   const upcomingDayKeys = Object.keys(upcomingOrdersByDay).sort();
-  const currentDateRangeLabel = formatTimelineDateRange(selectedDateRange);
+  const selectedDayOrders = visibleTimelineOrders.filter(
+    (order) => !!selectedDate && !!order.ship_date && isSameTimelineDay(order.ship_date, selectedDate),
+  );
+  const selectedDateLabel = selectedDate ? format(selectedDate, "PPP") : formatTimelineDateRange(selectedDateRange);
+  const selectedDateTitle = selectedDate ? format(selectedDate, "MMMM - d") : "";
 
   const renderTimelineTable = (title: string, orders: TimelineOrder[], emptyMessage: string) => (
     <section className="flex flex-col gap-2">
@@ -1441,11 +1483,12 @@ export function TimelineOrders() {
                   <TableCell className="px-1 py-1 text-center align-middle" data-ignore-selection="true">
                     <Checkbox
                       checked={isShipped}
-                      disabled={ordersLoading || shipOrderInFlightId !== null}
+                      disabled={isShipped || ordersLoading || shipOrderInFlightId !== null}
                       onClick={(event) => {
                         event.stopPropagation();
                       }}
                       onCheckedChange={(checked) => {
+                        if (isShipped) return;
                         if (checked !== true) return;
                         void handleShipTimelineOrder(orderIdNum);
                       }}
@@ -1531,6 +1574,11 @@ export function TimelineOrders() {
   // How do we get the last updated thing, maybe we keep just an order
   return (
     <>
+      {displayWarning !== "" && (
+        <div className="fixed left-0 right-0 top-0 z-[100]">
+          <div className="bg-red-900 p-2 text-center font-bold text-white">{displayWarning}</div>
+        </div>
+      )}
       <Toaster theme="dark" richColors={true} />
       <Dialog open={cooldownOpen} onOpenChange={setCooldownOpen}>
         <DialogContent>
@@ -1569,13 +1617,12 @@ export function TimelineOrders() {
 
       <section className="p-2 pt-10 w-[96%] max-w-none flex flex-col gap-2">
         <h1 className="font-bold text-5xl "> Daily List </h1>
-        <p className="text-sm font-medium text-zinc-700">Current range: {currentDateRangeLabel}</p>
-        <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+        <div className="flex flex-wrap items-center gap-2 text-zinc-700">
           <span className="relative h-4 w-4">
             <span className="absolute inset-0 rounded-full bg-[#76C043]" />
             <span className="active-pulse-ring absolute inset-0 rounded-full border-2 border-[#76C043]" />
           </span>
-          <span>Realtime status: ACTIVE</span>
+          <p className="text-lg font-medium">Current range: {selectedDateLabel}</p>
         </div>
         <div className="flex w-full items-center justify-end gap-2">
           <div className="flex gap-2">
@@ -1587,51 +1634,48 @@ export function TimelineOrders() {
               <span>Show shipped orders</span>
             </label>
 
-            {/* <Popover
+            <Popover
               open={datePickerOpen}
               onOpenChange={(open) => {
                 setDatePickerOpen(open);
-                if (open) setPendingSelectedDateRange(selectedDateRange);
+                if (open) setPendingSelectedDate(selectedDate ?? getTimelineDayStart(new Date()));
               }}
             >
               <PopoverTrigger asChild>
                 <Button type="button" variant="outline">
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formatTimelineDateRange(selectedDateRange)}
+                  {selectedDate ? format(selectedDate, "PPP") : "Pick date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0" align="start" data-ignore-selection="true">
                 <Calendar
-                  mode="range"
-                  defaultMonth={pendingSelectedDateRange?.from}
-                  selected={pendingSelectedDateRange}
-                  onSelect={setPendingSelectedDateRange}
-                  numberOfMonths={2}
+                  className="[--cell-size:2.75rem]"
+                  mode="single"
+                  selected={pendingSelectedDate}
+                  onSelect={(date) => setPendingSelectedDate(date ? getTimelineDayStart(date) : undefined)}
+                  components={{ DayButton: renderCalendarDayButton }}
                 />
                 <div className="flex items-center justify-end gap-2 border-t p-2">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setDatePickerOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="button" size="sm" onClick={handleConfirmSelectedDate}>
-                    Confirm
+                  <Button type="button" size="sm" disabled={!pendingSelectedDate} onClick={applySelectedDate}>
+                    Okay
                   </Button>
                 </div>
               </PopoverContent>
             </Popover>
-            
-            <Button
-              type="button"
-              variant={isCurrentWeekView ? "secondary" : "ghost"}
-              className={isCurrentWeekView ? "border border-gray-400 font-semibold" : ""}
-              onClick={handleClearSelectedDate}
-            >
-              {isCurrentWeekView ? "Current week" : "Clear"}
-            </Button>
-             */}
+            {selectedDate && (
+              <Button type="button" variant="ghost" onClick={handleClearSelectedDate}>
+                Clear
+              </Button>
+            )}
           </div>
         </div>
         {renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")}
-        {upcomingDayKeys.length === 0
+        {selectedDate
+          ? renderTimelineTable(selectedDateTitle, selectedDayOrders, "No orders due for this date.")
+          : upcomingDayKeys.length === 0
           ? renderTimelineTable(
               `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
               [],
