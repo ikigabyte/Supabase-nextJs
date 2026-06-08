@@ -1175,7 +1175,7 @@ export function TimelineOrders() {
         const shipCmp = compareNullableTime(toTimelineTime(a.ship_date), toTimelineTime(b.ship_date));
         if (shipCmp !== 0) return shipCmp;
 
-        const providedDateCmp = compareNullableTime(toTimelineTime(a.provided_date), toTimelineTime(b.provided_date));
+        const providedDateCmp = compareNullableTime(toTimelineTime(a.ihd_date), toTimelineTime(b.ihd_date));
         if (providedDateCmp !== 0) return providedDateCmp;
 
         return shippingMethodOrder(a.shipping_method) - shippingMethodOrder(b.shipping_method);
@@ -1414,7 +1414,7 @@ export function TimelineOrders() {
                     {formatTimelineMonthDay(order.ship_date)}
                   </TableCell>
                   <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
-                    {formatTimelineMonthDay(order.provided_date)}
+                    {formatTimelineMonthDay(order.ihd_date)}
                   </TableCell>
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {formatTimelineItemValue(order.shipping_method ?? undefined)}
@@ -1476,7 +1476,7 @@ export function TimelineOrders() {
                           {formatTimelineMonthDay(order.ship_date)}
                         </TableCell>
                         <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
-                          {formatTimelineMonthDay(order.provided_date)}
+                          {formatTimelineMonthDay(order.ihd_date)}
                         </TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>
                           {formatTimelineItemValue(order.shipping_method ?? undefined)}

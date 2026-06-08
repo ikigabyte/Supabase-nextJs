@@ -313,6 +313,7 @@ export type Database = {
           online_id: number | null
           order_id: number
           provided_date: string | null
+          ihd_date: string | null
           ship_date: string | null
           shipping_method: string | null
           special_color: string | null
@@ -332,6 +333,7 @@ export type Database = {
           online_id?: number | null
           order_id?: number
           provided_date?: string | null
+          ihd_date: string | null
           ship_date?: string | null
           shipping_method?: string | null
           special_color?: string | null
@@ -351,6 +353,7 @@ export type Database = {
           online_id?: number | null
           order_id?: number
           provided_date?: string | null
+          ihd_date: string | null
           ship_date?: string | null
           shipping_method?: string | null
           special_color?: string | null
