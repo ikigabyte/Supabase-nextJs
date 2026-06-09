@@ -333,10 +333,9 @@ function getTimelineQuantitySummary(rows: Order[], fallbackItems: TimelineItem[]
   if (rows.length > 0) {
     const hasTileQuantities = rows.some((row) => isTileQuantity(row.quantity));
     const hasRegularQuantities = rows.some((row) => !isTileQuantity(row.quantity) && getQuantityNumber(row.quantity) !== null);
-    if (hasTileQuantities && hasRegularQuantities) return "N/a";
+    if (hasTileQuantities && hasRegularQuantities) return "MIXED";
 
     const quantities = rows
-      .filter((row) => !isTileQuantity(row.quantity))
       .map((row) => getQuantityNumber(row.quantity))
       .filter((value): value is number => value !== null);
     if (quantities.length === 0) return "-";
