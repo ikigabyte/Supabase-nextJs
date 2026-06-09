@@ -38,13 +38,13 @@ import { forceUpdateTimeline, updateOrderNotes, sendOrderShipped, updateTracking
 const TIMELINE_COLUMNS = [
   { label: "", width: "44px", minWidth: "44px" },
   { label: "Order #", width: "104px", minWidth: "104px" },
-  { label: "Due", width: "76px", minWidth: "76px" },
-  { label: "IHD", width: "72px", minWidth: "72px" },
+  { label: "Due", width: "50px", minWidth: "50px" },
+  { label: "IHD", width: "50px", minWidth: "50px" },
   { label: "Shipping Method", width: "112px", minWidth: "96px" },
   { label: "Creatives", width: "220px", minWidth: "140px" },
+  { label: "TOTAL QTY", width: "92px", minWidth: "80px" },
   { label: "Status", width: "92px", minWidth: "80px" },
   { label: "Material", width: "92px", minWidth: "80px" },
-  { label: "Shape", width: "92px", minWidth: "80px" },
   { label: "Notes", width: "240px", minWidth: "220px" },
   { label: "Shipped", width: "72px", minWidth: "64px" },
 ] as const;
@@ -57,7 +57,7 @@ type TimelineItem = {
   Status?: string;
   StatusColor?: string | null;
   Material?: string;
-  Shape?: string;
+  Quantity?: string;
   Notes?: string;
   DueDate?: string;
   IHDDate?: string;
@@ -229,23 +229,61 @@ function getTimelineTableTitleDate(dateKey: string) {
   return format(date, "MMMM - d");
 }
 
+function extractTimelineDashNumber(name?: string): number {
+  const match = name?.match(/-(\d+)-/);
+  return match ? parseInt(match[1], 10) : Infinity;
+}
+
+function getTimelineItemIndexNumber(itemIndex: TimelineItem["itemIndex"]): number {
+  const value = Number(itemIndex ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function sortTimelineItemsByDashNumber(items: TimelineItem[]) {
+  return [...items].sort((a, b) => {
+    const aName = a.FileName ?? a.Title;
+    const bName = b.FileName ?? b.Title;
+    const dashDiff = extractTimelineDashNumber(aName) - extractTimelineDashNumber(bName);
+    if (dashDiff !== 0) return dashDiff;
+
+    const itemIndexDiff = getTimelineItemIndexNumber(a.itemIndex) - getTimelineItemIndexNumber(b.itemIndex);
+    if (itemIndexDiff !== 0) return itemIndexDiff;
+
+    return (aName ?? "").localeCompare(bName ?? "");
+  });
+}
+
+function sortTimelineRowsByDashNumber(rows: Order[]) {
+  return [...rows].sort((a, b) => {
+    const dashDiff = extractTimelineDashNumber(a.name_id) - extractTimelineDashNumber(b.name_id);
+    if (dashDiff !== 0) return dashDiff;
+    return a.name_id.localeCompare(b.name_id);
+  });
+}
+
 function normalizeTimelineItems(items: unknown): TimelineItem[] {
   if (!items || typeof items !== "object") return [];
 
   const rawItems = Array.isArray(items) ? items : Object.values(items as Record<string, unknown>);
-  return rawItems
+  const normalizedItems = rawItems
     .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
     .map((item) => ({
       FileName: typeof item.FileName === "string" ? item.FileName : undefined,
       Title: typeof item.Title === "string" ? item.Title : undefined,
       Status: typeof item.Status === "string" ? item.Status : undefined,
       Material: typeof item.Material === "string" ? item.Material : undefined,
-      Shape: typeof item.Shape === "string" ? item.Shape : undefined,
+      Quantity:
+        typeof item.Quantity === "string"
+          ? item.Quantity
+          : typeof item.quantity === "string"
+          ? item.quantity
+          : undefined,
       Notes: typeof item.Notes === "string" ? item.Notes : undefined,
       itemIndex:
         typeof item.itemIndex === "number" || typeof item.itemIndex === "string" ? item.itemIndex : undefined,
-    }))
-    .sort((a, b) => Number(a.itemIndex ?? 0) - Number(b.itemIndex ?? 0));
+    }));
+
+  return sortTimelineItemsByDashNumber(normalizedItems);
 }
 
 function formatTimelineItemValue(value?: string) {
@@ -255,13 +293,57 @@ function formatTimelineItemValue(value?: string) {
   return capitalizeFirstLetter(normalizedValue);
 }
 
-function getMixedSummary(items: TimelineItem[], field: "Status" | "Material" | "Shape") {
+function getMixedSummary(items: TimelineItem[], field: "Status" | "Material" | "Quantity") {
   const values = Array.from(
     new Set(items.map((item) => item[field]?.trim()).filter((value): value is string => !!value)),
   );
   if (values.length === 0) return "-";
   if (values.length > 1) return "Mixed";
   return formatTimelineItemValue(values[0]);
+}
+
+function getQuantityBaseValue(quantity?: string | null) {
+  const cleanedQuantity = (quantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
+  if (!cleanedQuantity) return null;
+  return cleanedQuantity.split("-")[0].trim();
+}
+
+function isTileQuantity(quantity?: string | null) {
+  return (quantity ?? "").toLowerCase().replace(/qty/gi, "").includes("-");
+}
+
+function getQuantityNumber(quantity?: string | null) {
+  const quantityPart = getQuantityBaseValue(quantity);
+  if (!quantityPart) return null;
+  const parsed = Number(quantityPart);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatTimelineQuantity(quantity?: string | null) {
+  const cleanedQuantity = (quantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
+  if (!cleanedQuantity) return "-";
+  if (cleanedQuantity.includes("-")) {
+    const quantityPart = cleanedQuantity.split("-")[0].trim();
+    return quantityPart ? `${quantityPart} Tiles` : "-";
+  }
+  return cleanedQuantity;
+}
+
+function getTimelineQuantitySummary(rows: Order[], fallbackItems: TimelineItem[]) {
+  if (rows.length > 0) {
+    const hasTileQuantities = rows.some((row) => isTileQuantity(row.quantity));
+    const hasRegularQuantities = rows.some((row) => !isTileQuantity(row.quantity) && getQuantityNumber(row.quantity) !== null);
+    if (hasTileQuantities && hasRegularQuantities) return "N/a";
+
+    const quantities = rows
+      .filter((row) => !isTileQuantity(row.quantity))
+      .map((row) => getQuantityNumber(row.quantity))
+      .filter((value): value is number => value !== null);
+    if (quantities.length === 0) return "-";
+    return String(quantities.reduce((total, quantity) => total + quantity, 0));
+  }
+
+  return getMixedSummary(fallbackItems, "Quantity");
 }
 
 function getTimelineStatusCellBackground(fallbackItems: TimelineItem[], overrideColor?: string | null) {
@@ -710,7 +792,7 @@ export function TimelineOrders() {
 
     const { data, error } = await supabase
       .from("orders")
-      .select("name_id, production_status, material, shape, order_id, notes")
+      .select("name_id, production_status, material, quantity, order_id, notes")
       .in("order_id", allIds);
 
     if (error) {
@@ -726,6 +808,10 @@ export function TimelineOrders() {
       if (!Number.isFinite(id)) return;
       if (!grouped[id]) grouped[id] = [];
       grouped[id].push(row as Order);
+    });
+
+    Object.keys(grouped).forEach((orderId) => {
+      grouped[Number(orderId)] = sortTimelineRowsByDashNumber(grouped[Number(orderId)]);
     });
 
     setOrdersById(grouped);
@@ -923,13 +1009,15 @@ export function TimelineOrders() {
           if (existingRows.some((row) => row.name_id === newOrder.name_id)) {
             return {
               ...prev,
-              [orderId]: existingRows.map((row) => (row.name_id === newOrder.name_id ? newOrder : row)),
+              [orderId]: sortTimelineRowsByDashNumber(
+                existingRows.map((row) => (row.name_id === newOrder.name_id ? newOrder : row)),
+              ),
             };
           }
 
           return {
             ...prev,
-            [orderId]: [...existingRows, newOrder],
+            [orderId]: sortTimelineRowsByDashNumber([...existingRows, newOrder]),
           };
         });
       })
@@ -957,13 +1045,15 @@ export function TimelineOrders() {
           if (existingRows.length === 0) {
             return {
               ...prev,
-              [orderId]: [updated],
+              [orderId]: sortTimelineRowsByDashNumber([updated]),
             };
           }
 
           return {
             ...prev,
-            [orderId]: existingRows.map((row) => (row.name_id === updated.name_id ? updated : row)),
+            [orderId]: sortTimelineRowsByDashNumber(
+              existingRows.map((row) => (row.name_id === updated.name_id ? updated : row)),
+            ),
           };
         });
       })
@@ -1348,7 +1438,7 @@ export function TimelineOrders() {
               FileName: row.name_id,
               Status: row.production_status ?? undefined,
               Material: row.material ?? undefined,
-              Shape: row.shape ?? undefined,
+              Quantity: row.quantity ?? undefined,
               Notes: row.notes ?? undefined,
               itemIndex: index + 1,
             }));
@@ -1385,7 +1475,7 @@ export function TimelineOrders() {
             );
             const orderNumberCellBackground = shouldColorOrderNumberCell ? specialColor ?? undefined : undefined;
             const materialSummary = getMixedSummary(items, "Material");
-            const shapeSummary = getMixedSummary(items, "Shape");
+            const quantitySummary = getTimelineQuantitySummary(rows, items);
             const isSelected = selectedTimelineOrderIds.has(orderIdNum);
             const isShipped = isTimelineOrderShipped(order);
 
@@ -1464,6 +1554,10 @@ export function TimelineOrders() {
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {creativeSummary}
                   </TableCell>
+                           <TableCell className={TIMELINE_CELL_CLASS}>
+                    {quantitySummary}
+                  </TableCell>
+
                   <TableCell
                     className={`${TIMELINE_CELL_CLASS} ${getTimelineProductionWarningClassName(productionWarning)}`}
                     title={statusTitle}
@@ -1474,9 +1568,7 @@ export function TimelineOrders() {
                   <TableCell className={TIMELINE_CELL_CLASS}>
                     {materialSummary}
                   </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS}>
-                    {shapeSummary}
-                  </TableCell>
+         
                   <TableCell className={TIMELINE_NOTES_CELL_CLASS} title={notesSummary}>
                     {notesSummary}
                   </TableCell>
@@ -1527,6 +1619,7 @@ export function TimelineOrders() {
                         <TableCell className={TIMELINE_CELL_CLASS} title={creativeName}>
                           {formatCreativeName(item.FileName, item.Title)}
                         </TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineQuantity(item.Quantity)}</TableCell>
                         <TableCell
                           className={TIMELINE_CELL_CLASS}
                           title={item.Status ?? "-"}
@@ -1535,7 +1628,7 @@ export function TimelineOrders() {
                           {formatTimelineItemValue(item.Status)}
                         </TableCell>
                         <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Material)}</TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Shape)}</TableCell>
+                        
                         <TableCell
                           className={TIMELINE_NOTES_CELL_CLASS}
                           title={itemNotes || "-"}
