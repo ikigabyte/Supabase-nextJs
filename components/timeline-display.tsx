@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
 const NOTE_COOLDOWN_MS = 10 * 1000;
 const ZENDESK_TICKET_BASE_URL = "https://stickerbeat.zendesk.com/agent/tickets";
+const REALTIME_DISCONNECTED_WARNING = "⚠️ Realtime disconnected. Please refresh the page";
 
 import { forceUpdateTimeline, updateOrderNotes, sendOrderShipped, updateTrackingOrderSpecialColor } from "@/utils/actions";
 // import { forceRefreshTimeline } from "@/utils/google-functions";
@@ -339,7 +340,8 @@ function getTimelineQuantitySummary(rows: Order[], fallbackItems: TimelineItem[]
       .map((row) => getQuantityNumber(row.quantity))
       .filter((value): value is number => value !== null);
     if (quantities.length === 0) return "-";
-    return String(quantities.reduce((total, quantity) => total + quantity, 0));
+    const totalQuantity = quantities.reduce((total, quantity) => total + quantity, 0);
+    return hasTileQuantities ? `${totalQuantity} Tiles` : String(totalQuantity);
   }
 
   return getMixedSummary(fallbackItems, "Quantity");
@@ -724,13 +726,11 @@ export function TimelineOrders() {
 
   const markRealtimeDown = (reason: string) => {
     console.warn("Timeline realtime down:", reason);
-    setDisplayWarning("⚠️ Realtime disconnected. Please refresh the page");
+    setDisplayWarning(REALTIME_DISCONNECTED_WARNING);
   };
 
   const clearRealtimeDownWarning = () => {
-    setDisplayWarning((current) =>
-      current === "⚠️ Realtime disconnected. Please refresh the page" ? "" : current,
-    );
+    setDisplayWarning((current) => (current === REALTIME_DISCONNECTED_WARNING ? "" : current));
   };
 
   const handleStatusColorSelect = async (color: string | null) => {
@@ -1664,6 +1664,9 @@ export function TimelineOrders() {
 
   // console.log(orders);
   // How do we get the last updated thing, maybe we keep just an order
+  const isRealtimeDisconnected = displayWarning === REALTIME_DISCONNECTED_WARNING;
+  const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : "#76C043";
+
   return (
     <>
       {displayWarning !== "" && (
@@ -1711,8 +1714,8 @@ export function TimelineOrders() {
         <h1 className="font-bold text-5xl "> Daily List </h1>
         <div className="flex flex-wrap items-center gap-2 text-zinc-700">
           <span className="relative h-4 w-4">
-            <span className="absolute inset-0 rounded-full bg-[#76C043]" />
-            <span className="active-pulse-ring absolute inset-0 rounded-full border-2 border-[#76C043]" />
+            <span className="absolute inset-0 rounded-full" style={{ backgroundColor: realtimeIndicatorColor }} />
+            <span className="active-pulse-ring absolute inset-0 rounded-full border-2" style={{ borderColor: realtimeIndicatorColor }} />
           </span>
           <p className="text-lg font-medium">Current range: {selectedDateLabel}</p>
         </div>
