@@ -5,7 +5,7 @@ import { TableCell, TableBody, TableRow } from "./ui/table";
 import { HistoryIcon } from "lucide-react";
 import { convertToSpaces } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { capitalizeFirstLetter } from "@/utils/stringfunctions";
+import { capitalizeFirstLetter, formatDisplayQuantity, formatDisplayShape } from "@/utils/stringfunctions";
 import { off } from "process";
 import { order } from "tailwindcss/defaultTheme";
 
@@ -16,17 +16,6 @@ interface CompletedOrganizerProps {
 const convertInsertedDate = (dateString: string) => {
   const date = new Date(dateString);
   return date.toLocaleDateString() + " " + date.toLocaleTimeString();
-};
-
-const fixQuantityString = (quantity: string | number) => {
-  if (typeof quantity === "number") return quantity;
-  // Remove anything after the second '-' (including the dash itself)
-  const parts = quantity.split("-");
-  if (parts.length > 2) {
-    quantity = parts.slice(0, 2).join("-");
-  }
-  const num = parseInt(quantity, 10);
-  return isNaN(num) ? quantity : num;
 };
 
 const openUpZendeskTicket = (orderId: number) => {
@@ -52,10 +41,10 @@ export function CompletedOrganizer({ orders }: CompletedOrganizerProps) {
           className="[&>td]:py-1 align-top border-none ring-inset ring-1 ring-gray-100 max-h-[14px] text-xs whitespace-normal break-all hover:bg-gray-50 cursor-pointer"
         >
           <TableCell onClick={() => openUpZendeskTicket(order.order_id)}>{convertToSpaces(order.name_id)}</TableCell>
-          <TableCell>{capitalizeFirstLetter(order.shape)}</TableCell>
+          <TableCell>{formatDisplayShape(order.shape)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.lamination)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.material)}</TableCell>
-          <TableCell>{fixQuantityString(order.quantity)}</TableCell>
+          <TableCell>{typeof order.quantity === "number" ? order.quantity : formatDisplayQuantity(order.quantity)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.ink)}</TableCell>
           <TableCell>{capitalizeFirstLetter(order.print_method)}</TableCell>
           <TableCell>{order.due_date}</TableCell>

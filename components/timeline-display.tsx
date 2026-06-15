@@ -21,7 +21,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { Eye, Plus, Minus, ExternalLink, CalendarIcon, X } from "lucide-react";
-import { capitalizeFirstLetter } from "@/utils/stringfunctions";
+import {
+  capitalizeFirstLetter,
+  formatDisplayQuantity,
+  getDisplayQuantityNumber,
+  isDisplayTileQuantity,
+} from "@/utils/stringfunctions";
 // import { Toaster } from "@/components/ui/sonner";
 // const supabase = createClientComponentClient();
 // import { Toaster } from "@/components/ui/sonner";
@@ -303,41 +308,16 @@ function getMixedSummary(items: TimelineItem[], field: "Status" | "Material" | "
   return formatTimelineItemValue(values[0]);
 }
 
-function getQuantityBaseValue(quantity?: string | null) {
-  const cleanedQuantity = (quantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
-  if (!cleanedQuantity) return null;
-  return cleanedQuantity.split("-")[0].trim();
-}
-
-function isTileQuantity(quantity?: string | null) {
-  return (quantity ?? "").toLowerCase().replace(/qty/gi, "").includes("-");
-}
-
-function getQuantityNumber(quantity?: string | null) {
-  const quantityPart = getQuantityBaseValue(quantity);
-  if (!quantityPart) return null;
-  const parsed = Number(quantityPart);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatTimelineQuantity(quantity?: string | null) {
-  const cleanedQuantity = (quantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
-  if (!cleanedQuantity) return "-";
-  if (cleanedQuantity.includes("-")) {
-    const quantityPart = cleanedQuantity.split("-")[0].trim();
-    return quantityPart ? `${quantityPart} Tiles` : "-";
-  }
-  return cleanedQuantity;
-}
-
 function getTimelineQuantitySummary(rows: Order[], fallbackItems: TimelineItem[]) {
   if (rows.length > 0) {
-    const hasTileQuantities = rows.some((row) => isTileQuantity(row.quantity));
-    const hasRegularQuantities = rows.some((row) => !isTileQuantity(row.quantity) && getQuantityNumber(row.quantity) !== null);
+    const hasTileQuantities = rows.some((row) => isDisplayTileQuantity(row.quantity));
+    const hasRegularQuantities = rows.some(
+      (row) => !isDisplayTileQuantity(row.quantity) && getDisplayQuantityNumber(row.quantity) !== null
+    );
     if (hasTileQuantities && hasRegularQuantities) return "MIXED";
 
     const quantities = rows
-      .map((row) => getQuantityNumber(row.quantity))
+      .map((row) => getDisplayQuantityNumber(row.quantity))
       .filter((value): value is number => value !== null);
     if (quantities.length === 0) return "-";
     const totalQuantity = quantities.reduce((total, quantity) => total + quantity, 0);
@@ -1618,7 +1598,7 @@ export function TimelineOrders() {
                         <TableCell className={TIMELINE_CELL_CLASS} title={creativeName}>
                           {formatCreativeName(item.FileName, item.Title)}
                         </TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineQuantity(item.Quantity)}</TableCell>
+                        <TableCell className={TIMELINE_CELL_CLASS}>{formatDisplayQuantity(item.Quantity)}</TableCell>
                         <TableCell
                           className={TIMELINE_CELL_CLASS}
                           title={item.Status ?? "-"}

@@ -4,7 +4,7 @@ import { TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Order } from "@/types/custom";
-import { capitalizeFirstLetter, truncate } from "@/utils/stringfunctions";
+import { capitalizeFirstLetter, formatDisplayQuantity, formatDisplayShape, truncate } from "@/utils/stringfunctions";
 import { Separator } from "./ui/separator";
 import { convertToSpaces } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
@@ -94,23 +94,6 @@ const convertToDayOfTheWeek = (dateString: string | null) => {
     return 0;
   }
   return dayNumber;
-};
-
-const displayCorrectQuantity = (quantity: string | null) => {
-  if (quantity == null || quantity === "") {
-    return "-";
-  }
-  const cleanedQuantity = quantity.toLowerCase().replace(/qty/gi, ""); // Remove "qty" (case-insensitive)
-  if (cleanedQuantity.includes("-")) {
-    const splitPart = cleanedQuantity.split("-");
-    const quantityPart = splitPart[0];
-    // const sizePart = splitPart[1];
-    // const testPart = splitPart[2] || "";
-
-    return `${quantityPart} Tiles`;
-  } else {
-    return cleanedQuantity;
-  }
 };
 
 function boldUntilDash(text: string) {
@@ -714,7 +697,7 @@ export function OrderTableBody({
                   cellRefs.current[i][1] = el;
                 }}
               >
-                {capitalizeFirstLetter(row.shape) || "-"}
+                {formatDisplayShape(row.shape) || "-"}
               </TableCell>
                 <TableCell
                 data-raw-quantity={row.quantity ?? ""}
@@ -727,7 +710,7 @@ export function OrderTableBody({
                 onMouseEnter={(event) => handleMouseEnter(event, row, "quantity")}
                 onMouseLeave={handleMouseLeave}
                 >
-                {displayCorrectQuantity(row.quantity) || "-"}
+                {formatDisplayQuantity(row.quantity) || "-"}
                 </TableCell>
 
               <TableCell>{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
