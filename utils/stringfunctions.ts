@@ -18,16 +18,53 @@ function extractFirstNumber(value: string | undefined) {
   return match ? match[0] : null;
 }
 
+function extractFirstFiniteNumber(value: string | undefined) {
+  const firstNumber = extractFirstNumber(value);
+  if (firstNumber == null) return null;
+
+  const number = Number(firstNumber);
+  return Number.isFinite(number) ? number : null;
+}
+
+function extractTileSize(value: string | undefined) {
+  const dimensionMatch = value?.match(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/i);
+  if (dimensionMatch) {
+    const height = Number(dimensionMatch[2]);
+    return Number.isFinite(height) ? height : null;
+  }
+
+  return extractFirstFiniteNumber(value);
+}
+
+export function parseTileQuantityAndSize(rawQuantity?: string | null): { quantity: number; size: number } | null {
+  const cleanedQuantity = (rawQuantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
+  if (!cleanedQuantity) return null;
+
+  const parts = cleanedQuantity.split("-").map((part) => part.trim());
+  if (parts.length < 3) return null;
+
+  const tilePartIndex = parts.findIndex((part) => /\btiles?\b|\d+\s*tiles?\b/i.test(part));
+  const tilePart = tilePartIndex >= 0 ? parts[tilePartIndex] : undefined;
+  const tilePartQuantity = extractFirstFiniteNumber(tilePart);
+  const fallbackQuantity = extractFirstFiniteNumber(parts[0]);
+  const quantity = tilePartQuantity ?? fallbackQuantity;
+  const size = extractTileSize(parts[parts.length - 1]);
+
+  if (quantity == null || size == null) return null;
+
+  return { quantity, size };
+}
+
 export function getDisplayQuantityBaseValue(quantity?: string | null) {
   const cleanedQuantity = (quantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
   if (!cleanedQuantity) return null;
 
-  if (cleanedQuantity.includes("tiles")) {
-    const tileTextNumber = cleanedQuantity.match(/(\d+(?:\.\d+)?)\s*tiles\b/i)?.[1];
+  if (cleanedQuantity.includes("tile")) {
+    const tileTextNumber = cleanedQuantity.match(/(\d+(?:\.\d+)?)\s*tiles?\b/i)?.[1];
     if (tileTextNumber) return tileTextNumber;
 
     const parts = cleanedQuantity.split("-").map((part) => part.trim());
-    const tilePartIndex = parts.findIndex((part) => part.includes("tiles"));
+    const tilePartIndex = parts.findIndex((part) => part.includes("tile"));
     if (tilePartIndex > 0) {
       return extractFirstNumber(parts[tilePartIndex - 1]);
     }
@@ -38,7 +75,7 @@ export function getDisplayQuantityBaseValue(quantity?: string | null) {
 
 export function isDisplayTileQuantity(quantity?: string | null) {
   const cleanedQuantity = (quantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
-  return cleanedQuantity.includes("tiles") || cleanedQuantity.includes("-");
+  return cleanedQuantity.includes("tile") || cleanedQuantity.includes("-");
 }
 
 export function getDisplayQuantityNumber(quantity?: string | null) {

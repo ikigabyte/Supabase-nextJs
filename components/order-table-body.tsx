@@ -4,7 +4,13 @@ import { TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Order } from "@/types/custom";
-import { capitalizeFirstLetter, formatDisplayQuantity, formatDisplayShape, truncate } from "@/utils/stringfunctions";
+import {
+  capitalizeFirstLetter,
+  formatDisplayQuantity,
+  formatDisplayShape,
+  parseTileQuantityAndSize,
+  truncate,
+} from "@/utils/stringfunctions";
 import { Separator } from "./ui/separator";
 import { convertToSpaces } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
@@ -465,16 +471,11 @@ export function OrderTableBody({
         setScrollAreaName("History");
         lastHoveredKeyRef.current = hoverKey;
       } else if (type === "quantity") {
-        const quantity = row.quantity || "";
-        const cleanedQuantity = quantity.toLowerCase().replace(/qty/gi, ""); // Remove "qty" (case-insensitive)
-        const splitPart = cleanedQuantity.split("-");
-        if (splitPart.length !== 3) {
-          // Only show when there are exactly two "-" (i.e., three parts)
-          return;
-        }
-        const quantityPart = splitPart[0];
-        const sizePart = splitPart[2];
-        const multiplication = Number(quantityPart) * Number(sizePart); // 
+        const parsedTile = parseTileQuantityAndSize(row.quantity);
+        if (!parsedTile) return;
+
+        const { quantity: quantityPart, size: sizePart } = parsedTile;
+        const multiplication = quantityPart * sizePart;
         // const multiplicationFinal = Math.round(multiplication * 100) / 100;
         const multiplicationInFeet = (multiplication / 12);
         const combinedString = `${quantityPart} x ${sizePart}" H = ${multiplication.toFixed(2)}" or ${multiplicationInFeet.toFixed(2)}" ft`;

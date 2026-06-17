@@ -6,6 +6,7 @@ import { ClipboardCopy } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { DropdownAssignee } from "./dropdown";
 import { getCorrectUserColor } from "@/lib/utils";
+import { parseTileQuantityAndSize } from "@/utils/stringfunctions";
 
 export const getBorderColor = (category: string) => {
   switch (category) {
@@ -48,26 +49,6 @@ function extractNumber(str: string) {
   const cleaned = str.replace(/qty/gi, "").trim();
   const match = cleaned.match(/-?\d+(?:\.\d+)?/);
   return match ? match[0] : "";
-}
-
-function extractFirstNumber(str: string): number | null {
-  const match = str.match(/-?\d+(?:\.\d+)?/);
-  if (!match) return null;
-  const n = Number(match[0]);
-  return Number.isFinite(n) ? n : null;
-}
-
-function parseTileQuantityAndSize(rawQuantity: string): { quantity: number; size: number } | null {
-  const cleaned = (rawQuantity ?? "").toLowerCase().replace(/qty/gi, "").trim();
-  if (!cleaned) return null;
-  const splitPart = cleaned.split("-");
-  if (splitPart.length !== 3) return null;
-
-  const quantityPart = extractFirstNumber(splitPart[0]);
-  const sizePart = extractFirstNumber(splitPart[2]);
-  if (quantityPart == null || sizePart == null) return null;
-
-  return { quantity: quantityPart, size: sizePart };
 }
 
 export function ButtonOrganizer({
