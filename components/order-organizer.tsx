@@ -574,9 +574,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       return null;
     }
     const orderZeroMessage = getOrderZeroBannerMessage(data);
-    if (orderZeroMessage !== null) {
-      setDisplayWarning(orderZeroMessage);
-    }
+    setOrderZeroBannerMessage(orderZeroMessage ?? "");
     // console.log(data);
     return data;
   }
@@ -641,6 +639,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const containerRef = useRef<HTMLDivElement>(null);
   const [isRowClicked, setIsRowClicked] = useState<boolean>(false);
   const [userSelected, setUserSelected] = useState<string>("");
+  const [orderZeroBannerMessage, setOrderZeroBannerMessage] = useState<string>("");
   const [displayWarning, setDisplayWarning] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<string>("");
@@ -1327,6 +1326,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const updated = payload.new as Order;
         if (updated.order_id === 0) {
           const orderZeroMessage = getOrderZeroBannerMessage(updated);
+          setOrderZeroBannerMessage(orderZeroMessage ?? "");
           // console.log("Received update for order_id 0:", updated);
           // Only update if notes has actually changed
           // if (oldRow.notes === updated.notes) {
@@ -1335,14 +1335,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           if (oldRow.notes !== updated.notes) {
             // console.warn("Order 0 notes changed:", { old: oldRow.notes, new: updated.notes });
             setLastUpdatedOrderTime(updated.notes ?? null);
-            if (orderZeroMessage !== null) {
-              setDisplayWarning(orderZeroMessage);
-            }
             return;
           }
           if (orderZeroMessage !== null) {
             console.log("Order 0 banner message updated.");
-            setDisplayWarning(orderZeroMessage);
             return;
           }
 
@@ -2502,12 +2498,13 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
 
   const allKeys = orderKeys[orderType] || [];
   const textColor = getTextColor(selectedCategory);
+  const activeDisplayWarning = orderZeroBannerMessage || displayWarning;
   // console.log(dragSelections);
   return (
     <>
-      {displayWarning !== "" && (
+      {activeDisplayWarning !== "" && (
         <div className="fixed top-2 left-2 right-2 z-50">
-          <div className="bg-red-900 text-white font-bold p-2 rounded">{displayWarning}</div>
+          <div className="bg-red-900 text-white font-bold p-2 rounded">{activeDisplayWarning}</div>
         </div>
       )}
       <div className="relative" ref={containerRef}>
