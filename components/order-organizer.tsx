@@ -528,6 +528,17 @@ export function updateOrderCountersDom(counts: Counts, attempt = 0) {
 
 type OrderViewerRow = { name_id: string; user_id: string; last_updated: string; user_email: string };
 
+function getOrderZeroBannerMessage(orderZero: Pick<Order, "name_id" | "notes"> | null | undefined) {
+  const version = orderZero?.name_id?.trim().toLowerCase();
+  if (version === "0") {
+    return "⚠️  SB Database is under maintenance, some features may be unavailable.";
+  }
+  if (version === "v401") {
+    return orderZero?.notes?.trim() ?? "";
+  }
+  return null;
+}
+
 export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTypes; defaultPage: string }) {
   const supabase = useMemo(() => getBrowserClient(), []);
   const fetchCount = useRef(0);
@@ -562,8 +573,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       console.error("Error fetching order with order_id 0:", error);
       return null;
     }
-    if (data && data.name_id == "0") {
-      setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
+    const orderZeroMessage = getOrderZeroBannerMessage(data);
+    if (orderZeroMessage !== null) {
+      setDisplayWarning(orderZeroMessage);
     }
     // console.log(data);
     return data;
@@ -1314,6 +1326,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         const oldRow = payload.old as Order;
         const updated = payload.new as Order;
         if (updated.order_id === 0) {
+          const orderZeroMessage = getOrderZeroBannerMessage(updated);
           // console.log("Received update for order_id 0:", updated);
           // Only update if notes has actually changed
           // if (oldRow.notes === updated.notes) {
@@ -1322,11 +1335,14 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           if (oldRow.notes !== updated.notes) {
             // console.warn("Order 0 notes changed:", { old: oldRow.notes, new: updated.notes });
             setLastUpdatedOrderTime(updated.notes ?? null);
+            if (orderZeroMessage !== null) {
+              setDisplayWarning(orderZeroMessage);
+            }
             return;
           }
-          if (updated.name_id == "0") {
-            console.log("Sheet is under maintenance, ignoring update.");
-            setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
+          if (orderZeroMessage !== null) {
+            console.log("Order 0 banner message updated.");
+            setDisplayWarning(orderZeroMessage);
             return;
           }
 
