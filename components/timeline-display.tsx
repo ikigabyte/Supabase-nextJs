@@ -1457,6 +1457,7 @@ export function TimelineOrders() {
             const quantitySummary = getTimelineQuantitySummary(rows, items);
             const isSelected = selectedTimelineOrderIds.has(orderIdNum);
             const isShipped = isTimelineOrderShipped(order);
+            const isThisOrderShipping = shipOrderInFlightId === orderIdNum;
 
             return (
               <React.Fragment key={`due-group-${orderIdNum}`}>
@@ -1554,7 +1555,8 @@ export function TimelineOrders() {
                   <TableCell className="px-1 py-1 text-center align-middle" data-ignore-selection="true">
                     <Checkbox
                       checked={isShipped}
-                      disabled={isShipped || ordersLoading || shipOrderInFlightId !== null}
+                      disabled={isShipped || isThisOrderShipping}
+                      aria-label={`Mark order ${orderIdNum || "unknown"} as shipped`}
                       onClick={(event) => {
                         event.stopPropagation();
                       }}
