@@ -1,5 +1,6 @@
 import { Order } from "@/types/custom";
 import { OrderTypes } from "./orderTypes";
+import { isSheetShape } from "./stringfunctions";
 // import { orderKeys } from "./orderKeyAssigner";
 
 export const orderKeys: Record<OrderTypes, string[]> = {
@@ -92,26 +93,20 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
 
   // 1a) Rush orders for print take highest priority
   if (orderType === "print") {
-    if (order.orderType === 2) {
-      const specialKey = keys.find((k) => k.startsWith("special"));
-      return specialKey || null;
-    }
-    const suffix = order.quantity && order.quantity.includes("-") ? "tiles" : "regular";
+    const isSheet = isSheetShape(order.shape);
+    const isMetallic = order.ink?.toLowerCase() === "metallic";
 
-    // console.log("Rush", order.rush);
-    if (order.rush === true && order.material !== "roll") {
-      // console.log("Rush detected");
+    // Rush sheets always belong in the main rush section.
+    if (isSheet && order.rush === true && order.material?.toLowerCase() !== "roll") {
       const rushKey = keys.find((k) => k.startsWith("rush"));
       if (rushKey) return rushKey;
     }
 
-    const isMetallic = order.ink?.toLowerCase() === "metallic";
+    const suffix = order.quantity && order.quantity.includes("-") ? "tiles" : "regular";
 
-    if (order.shape === "sheets" && suffix === "tiles") {
-      if (order.rush === true) {
-        const rushSheetsKey = keys.find((k) => k === `sheets-rush`);
-        if (rushSheetsKey) return rushSheetsKey;
-      }
+    // Every non-rush sheet belongs in Sheets, regardless of quantity format,
+    // material, dimensions appended to shape, promo, or special order type.
+    if (isSheet) {
       if (isMetallic && order.material !== "roll") {
         const metallicSheetsKey = keys.find((k) => k === "sheets-metallic-ink");
         if (metallicSheetsKey) return metallicSheetsKey;
@@ -122,6 +117,18 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
       if (sheetsKey) return sheetsKey;
       const noLaminationKey = keys.find((k) => k.startsWith("sheets-no-lamination"));
       if (noLaminationKey) return noLaminationKey;
+    }
+
+    if (order.orderType === 2) {
+      const specialKey = keys.find((k) => k.startsWith("special"));
+      return specialKey || null;
+    }
+
+    // console.log("Rush", order.rush);
+    if (order.rush === true && order.material !== "roll") {
+      // console.log("Rush detected");
+      const rushKey = keys.find((k) => k.startsWith("rush"));
+      if (rushKey) return rushKey;
     }
 
     if (isMetallic && order.material !== "roll") {

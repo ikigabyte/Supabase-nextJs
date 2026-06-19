@@ -13,6 +13,11 @@ export function formatDisplayShape(shape: string | null | undefined) {
   return baseShape ? capitalizeFirstLetter(baseShape) : "-";
 }
 
+export function isSheetShape(shape: string | null | undefined) {
+  if (typeof shape !== "string") return false;
+  return shape.split("-")[0]?.trim().toLowerCase() === "sheets";
+}
+
 function extractFirstNumber(value: string | undefined) {
   const match = value?.match(/\d+(?:\.\d+)?/);
   return match ? match[0] : null;

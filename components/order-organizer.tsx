@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { RefreshCcw, Clock } from "lucide-react";
 import { Info } from "lucide-react";
+import { isSheetShape } from "@/utils/stringfunctions";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 // import { Description } from "@radix-ui/react-toast";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
@@ -250,19 +251,20 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
         count = orders.filter(
           (o) =>
             o.production_status === orderType &&
-            o.quantity.toLowerCase().includes("tiles") &&
             o.rush !== true &&
-            o.shape?.toLowerCase() === "sheets"
+            isSheetShape(o.shape)
         ).length;
       } else if (lowerCat === "special") {
-        count = orders.filter((o) => o.production_status === orderType && o.orderType === 2).length;
+        count = orders.filter(
+          (o) => o.production_status === orderType && o.orderType === 2 && !isSheetShape(o.shape)
+        ).length;
       } else if (lowerCat === "regular") {
         count = orders.filter(
           (o) =>
             o.production_status === orderType &&
             o.rush !== true &&
             o.material?.toLowerCase() !== "roll" &&
-            o.shape?.toLowerCase() !== "sheets"
+            !isSheetShape(o.shape)
         ).length;
 
       } else if (lowerCat === "roll") {
@@ -278,7 +280,7 @@ function getCategoryCounts(orders: Order[], categories: string[], orderType: Ord
             o.production_status === orderType &&
             o.rush !== true &&
             o.material?.toLowerCase() === lowerCat &&
-            o.shape?.toLowerCase() !== "sheets"
+            !isSheetShape(o.shape)
         ).length;
       }
     } else {
