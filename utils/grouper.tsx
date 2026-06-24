@@ -66,6 +66,14 @@ function dueMs(v?: string | null): number {
   return Number.isFinite(ms) ? ms : Number.POSITIVE_INFINITY;
 }
 
+function shippingMethodOrder(method?: string | null): number {
+  const m = (method ?? "").toLowerCase();
+  if (m === "express") return 0;
+  if (m === "rush_shipping") return 1;
+  if (m === "standard") return 2;
+  return 3;
+}
+
 export function groupOrdersByOrderType(orderType: OrderTypes, orders: Order[]) {
   const filtered = orders.filter((o) => o.production_status === orderType);
 
@@ -89,24 +97,29 @@ export function groupOrdersByOrderType(orderType: OrderTypes, orders: Order[]) {
     const db = dueMs(b.due_date);
     if (da !== db) return da - db;
 
-    // B) ticket inserted asc (later inserted goes to bottom)
+    // B) shipping method priority: express, rush_shipping, standard, then unknown
+    const sa = shippingMethodOrder(a.shipping_method);
+    const sb = shippingMethodOrder(b.shipping_method);
+    if (sa !== sb) return sa - sb;
+
+    // C) ticket inserted asc (later inserted goes to bottom)
     const ta = ticketInserted.get(a.order_id) ?? Number.POSITIVE_INFINITY;
     const tb = ticketInserted.get(b.order_id) ?? Number.POSITIVE_INFINITY;
     if (ta !== tb) return ta - tb;
 
-    // C) keep tickets grouped without using numeric order_id ordering
+    // D) keep tickets grouped without using numeric order_id ordering
     if (a.order_id !== b.order_id) {
       if (!ticketSeq.has(a.order_id)) ticketSeq.set(a.order_id, seq++);
       if (!ticketSeq.has(b.order_id)) ticketSeq.set(b.order_id, seq++);
       return (ticketSeq.get(a.order_id) ?? 0) - (ticketSeq.get(b.order_id) ?? 0);
     }
 
-    // D) within ticket: dash number
+    // E) within ticket: dash number
     const ad = extractDashNumber(a.name_id);
     const bd = extractDashNumber(b.name_id);
     if (ad !== bd) return ad - bd;
 
-    // E) within ticket tie-break: row inserted_date asc
+    // F) within ticket tie-break: row inserted_date asc
     const ia = parsePgTimestamptzToMs(a.inserted_date);
     const ib = parsePgTimestamptzToMs(b.inserted_date);
     if (Number.isFinite(ia) && Number.isFinite(ib) && ia !== ib) return ia - ib;
