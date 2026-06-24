@@ -39,7 +39,6 @@ import { ViewersDropdown } from "./viewers";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
-import { RefreshCcw, Clock } from "lucide-react";
 import { Info } from "lucide-react";
 import { isSheetShape } from "@/utils/stringfunctions";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
@@ -117,6 +116,7 @@ const metallicInkHeaderColor = "text-purple-400";
 
 const REALTIME_IDLE_MS = 2 * 60 * 1000; // this is 2 minutes
 const orderZeroCheckTime = 30 * 60 * 1000; // 30 minutes
+const REALTIME_DISCONNECTED_WARNING = "⚠️ Realtime disconnected. Please refresh the page";
 // const orderZeroCheckTime = 10 * 1000; // 30 seconds
 
 // function extractDashNumber(name: string): number {
@@ -1228,7 +1228,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   function markRealtimeDown(reason: string) {
     console.warn("Realtime down:", reason);
-    setDisplayWarning("⚠️ Realtime disconnected. Please refresh the page");
+    setDisplayWarning(REALTIME_DISCONNECTED_WARNING);
   }
 
   useEffect(() => {
@@ -2501,6 +2501,9 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
   const allKeys = orderKeys[orderType] || [];
   const textColor = getTextColor(selectedCategory);
   const activeDisplayWarning = orderZeroBannerMessage || displayWarning;
+  const isRealtimeDisconnected = displayWarning === REALTIME_DISCONNECTED_WARNING || socketState === "ERROR";
+  const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : "#76C043";
+  const realtimeStatusText = isRealtimeDisconnected ? "DISABLED" : "ACTIVE";
   // console.log(dragSelections);
   return (
     <>
@@ -2606,9 +2609,15 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
             HOLD SHIFT TO MULTI SELECT ROWS
           </Button>
         </div> */}
-        <div className="flex items-center gap-2 mb-5">
-          <Clock className="w-4 h-4" />
-          <p className="text-xs">Last Updated Order @ {lastUpdatedOrderTime}</p>
+        <div className="mb-5 flex items-center gap-2">
+          <span className="relative h-4 w-4">
+            <span className="absolute inset-0 rounded-full" style={{ backgroundColor: realtimeIndicatorColor }} />
+            <span
+              className="active-pulse-ring absolute inset-0 rounded-full border-2"
+              style={{ borderColor: realtimeIndicatorColor }}
+            />
+          </span>
+          <span className="text-sm font-medium text-zinc-700">REALTIME STATUS: {realtimeStatusText}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           {selectedCategory.toLowerCase() === "special" && (
@@ -2663,6 +2672,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
                         userColors={userRows}
                         orderViewerNamesByNameId={orderViewerNamesByNameId}
                         isShiftDown={isShiftDown}
+                        disableCheckboxes={isRealtimeDisconnected}
                       />
                     </Table>
                   </>
@@ -2731,6 +2741,26 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
         />
       )}
       <Toaster theme={"dark"} richColors={true} />
+      <style jsx>{`
+        .active-pulse-ring {
+          animation: activePulse 3s ease-out infinite;
+        }
+
+        @keyframes activePulse {
+          0% {
+            transform: scale(1);
+            opacity: 0.8;
+          }
+          30% {
+            transform: scale(2);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </>
   );
 }

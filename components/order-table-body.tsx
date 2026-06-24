@@ -385,6 +385,7 @@ export function OrderTableBody({
   userColors,
   orderViewerNamesByNameId = new Map<string, string[]>(),
   isShiftDown,
+  disableCheckboxes = false,
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -407,6 +408,7 @@ export function OrderTableBody({
   userColors: Map<string, { color: string; position: string | null; initials?: string | null }>;
   orderViewerNamesByNameId?: Map<string, string[]>;
   isShiftDown: boolean;
+  disableCheckboxes?: boolean;
 }) {
   const showIhdDateColumn =
     productionStatus === "cut" || productionStatus === "prepack" || productionStatus === "pack";
@@ -814,11 +816,12 @@ export function OrderTableBody({
               <TableCell>
                 <Checkbox
                   checked={isChecked}
-                  disabled={isChecked}
+                  disabled={isChecked || disableCheckboxes}
                   onClick={(e) => {
                     e.stopPropagation();
                   }}
                   onCheckedChange={(checked) => {
+                    if (disableCheckboxes) return;
                     if (checked) {
                       setCheckedRows((prev) => {
                         const next = new Set(prev);

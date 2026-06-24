@@ -7,6 +7,7 @@ export const getButtonCategories = (OrderType: OrderTypes) => {
         "rush",
         "white",
         "sheets",
+        "special",
         "holographic",
         "clear",
         "glitter",
@@ -17,7 +18,6 @@ export const getButtonCategories = (OrderType: OrderTypes) => {
         "arlon",
         "floor",
         "roll",
-        "special",
       ];
     case "cut":
       return ["Regular", "Roll"];
