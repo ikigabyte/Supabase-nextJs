@@ -116,7 +116,10 @@ const metallicInkHeaderColor = "text-purple-400";
 
 const REALTIME_IDLE_MS = 2 * 60 * 1000; // this is 2 minutes
 const orderZeroCheckTime = 30 * 60 * 1000; // 30 minutes
-const REALTIME_DISCONNECTED_WARNING = "⚠️ Realtime disconnected. Please refresh the page";
+const REALTIME_DISCONNECTED_WARNING = "Realtime appears to be disconnected, make sure you refresh the page";
+const REALTIME_DISCONNECTED_TOAST_ID = "realtime-disconnected-checkbox-warning";
+const MOVE_ORDER_DELAY_MS = 3000;
+
 // const orderZeroCheckTime = 10 * 1000; // 30 seconds
 
 // function extractDashNumber(name: string): number {
@@ -2086,29 +2089,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     }
   }, [searchParams, designatedCategories, defaultPage, grouped, orderType, selectedCategory]);
 
-  const handleCheckboxClick = useCallback(async (order: Order) => {
-    setCurrentRowClicked(null);
-    setIsRowClicked(false);
-    dragSelections.current.clear();
-    pendingDragSelections.current.clear(); // this clears out as well
-    ignoreUpdateIds.current.add(order.name_id);
-    pendingRemovalIds.current.add(order.name_id);
-    setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
-    updateOrderStatus(order, false);
-    toast.success("Order updated", {
-      description: `Order ${convertToSpaces(order.name_id)} has been moved to ${handleNewProductionStatus(
-        order.production_status,
-        false
-      )}`,
-      action: {
-        label: "Undo",
-        onClick: () => {
-          revertStatus(order);
-        },
-      },
-    });
-  }, []);
-
   const handleNewOrderSubmit = useCallback(
     async (form: Record<string, any>) => {
       // Accepts either flat fields or an 'entries' array
@@ -2181,23 +2161,88 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     [orderType]
   );
   // console.log(selectedCategory);
-  const revertStatus = useCallback(async (order: Order) => {
-    console.log("Reverting status for order", order.name_id);
-    // Optimistically update local state
-    // setOrders((prev) => prev.map((o) => (o.name_id === order.name_id ? { ...o, production_status: orderType } : o)));
-    // Persist change
+  const revertStatus = useCallback(
+    async (order: Order, currentStatus?: string | null) => {
+      console.log("Reverting status for order", order.name_id);
+      const statusToUndoFrom = currentStatus ?? handleNewProductionStatus(order.production_status, false);
 
-    if (ignoreUpdateIds.current.has(order.name_id)) {
-      console.log("Deleting the order here from the ignoreUpdateIds section", order.name_id);
-      ignoreUpdateIds.current.delete(order.name_id);
-    }
-    if (pendingRemovalIds.current.has(order.name_id)) {
-      console.log("Deleting the order here from the pendingRemovalIds section", order.name_id);
-      pendingRemovalIds.current.delete(order.name_id);
-    }
+      if (!statusToUndoFrom) {
+        toast.error("Could not undo order move.", {
+          description: `No current status found for ${convertToSpaces(order.name_id)}.`,
+        });
+        return;
+      }
 
-    await updateOrderStatus(order, false, orderType);
-  }, []);
+      if (ignoreUpdateIds.current.has(order.name_id)) {
+        console.log("Deleting the order here from the ignoreUpdateIds section", order.name_id);
+        ignoreUpdateIds.current.delete(order.name_id);
+      }
+      if (pendingRemovalIds.current.has(order.name_id)) {
+        console.log("Deleting the order here from the pendingRemovalIds section", order.name_id);
+        pendingRemovalIds.current.delete(order.name_id);
+      }
+
+      const orderAtCurrentStatus = { ...order, production_status: statusToUndoFrom };
+      try {
+        await updateOrderStatus(orderAtCurrentStatus, false, orderType);
+      } catch (error) {
+        console.error("Failed to undo order move", error);
+        toast.error("Order failed to update", {
+          description: "Try refreshing the page before moving it again.",
+        });
+        return;
+      }
+
+      const restoredOrder = { ...order, production_status: orderType, asignee: null };
+      setOrders((prev) => {
+        const next = prev.some((existing) => existing.name_id === restoredOrder.name_id)
+          ? prev.map((existing) => (existing.name_id === restoredOrder.name_id ? restoredOrder : existing))
+          : [restoredOrder, ...prev];
+        return next.slice();
+      });
+    },
+    [orderType]
+  );
+
+  const handleCheckboxClick = useCallback(
+	    async (order: Order) => {
+	      const movedStatus = handleNewProductionStatus(order.production_status, false);
+
+	      setCurrentRowClicked(null);
+	      setIsRowClicked(false);
+	      dragSelections.current.clear();
+	      pendingDragSelections.current.clear(); // this clears out as well
+	      await new Promise((resolve) => setTimeout(resolve, MOVE_ORDER_DELAY_MS));
+	      ignoreUpdateIds.current.add(order.name_id);
+	      pendingRemovalIds.current.add(order.name_id);
+	      setOrders((prev) => prev.filter((o) => o.name_id !== order.name_id));
+      try {
+        await updateOrderStatus(order, false);
+      } catch (error) {
+        console.error("Failed to move order", error);
+        ignoreUpdateIds.current.delete(order.name_id);
+        pendingRemovalIds.current.delete(order.name_id);
+        setOrders((prev) => {
+          if (prev.some((existing) => existing.name_id === order.name_id)) return prev;
+          return [order, ...prev].slice();
+        });
+        toast.error("Order failed to move", {
+          description: `Order ${convertToSpaces(order.name_id)} could not be updated. Try refreshing the page.`,
+        });
+        return;
+      }
+      toast.success("Order updated", {
+        description: `Order ${convertToSpaces(order.name_id)} has been moved to ${movedStatus}`,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            revertStatus(order, movedStatus);
+          },
+        },
+      });
+    },
+    [revertStatus]
+  );
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
 const handleNoteChange = useCallback(
@@ -2264,16 +2309,26 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
       //   return;
       // }
       if (option == "revert") {
-        await updateOrderStatus(currentRowClicked!, true);
+        const orderToRevert = currentRowClicked!;
+        const revertedStatus = handleNewProductionStatus(orderToRevert.production_status, true);
+        try {
+          await updateOrderStatus(orderToRevert, true);
+        } catch (error) {
+          console.error("Failed to revert order", error);
+          toast.error("Order failed to update", {
+            description: "Try refreshing the page before moving it again.",
+          });
+          return;
+        }
         toast(
           "Order reverted",
           {
-            description: `Order ${currentRowClicked!.name_id} has been moved back to ${orderType}`,
+            description: `Order ${orderToRevert.name_id} has been moved back to ${revertedStatus}`,
             action: {
               label: "Undo",
               onClick: (e) => {
                 // e.stopPropagation();
-                revertStatus(currentRowClicked!);
+                revertStatus(orderToRevert, revertedStatus);
               },
             },
           }
@@ -2503,7 +2558,14 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
   const activeDisplayWarning = orderZeroBannerMessage || displayWarning;
   const isRealtimeDisconnected = displayWarning === REALTIME_DISCONNECTED_WARNING || socketState === "ERROR";
   const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : "#76C043";
-  const realtimeStatusText = isRealtimeDisconnected ? "DISABLED" : "ACTIVE";
+  const realtimeStatusText = isRealtimeDisconnected ? "DISCONNECTED" : "ACTIVE";
+  const warnIfRealtimeDisconnected = useCallback(() => {
+    if (!isRealtimeDisconnected) return;
+
+    toast.warning(REALTIME_DISCONNECTED_WARNING, {
+      id: REALTIME_DISCONNECTED_TOAST_ID,
+    });
+  }, [isRealtimeDisconnected]);
   // console.log(dragSelections);
   return (
     <>
@@ -2672,7 +2734,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
                         userColors={userRows}
                         orderViewerNamesByNameId={orderViewerNamesByNameId}
                         isShiftDown={isShiftDown}
-                        disableCheckboxes={isRealtimeDisconnected}
+                        onRealtimeDisconnectedCheckboxClick={warnIfRealtimeDisconnected}
                       />
                     </Table>
                   </>

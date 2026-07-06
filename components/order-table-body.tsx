@@ -385,7 +385,7 @@ export function OrderTableBody({
   userColors,
   orderViewerNamesByNameId = new Map<string, string[]>(),
   isShiftDown,
-  disableCheckboxes = false,
+  onRealtimeDisconnectedCheckboxClick,
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -408,7 +408,7 @@ export function OrderTableBody({
   userColors: Map<string, { color: string; position: string | null; initials?: string | null }>;
   orderViewerNamesByNameId?: Map<string, string[]>;
   isShiftDown: boolean;
-  disableCheckboxes?: boolean;
+  onRealtimeDisconnectedCheckboxClick?: () => void;
 }) {
   const showIhdDateColumn =
     productionStatus === "cut" || productionStatus === "prepack" || productionStatus === "pack";
@@ -816,25 +816,25 @@ export function OrderTableBody({
               <TableCell>
                 <Checkbox
                   checked={isChecked}
-                  disabled={isChecked || disableCheckboxes}
+                  disabled={isChecked}
                   onClick={(e) => {
                     e.stopPropagation();
                   }}
-                  onCheckedChange={(checked) => {
-                    if (disableCheckboxes) return;
-                    if (checked) {
-                      setCheckedRows((prev) => {
-                        const next = new Set(prev);
-                        next.add(row.name_id);
-                        return next;
-                      });
-                      setTimeout(() => {
-                        onOrderClick(row);
-                        setCheckedRows((prev) => {
-                          const next = new Set(prev);
-                          next.delete(row.name_id);
-                          return next;
-                        });
+	                  onCheckedChange={(checked) => {
+	                    if (checked) {
+	                      onRealtimeDisconnectedCheckboxClick?.();
+	                      setCheckedRows((prev) => {
+	                        const next = new Set(prev);
+	                        next.add(row.name_id);
+	                        return next;
+	                      });
+	                      onOrderClick(row);
+	                      setTimeout(() => {
+	                        setCheckedRows((prev) => {
+	                          const next = new Set(prev);
+	                          next.delete(row.name_id);
+	                          return next;
+	                        });
                       }, 3000); // 3 seconds
                     }
                   }}

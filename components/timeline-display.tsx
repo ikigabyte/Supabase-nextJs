@@ -37,6 +37,7 @@ const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
 const NOTE_COOLDOWN_MS = 10 * 1000;
 const ZENDESK_TICKET_BASE_URL = "https://stickerbeat.zendesk.com/agent/tickets";
 const REALTIME_DISCONNECTED_WARNING = "⚠️ Realtime disconnected. Please refresh the page";
+type RealtimeStatus = "UNKNOWN" | "OPEN" | "ERROR";
 
 import { forceUpdateTimeline, updateOrderNotes, sendOrderShipped, updateTrackingOrderSpecialColor } from "@/utils/actions";
 // import { forceRefreshTimeline } from "@/utils/google-functions";
@@ -654,6 +655,8 @@ export function TimelineOrders() {
   const [cooldownOpen, setCooldownOpen] = useState(false);
   const [cooldownMessage, setCooldownMessage] = useState("");
   const [displayWarning, setDisplayWarning] = useState("");
+  const [ordersRealtimeStatus, setOrdersRealtimeStatus] = useState<RealtimeStatus>("UNKNOWN");
+  const [trackingRealtimeStatus, setTrackingRealtimeStatus] = useState<RealtimeStatus>("UNKNOWN");
 
   const parseLastRefreshMs = (value?: string | null): number | null => {
     if (!value) return null;
@@ -704,14 +707,14 @@ export function TimelineOrders() {
     setPendingSelectedDate(undefined);
   };
 
-  const markRealtimeDown = (reason: string) => {
-    console.warn("Timeline realtime down:", reason);
-    setDisplayWarning(REALTIME_DISCONNECTED_WARNING);
-  };
+  useEffect(() => {
+    if (ordersRealtimeStatus === "ERROR" || trackingRealtimeStatus === "ERROR") {
+      setDisplayWarning(REALTIME_DISCONNECTED_WARNING);
+      return;
+    }
 
-  const clearRealtimeDownWarning = () => {
     setDisplayWarning((current) => (current === REALTIME_DISCONNECTED_WARNING ? "" : current));
-  };
+  }, [ordersRealtimeStatus, trackingRealtimeStatus]);
 
   const handleStatusColorSelect = async (color: string | null) => {
     const selectedOrderIds = Array.from(selectedTimelineOrderIds);
@@ -744,10 +747,13 @@ export function TimelineOrders() {
         toast.error(result.message);
         setStatusColorOverridesByOrderId(previousOverrides);
         setTrackingMetadataByOrderId(previousTrackingMetadata);
+        return;
       }
+
+      toast.success("Timeline color updated");
     } catch (error) {
-      console.error("Failed to assign timeline status color:", error);
-      toast.error("Could not update status color.");
+      console.log("Failed to assign timeline status color:", error);
+      toast.error("Could not update status color due to an error.");
       setStatusColorOverridesByOrderId(previousOverrides);
       setTrackingMetadataByOrderId(previousTrackingMetadata);
     }
@@ -972,6 +978,27 @@ export function TimelineOrders() {
   }, [combinedOrders]);
 
   useEffect(() => {
+    setStatusColorOverridesByOrderId((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      combinedOrders.forEach((row) => {
+        const orderId = Number(row.order_id);
+        if (!Number.isFinite(orderId)) return;
+        if (!Object.prototype.hasOwnProperty.call(next, orderId)) return;
+
+        const savedColor = typeof row.special_color === "string" ? row.special_color : null;
+        if (savedColor === next[orderId]) {
+          delete next[orderId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [combinedOrders]);
+
+  useEffect(() => {
     const visibleOrderIds = new Set(
       combinedOrders.map((order) => Number(order.order_id)).filter((id) => Number.isFinite(id)),
     );
@@ -1051,12 +1078,12 @@ export function TimelineOrders() {
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          clearRealtimeDownWarning();
+          setOrdersRealtimeStatus("OPEN");
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error("Timeline orders realtime subscription failed:", status);
-          markRealtimeDown(status);
+          setOrdersRealtimeStatus("ERROR");
         }
       });
 
@@ -1294,12 +1321,12 @@ export function TimelineOrders() {
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          clearRealtimeDownWarning();
+          setTrackingRealtimeStatus("OPEN");
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error("Tracking timeline realtime subscription failed:", status);
-          markRealtimeDown(status);
+          setTrackingRealtimeStatus("ERROR");
         }
       });
 
@@ -1646,7 +1673,7 @@ export function TimelineOrders() {
 
   // console.log(orders);
   // How do we get the last updated thing, maybe we keep just an order
-  const isRealtimeDisconnected = displayWarning === REALTIME_DISCONNECTED_WARNING;
+  const isRealtimeDisconnected = ordersRealtimeStatus === "ERROR" || trackingRealtimeStatus === "ERROR";
   const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : "#76C043";
 
   return (

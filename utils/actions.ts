@@ -237,7 +237,7 @@ export async function removeOrderAll(orderId: number) {
   
   const { error } = await supabase.from("orders").delete().eq("order_id", orderId);
   if (error) {
-    console.error("Error deleting orders", error);
+    console.log("Error deleting orders", error);
     throw new Error("Error deleting orders");
   }
 
@@ -299,26 +299,69 @@ export async function updateTrackingOrderSpecialColor(orderIds: number[], colorV
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("User is not logged in");
-
+  console.log("Updating tracking order special color for orderIds:", orderIds, "to color:", colorValue);
   const role = await retrieveUserRole(user);
   if (role !== "admin" && role !== "manager") {
     return { ok: false, message: "you need permissions to do this" };
   }
+  // console.log("User role verified:", role);
 
-  const uniqueOrderIds = Array.from(new Set(orderIds.filter((orderId) => Number.isFinite(orderId))));
-  if (uniqueOrderIds.length === 0) throw new Error("No valid orderIds provided");
-
-  const { error } = await supabase
+  const uniqueOrderIds = Array.from(
+    new Set(
+      orderIds
+        .map((orderId) => Number(orderId))
+        .filter((orderId) => Number.isFinite(orderId))
+    )
+  );
+  if (uniqueOrderIds.length === 0) {
+    console.warn("No valid orderIds provided after filtering for finite numbers");
+    throw new Error("No valid orderIds provided");
+  }
+  const { data: beforeRows, error: beforeError } = await supabase
     .from("tracking_orders")
-    .update({ special_color: colorValue ?? null })
+    .select("order_id, special_color")
     .in("order_id", uniqueOrderIds);
 
-  if (error) {
-    console.error("Error updating tracking order special color", error);
-    throw new Error("Error updating tracking order special color");
+  if (beforeError) {
+    console.log("Error fetching tracking order colors before update", beforeError);
+    throw new Error("Error fetching tracking order colors before update");
   }
 
-  return { ok: true };
+  // console.log("Tracking order colors before update:", {
+  //   requestedOrderIds: uniqueOrderIds,
+  //   rows: beforeRows,
+  // });
+
+  const { data: updateRows, error } = await supabase
+    .from("tracking_orders")
+    .update({ special_color: colorValue ?? null })
+    .in("order_id", uniqueOrderIds)
+    .select("order_id, special_color");
+
+  if (error) {
+    console.log("Error updating tracking order special color", error);
+    throw new Error("Error updating tracking order special color");
+  }
+  // console.log("Updated tracking order special color for orderIds:", uniqueOrderIds, "to color:", colorValue, {
+  //   updateRows,
+  // });
+
+  const { data: afterRows, error: afterError } = await supabase
+    .from("tracking_orders")
+    .select("order_id, special_color")
+    .in("order_id", uniqueOrderIds);
+
+  if (afterError) {
+    console.log("Error fetching tracking order colors after update", afterError);
+    throw new Error("Error fetching tracking order colors after update");
+  }
+
+  // console.log("Tracking order colors after update:", {
+  //   requestedOrderIds: uniqueOrderIds,
+  //   rows: afterRows,
+  // });
+
+  return { ok: true, updatedOrderIds: uniqueOrderIds, beforeRows, updateRows, afterRows };
 }
 
 
@@ -519,24 +562,24 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
   if (newStatus === order.production_status) { // anti same status spam
     console.warn("New status is the same as current status, no update needed");
-    return;
+    return { ok: true, skipped: true, order };
   } 
 
-  const addHistoryPromise = addHistoryForUser(order.name_id, newStatus, order.production_status || "");
   // console.log(newStatus);
   if (newStatus === "completed") {
     try {
       const { data, error } = await supabase.rpc("move_order", { p_id: order.name_id });
       if (error) {
         console.error("move_order RPC failed:", { code: error.code, message: error.message, details: error.details });
-        return;
+        throw new Error("Order failed to update");
       }
       console.log("move_order RPC ok:", data);
     } catch (err) {
       console.error("Error moving order", err);
-      throw new Error("Error moving order");
+      throw new Error("Order failed to update");
     }
-    return;
+    await addHistoryForUser(order.name_id, newStatus, order.production_status || "");
+    return { ok: true, status: newStatus };
   }
 
   const { data: existingRecord, error: historyError } = await supabase
@@ -553,19 +596,47 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   const userEmail = user.email || user.id;
   history.push(`${userEmail} moves to "${newStatus}" on ${timestamp}`);
 
-  const updateOrderPromise = supabase
+  const { data: updatedRows, error: updateError } = await supabase
     .from("orders")
     .update({ ...order, production_status: newStatus, history, asignee: null })
-    .match({ name_id: order.name_id });
+    .match({ name_id: order.name_id })
+    .select("name_id, production_status");
 
-  // Run both in parallel
-  await Promise.all([addHistoryPromise, updateOrderPromise]);
+  if (updateError) {
+    console.error("Error updating order status", {
+      nameId: order.name_id,
+      newStatus,
+      error: updateError,
+    });
+    throw new Error("Order failed to update");
+  }
+
+  const updatedOrder = updatedRows?.[0];
+  if (!updatedOrder) {
+    console.error("Order status update returned no rows", {
+      nameId: order.name_id,
+      newStatus,
+    });
+    throw new Error("Order failed to update");
+  }
+
+  if (updatedOrder.production_status !== newStatus) {
+    console.error("Order status update verification failed", {
+      nameId: order.name_id,
+      expectedStatus: newStatus,
+      actualStatus: updatedOrder.production_status,
+    });
+    throw new Error("Order failed to update");
+  }
+
+  await addHistoryForUser(order.name_id, newStatus, order.production_status || "");
   // const readyForZendeskUpdate = await getSiblingOrders(order.order_id, newStatus);
   // // Send webhook async (non-blocking)
   // if (readyForZendeskUpdate && !ignoreZendesk) {
   //   console.log("Triggering Zendesk webhook…");
   //   void updateZendeskStatus(order.order_id, newStatus); // don't block
   // }
+  return { ok: true, status: newStatus, order: updatedOrder };
 }
 
 export async function sendOrderShipped(orderId: number) {
