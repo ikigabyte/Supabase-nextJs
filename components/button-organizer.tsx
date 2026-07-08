@@ -38,6 +38,8 @@ export const getBorderColor = (category: string) => {
       return "border-green-300";
     case "special":
       return "border-yellow-500";
+    case "unassigned":
+      return "border-red-950";
     default:
       return "border-black";
   }
@@ -159,13 +161,22 @@ export function ButtonOrganizer({
           <div className="flex flex-nowrap items-center overflow-x-auto">
             {categories.map((category) => {
               const isActive = activeCategory === category || categoryViewing === category;
-              const borderColor = getBorderColor(category.toLowerCase());
+              const lowerCategory = category.toLowerCase();
+              const borderColor = getBorderColor(lowerCategory);
+              const backgroundColor =
+                lowerCategory === "unassigned"
+                  ? isActive
+                    ? "bg-red-800"
+                    : "bg-red-600"
+                  : isActive
+                  ? "bg-gray-600"
+                  : "bg-gray-500";
               return (
                 <Button
                   key={category}
                   className={`
                   relative mx-1 px-3 py-2
-                  ${isActive ? `bg-gray-600 border-2 ${borderColor}` : "border-2 bg-gray-500"}
+                  ${backgroundColor} border-2 ${borderColor}
                 `}
                   onClick={() => handleClick(category)}
                 >

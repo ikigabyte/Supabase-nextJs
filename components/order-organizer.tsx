@@ -1958,10 +1958,18 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const grouped = useMemo(() => groupOrdersByOrderType(orderType, orders), [orderType, orders]);
   const designatedCategories = useMemo(() => getButtonCategories(orderType)!, [orderType]);
+  const hasUnassignedOrders = (grouped.unassigned?.length ?? 0) > 0;
+  const displayCategories = useMemo(
+    () => (hasUnassignedOrders ? [...designatedCategories, "unassigned"] : designatedCategories),
+    [designatedCategories, hasUnassignedOrders]
+  );
   // const designatedColors = useMemo(() => getButtonColors(orderType)!, [orderType]);
   const categoryCounts = useMemo(
-    () => getCategoryCounts(orders, designatedCategories, orderType),
-    [orders, designatedCategories]
+    () => ({
+      ...getCategoryCounts(orders, displayCategories, orderType),
+      ...(hasUnassignedOrders ? { unassigned: grouped.unassigned?.length ?? 0 } : {}),
+    }),
+    [orders, displayCategories, orderType, hasUnassignedOrders, grouped]
   );
   // Change "roll" to "roll-label" in designatedCategories
 
@@ -2012,8 +2020,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // console.log("this is the visible groups", visibleGroups);
 
   const convertKeyToTitle = (key: string) => {
-    return key
-      .split("-") // Split the key by "-"
+    const parts = key.split("-");
+    const titleParts =
+      parts[0] === "roll" && parts.length >= 4
+        ? [parts[1], parts[0], ...parts.slice(2)]
+        : parts;
+
+    return titleParts
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
       .join(" "); // Join the words with a space
   };
@@ -2063,7 +2076,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     if (!urlCategoryRaw) return;
 
     // Make sure the URL category is one of the designatedCategories
-    const urlCategoryMatch = designatedCategories.find((c) => c.toLowerCase() === urlCategoryRaw.toLowerCase());
+    const urlCategoryMatch = displayCategories.find((c) => c.toLowerCase() === urlCategoryRaw.toLowerCase());
     // console.log("URL category match:", urlCategoryMatch);
     if (!urlCategoryMatch) {
       // If it's invalid, you could optionally reset URL here, but for now just bail
@@ -2087,7 +2100,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         return newVisibility;
       });
     }
-  }, [searchParams, designatedCategories, defaultPage, grouped, orderType, selectedCategory]);
+  }, [searchParams, displayCategories, defaultPage, grouped, orderType, selectedCategory]);
 
   const handleNewOrderSubmit = useCallback(
     async (form: Record<string, any>) => {
@@ -2553,7 +2566,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
     [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
   );
 
-  const allKeys = orderKeys[orderType] || [];
+  const allKeys = hasUnassignedOrders ? [...(orderKeys[orderType] || []), "unassigned"] : orderKeys[orderType] || [];
   const textColor = getTextColor(selectedCategory);
   const activeDisplayWarning = orderZeroBannerMessage || displayWarning;
   const isRealtimeDisconnected = displayWarning === REALTIME_DISCONNECTED_WARNING || socketState === "ERROR";
@@ -2735,6 +2748,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
                         orderViewerNamesByNameId={orderViewerNamesByNameId}
                         isShiftDown={isShiftDown}
                         onRealtimeDisconnectedCheckboxClick={warnIfRealtimeDisconnected}
+                        showSplitColumn={selectedCategory.toLowerCase() === "roll"}
                       />
                     </Table>
                   </>
@@ -2763,7 +2777,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
         )}
 
         <ButtonOrganizer
-          categories={designatedCategories}
+          categories={displayCategories}
           counts={categoryCounts}
           onCategoryClick={handleCategoryClick}
           categoryViewing={selectedCategory}

@@ -75,9 +75,11 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "floor-carpet-tiles",
     "floor-metallic-ink",
     "roll-gloss-tiles",
-    "roll-gloss-promo",
     "roll-matte-tiles",
-    "roll-matte-promo",
+    "roll-clear-matte-tiles",
+    "roll-clear-gloss-tiles",
+    "roll-chrome-gloss-tiles",
+    "roll-chrome-matte-tiles",
   ],
   cut: ["regular", "roll"],
   prepack: ["regular", "roll"],
@@ -88,7 +90,7 @@ export const orderKeys: Record<OrderTypes, string[]> = {
 
 export function assignKeyType(order: Order, orderType: OrderTypes): string | null {
   const keys = orderKeys[orderType];
-  if (!keys) return null;
+  if (!keys) return "unassigned";
   // 1) Promo takes priority
 
   // 1a) Rush orders for print take highest priority
@@ -121,7 +123,7 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
 
     if (order.orderType === 2) {
       const specialKey = keys.find((k) => k.startsWith("special"));
-      return specialKey || null;
+      return specialKey || "unassigned";
     }
 
     // console.log("Rush", order.rush);
@@ -153,12 +155,12 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
     // Convert for promo and order type here / also change the way they're coming in from the log
 
     const key = `${order.material}-${order.lamination}-${suffix}`;
-    return keys.find((k) => k === key) || null;
+    return keys.find((k) => k === key) || "unassigned";
   }
 
   // 3) For other order types (cut, ship, pack)
   const simpleKey = order.material === "roll" ? "roll" : "regular";
-  return keys.find((k) => k === simpleKey) || null;
+  return keys.find((k) => k === simpleKey) || "unassigned";
 }
 
 export function filterBySameKeyType(orders: Order[], referenceOrder: Order, orderType: OrderTypes): Order[] {

@@ -9,6 +9,8 @@ const widthByHeader: Record<string, string> = {
   quantity: "4%",
   lamination: "5%",
   material: "5%",
+  cores: "3%",
+  split: "5%",
   ink: "5%",
   "print method": "5%",
   "print_method": "5%",

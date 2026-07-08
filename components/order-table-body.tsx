@@ -116,6 +116,20 @@ function boldUntilDash(text: string) {
   );
 }
 
+const splitCoresValue = (cores: string | null) => {
+  const value = (cores ?? "").trim();
+  const dashIndex = value.indexOf("-");
+
+  if (dashIndex === -1) {
+    return { cores: value, split: "AUTO" };
+  }
+
+  return {
+    cores: value.slice(0, dashIndex).trim(),
+    split: value.slice(dashIndex + 1).trim() || "AUTO",
+  };
+};
+
 const ignoredSections: { [key: string]: string[] } = {
   white: ["print method"],
   holographic: ["print method"],
@@ -386,6 +400,7 @@ export function OrderTableBody({
   orderViewerNamesByNameId = new Map<string, string[]>(),
   isShiftDown,
   onRealtimeDisconnectedCheckboxClick,
+  showSplitColumn = false,
 }: {
   data: Array<Order>;
   productionStatus?: string; // Optional prop to filter by production status
@@ -409,6 +424,7 @@ export function OrderTableBody({
   orderViewerNamesByNameId?: Map<string, string[]>;
   isShiftDown: boolean;
   onRealtimeDisconnectedCheckboxClick?: () => void;
+  showSplitColumn?: boolean;
 }) {
   const showIhdDateColumn =
     productionStatus === "cut" || productionStatus === "prepack" || productionStatus === "pack";
@@ -563,6 +579,7 @@ export function OrderTableBody({
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
         const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus);
         const assignee = normalizeAssignee(row.asignee);
+        const { cores: coresDisplay, split: splitDisplay } = splitCoresValue(row.ink);
         // Try to find initials for the assignee from userColors map
         let assigneeInitials: string | null = null;
         if (assignee && assignee.toLowerCase() !== "n/a") {
@@ -726,7 +743,14 @@ export function OrderTableBody({
               >
                 {capitalizeFirstLetter(row.material) || "-"}
               </TableCell>
-              <TableCell className={getInkCellColor(row.ink)}>{capitalizeFirstLetter(row.ink)}</TableCell>
+              <TableCell className={getInkCellColor(showSplitColumn ? coresDisplay : row.ink)}>
+                {capitalizeFirstLetter(showSplitColumn ? coresDisplay : row.ink)}
+              </TableCell>
+              {showSplitColumn && (
+                <TableCell className={`text-[11px] truncate`}>
+                  {splitDisplay}
+                </TableCell>
+              )}
               <TableCell className={`text-[11px] truncate`}>
                 {isSectionIgnored(row.material, "print method") ? "-" : capitalizeFirstLetter(row.print_method) || ""}
               </TableCell>
