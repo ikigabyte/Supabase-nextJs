@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { getCorrectUserColor } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Eye } from "lucide-react";
+import { getMaterialBackgroundColor } from "@/utils/materialColorMap";
 
 // import {
 //   DropdownMenu,
@@ -238,10 +239,6 @@ const getInkCellColor = (ink: string | null | undefined): string => {
   if (normalized.includes("metallic")) return inkColors.metallic;
   if (normalized.includes("white")) return inkColors.white;
   return inkColors[normalized] ?? "";
-};
-
-const materialColors: { [key: string]: string } = {
-  "clear-roll": "bg-teal-100",
 };
 
 const convertDateToActualDay = (dateString: string | null) => {
@@ -735,11 +732,7 @@ export function OrderTableBody({
 
               <TableCell>{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
               <TableCell
-                className={`${
-                  row.material && materialColors[row.material.toLowerCase()]
-                    ? materialColors[row.material.toLowerCase()]
-                    : ""
-                }`}
+                className={isSpecialSection ? getMaterialBackgroundColor(row.material) : ""}
               >
                 {capitalizeFirstLetter(row.material) || "-"}
               </TableCell>

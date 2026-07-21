@@ -43,22 +43,19 @@ export function DialogSearch({
   }, [open]);
 
   const getCorrectPage = useCallback(
-    (productionStatus: string, material: string, orderQuery: string, isRush?: boolean) => {
-      const normalizedMaterial = material === "regular" || material === "roll" ? material : "regular";
+    (productionStatus: string, keyType: string, orderQuery: string) => {
+      const category = keyType.split("-")[0]?.toLowerCase() || "unassigned";
       switch (productionStatus) {
         case "print":
-          if (isRush) {
-            return `toprint?rush=${encodeURIComponent(orderQuery)}`;
-          }
-          return `toprint?${encodeURIComponent(material)}=${encodeURIComponent(orderQuery)}`;
+          return `toprint?${encodeURIComponent(category)}=${encodeURIComponent(orderQuery)}`;
         case "cut":
-          return `tocut?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
+          return `tocut?${encodeURIComponent(category)}=${encodeURIComponent(orderQuery)}`;
         case "pack":
-          return `topack?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
+          return `topack?${encodeURIComponent(category)}=${encodeURIComponent(orderQuery)}`;
         case "prepack":
-          return `toprepack?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
+          return `toprepack?${encodeURIComponent(category)}=${encodeURIComponent(orderQuery)}`;
         case "ship":
-          return `toship?${encodeURIComponent(normalizedMaterial)}=${encodeURIComponent(orderQuery)}`;
+          return `toship?${encodeURIComponent(category)}=${encodeURIComponent(orderQuery)}`;
         default:
           return `search?${orderQuery ? `order=${orderQuery}` : ""}`;
       }
@@ -108,9 +105,6 @@ export function DialogSearch({
         setOrders([]);
       } else {
         data.forEach((order: fakeOrder) => {
-          if (order.shape == "sheets") {
-            order.material = "sheets";
-          }
           order.keyType = assignKeyType(order, order.production_status as OrderTypes) ?? "";
         });
         setOrders(data ?? []);
@@ -186,9 +180,8 @@ export function DialogSearch({
                       router.push(
                         getCorrectPage(
                           order.production_status ?? "",
-                          order.material ?? "",
-                          order.name_id ?? "",
-                          order.rush ? true : false
+                          order.keyType ?? "unassigned",
+                          order.name_id ?? ""
                         )
                       );
                       // console.log("Navigating to order:", order.name_id);

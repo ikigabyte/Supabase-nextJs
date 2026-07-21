@@ -31,7 +31,7 @@ import {
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
 import { HoverInformation } from "./hover-area";
-import { orderKeys } from "@/utils/orderKeyAssigner";
+import { assignKeyType, orderKeys } from "@/utils/orderKeyAssigner";
 import { OrderTypes } from "@/utils/orderTypes";
 import { OptionsMenu } from "./context-menu";
 import { OrderViewer } from "./order-viewer";
@@ -40,7 +40,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Info } from "lucide-react";
-import { isSheetShape } from "@/utils/stringfunctions";
+import { getMaterialTextColor } from "@/utils/materialColorMap";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 // import { Description } from "@radix-ui/react-toast";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
@@ -141,45 +141,7 @@ const MOVE_ORDER_DELAY_MS = 3000;
 //   return aNum - bNum;
 // }
 
-export const getTextColor = (category: string) => {
-  switch (category) {
-    case "rush":
-      return "text-red-800";
-    case "white":
-      return "text-gray-800";
-    case "glitter":
-      return "text-yellow-400";
-    case "holographic":
-      return "text-green-500";
-    case "clear":
-      return "text-pink-300";
-    case "20ptmag":
-      return "text-green-800";
-    case "30ptmag":
-      return "text-blue-800";
-    case "sheets":
-      return "text-blue-600";
-    case "arlon":
-      return "text-teal-500";
-    case "floor":
-      return "text-yellow-800";
-    case "roll":
-      return "text-yellow-900";
-    case "cling":
-      return "text-red-300";
-    case "arlon":
-      return "text-teal-500";
-    case "reflective":
-      return "text-green-300";
-    case "floor":
-      return "text-brown-200";
-    case "special":
-      return "text-yellow-500";
-
-    default:
-      return "text-black";
-  }
-};
+export const getTextColor = getMaterialTextColor;
 
 function collectSelectedNameIds(
   dragSelections: React.MutableRefObject<Map<HTMLTableElement, DragSel>>,
@@ -242,63 +204,20 @@ const switchKeyCodeForColor = (keyCode: string | null): string => {
 };
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
+  const assignedCategoryCounts = orders.reduce<Record<string, number>>((counts, order) => {
+    if (order.production_status !== orderType) return counts;
+
+    const key = assignKeyType(order, orderType);
+    if (!key) return counts;
+
+    const category = key.split("-")[0].toLowerCase();
+    counts[category] = (counts[category] ?? 0) + 1;
+    return counts;
+  }, {});
+
   return categories.reduce((acc, category) => {
     const lowerCat = category.toLowerCase();
-    let count = 0;
-    if (orderType === "print") {
-      if (lowerCat === "rush") {
-        // Rush takes priority over everything else (including sheets)
-        count = orders.filter((o) => o.production_status === orderType && o.rush === true && o.material?.toLowerCase() !== "roll").length // Exclude rush rolls they don't go here
-      } else if (lowerCat === "sheets") {
-        // Exclude rush sheets so they don't double-count
-        count = orders.filter(
-          (o) =>
-            o.production_status === orderType &&
-            o.rush !== true &&
-            isSheetShape(o.shape)
-        ).length;
-      } else if (lowerCat === "special") {
-        count = orders.filter(
-          (o) => o.production_status === orderType && o.orderType === 2 && !isSheetShape(o.shape)
-        ).length;
-      } else if (lowerCat === "regular") {
-        count = orders.filter(
-          (o) =>
-            o.production_status === orderType &&
-            o.rush !== true &&
-            o.material?.toLowerCase() !== "roll" &&
-            !isSheetShape(o.shape)
-        ).length;
-
-      } else if (lowerCat === "roll") {
-        count = orders.filter(
-          (o) =>
-            o.production_status === orderType &&
-            o.material?.toLowerCase() === "roll"
-        ).length;
-      }
-       else {
-        count = orders.filter(
-          (o) =>
-            o.production_status === orderType &&
-            o.rush !== true &&
-            o.material?.toLowerCase() === lowerCat &&
-            !isSheetShape(o.shape)
-        ).length;
-      }
-    } else {
-      if (lowerCat === "rush") {
-        count = 0;
-      } else if (lowerCat === "regular") {
-        count = orders.filter((o) => o.production_status === orderType && o.material?.toLowerCase() !== "roll").length;
-      } else {
-        count = orders.filter(
-          (o) => o.production_status === orderType && o.material?.toLowerCase() === lowerCat
-        ).length;
-      }
-    }
-
-    acc[category] = count;
+    acc[category] = assignedCategoryCounts[lowerCat] ?? 0;
     return acc;
   }, {} as Record<string, number>);
 }
@@ -2748,6 +2667,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
                         orderViewerNamesByNameId={orderViewerNamesByNameId}
                         isShiftDown={isShiftDown}
                         onRealtimeDisconnectedCheckboxClick={warnIfRealtimeDisconnected}
+                        isSpecialSection={selectedCategory.toLowerCase() === "special"}
                         showSplitColumn={selectedCategory.toLowerCase() === "roll"}
                       />
                     </Table>
