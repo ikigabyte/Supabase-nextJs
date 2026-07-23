@@ -2,6 +2,7 @@ export const materialColors: Record<string, string> = {
   rush: "red-800",
   white: "gray-800",
   glitter: "yellow-400",
+  holo: "green-500",
   holographic: "green-500",
   clear: "pink-300",
   "20ptmag": "green-800",
