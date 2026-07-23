@@ -5,11 +5,16 @@ import { isSheetShape } from "./stringfunctions";
 
 export const orderKeys: Record<OrderTypes, string[]> = {
   print: [
-    "special-regular",
+    "special-doublesided",
+    "special-sequential",
+    "special-bda",
     "rush-regular",
     "sheets-gloss",
     "sheets-matte",
-    "sheets-no-lamination",
+    "sheets-holographic-gloss",
+    "sheets-holographic-matte",
+    "sheets-glitter-gloss",
+    "sheets-glitter-matte",
     "sheets-metallic-ink",
     "white-gloss-regular",
     "white-gloss-tiles",
@@ -76,8 +81,8 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "floor-metallic-ink",
     "roll-gloss-tiles",
     "roll-matte-tiles",
-    "roll-clear-matte-tiles",
     "roll-clear-gloss-tiles",
+    "roll-clear-matte-tiles",
     "roll-chrome-gloss-tiles",
     "roll-chrome-matte-tiles",
   ],
@@ -88,9 +93,15 @@ export const orderKeys: Record<OrderTypes, string[]> = {
   // completed: [], // add this to satisfy the OrderTypes enum
 };
 
-export function assignKeyType(order: Order, orderType: OrderTypes): string | null {
+export function assignKeyType(
+  order: Order,
+  orderType: OrderTypes,
+): string | null {
   order = Object.fromEntries(
-    Object.entries(order).map(([key, value]) => [key, typeof value === "string" ? value.trim().toLowerCase() : value])
+    Object.entries(order).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value.trim().toLowerCase() : value,
+    ]),
   ) as Order;
 
   const keys = orderKeys[orderType];
@@ -123,19 +134,33 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
             : "no-lamination";
       const sheetsKey = keys.find((k) => k.startsWith(`sheets-${lamination}`));
       if (sheetsKey) return sheetsKey;
-      const noLaminationKey = keys.find((k) => k.startsWith("sheets-no-lamination"));
+      const noLaminationKey = keys.find((k) =>
+        k.startsWith("sheets-no-lamination"),
+      );
       if (noLaminationKey) return noLaminationKey;
     }
 
     if (order.orderType === 2) {
-      const specialKey = keys.find((k) => k.startsWith("special"));
+      const specialKey = keys.find((k) => k.startsWith("special-doublesided")); // this needs to be revised very very soon
+      return specialKey || "unassigned";
+    }
+
+    if (order.orderType === 3) {
+      const specialKey = keys.find((k) => k.startsWith("special-sequential")); // this needs to be revised very very soon
+      return specialKey || "unassigned";
+    }
+
+    if (order.orderType === 4) {
+      const specialKey = keys.find((k) => k.startsWith("special-bda")); // this needs to be revised very very soon
       return specialKey || "unassigned";
     }
 
     if (isMetallic && order.material !== "roll") {
       const baseMaterial = order.material?.toLowerCase();
       if (baseMaterial) {
-        const metallicKey = keys.find((k) => k === `${baseMaterial}-metallic-ink`);
+        const metallicKey = keys.find(
+          (k) => k === `${baseMaterial}-metallic-ink`,
+        );
         if (metallicKey) return metallicKey;
       }
     }
@@ -147,7 +172,11 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
 
     if (order.orderType === 1) {
       // console.log("Promo detected");
-      const promoKey = keys.find((k) => k.endsWith("-promo") && k.startsWith(`${order.material}-${order.lamination}`));
+      const promoKey = keys.find(
+        (k) =>
+          k.endsWith("-promo") &&
+          k.startsWith(`${order.material}-${order.lamination}`),
+      );
       if (promoKey) return promoKey;
     }
 
@@ -162,7 +191,11 @@ export function assignKeyType(order: Order, orderType: OrderTypes): string | nul
   return keys.find((k) => k === simpleKey) || "unassigned";
 }
 
-export function filterBySameKeyType(orders: Order[], referenceOrder: Order, orderType: OrderTypes): Order[] {
+export function filterBySameKeyType(
+  orders: Order[],
+  referenceOrder: Order,
+  orderType: OrderTypes,
+): Order[] {
   const referenceKey = assignKeyType(referenceOrder, orderType);
   if (referenceKey == null) return [];
 

@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { getCorrectUserColor } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Eye } from "lucide-react";
-import { getMaterialBackgroundColor } from "@/utils/materialColorMap";
+import { getInkBackgroundColor, getMaterialBackgroundColor } from "@/utils/colorMap";
 
 // import {
 //   DropdownMenu,
@@ -223,24 +223,6 @@ const dayOfTheWeekColor: { [key: number]: string } = {
   5: "bg-gray-305", // Friday
 };
 
-const inkColors: { [key: string]: string } = {
-  metallic: "bg-purple-100",
-  clear: "bg-pink-100",
-  "white": "bg-pink-100",
-  "3": "bg-yellow-200",
-  "4": "bg-orange-200",
-  "6": "bg-green-200",
-  "12": "bg-blue-200",
-};
-
-const getInkCellColor = (ink: string | null | undefined): string => {
-  const normalized = ink?.toLowerCase().trim();
-  if (!normalized) return "";
-  if (normalized.includes("metallic")) return inkColors.metallic;
-  if (normalized.includes("white")) return inkColors.white;
-  return inkColors[normalized] ?? "";
-};
-
 const convertDateToActualDay = (dateString: string | null) => {
   if (!dateString) return dateString;
   const parts = dateString.split("-");
@@ -385,7 +367,7 @@ export function OrderTableBody({
   setScrollAreaName,
   onRowClick,
   selectedNameId,
-  isSpecialSection,
+  showMaterialBackground = false,
   multiSelectedRows = new Map<string, string | null>(),
   setMultiSelectedRows,
   hashValue,
@@ -409,7 +391,7 @@ export function OrderTableBody({
   setScrollAreaName: (name: string) => void;
   onRowClick: (rowEl: HTMLTableRowElement, row: Order | null, copiedText: boolean) => void;
   selectedNameId: string | null;
-  isSpecialSection?: boolean; // Optional prop to indicate if this is a special section
+  showMaterialBackground?: boolean;
   multiSelectedRows?: Map<string, string | null>;
   setMultiSelectedRows: React.Dispatch<React.SetStateAction<Map<string, string | null>>>;
   hashValue?: string | null; // Optional prop to track hash value
@@ -732,11 +714,20 @@ export function OrderTableBody({
 
               <TableCell>{capitalizeFirstLetter(row.lamination) || "-"}</TableCell>
               <TableCell
-                className={isSpecialSection ? getMaterialBackgroundColor(row.material) : ""}
+                style={{
+                  backgroundColor: showMaterialBackground
+                    ? getMaterialBackgroundColor(row.material) || undefined
+                    : undefined,
+                }}
               >
                 {capitalizeFirstLetter(row.material) || "-"}
               </TableCell>
-              <TableCell className={getInkCellColor(showSplitColumn ? coresDisplay : row.ink)}>
+              <TableCell
+                style={{
+                  backgroundColor:
+                    getInkBackgroundColor(showSplitColumn ? coresDisplay : row.ink) || undefined,
+                }}
+              >
                 {capitalizeFirstLetter(showSplitColumn ? coresDisplay : row.ink)}
               </TableCell>
               {showSplitColumn && (

@@ -17,6 +17,22 @@ export const materialColors: Record<string, string> = {
   special: "yellow-500",
 };
 
+const materialBackgroundColors: Record<string, string> = {
+  clear: "#fce7f3",
+  holographic: "#dcfce7",
+  glitter: "#fef9c3",
+};
+
+const inkBackgroundColors: Record<string, string> = {
+  metallic: "#f3e8ff",
+  clear: "#fce7f3",
+  white:"#ffc1fc",
+  "3": "#fef08a",
+  "4": "#fed7aa",
+  "6": "#bbf7d0",
+  "12": "#bfdbfe",
+};
+
 export const getMaterialColor = (material: string | null | undefined) => {
   if (!material) return "black";
   return materialColors[material.toLowerCase()] ?? "black";
@@ -28,6 +44,13 @@ export const getMaterialTextColor = (material: string | null | undefined) => {
 
 export const getMaterialBackgroundColor = (material: string | null | undefined) => {
   if (!material) return "";
-  const color = materialColors[material.toLowerCase()];
-  return color ? `bg-${color}` : "";
+  return materialBackgroundColors[material.toLowerCase().trim()] ?? "";
+};
+
+export const getInkBackgroundColor = (ink: string | null | undefined) => {
+  const normalized = ink?.toLowerCase().trim();
+  if (!normalized) return "";
+  if (normalized.includes("metallic")) return inkBackgroundColors.metallic;
+  if (normalized.includes("white")) return inkBackgroundColors.white;
+  return inkBackgroundColors[normalized] ?? "";
 };

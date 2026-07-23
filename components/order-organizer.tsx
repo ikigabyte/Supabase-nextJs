@@ -40,7 +40,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Info } from "lucide-react";
-import { getMaterialTextColor } from "@/utils/materialColorMap";
+import { getMaterialTextColor } from "@/utils/colorMap";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 // import { Description } from "@radix-ui/react-toast";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
@@ -2667,7 +2667,9 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
                         orderViewerNamesByNameId={orderViewerNamesByNameId}
                         isShiftDown={isShiftDown}
                         onRealtimeDisconnectedCheckboxClick={warnIfRealtimeDisconnected}
-                        isSpecialSection={selectedCategory.toLowerCase() === "special"}
+                        showMaterialBackground={["sheets", "special", "roll", "rush", "clear"].includes(
+                          selectedCategory.toLowerCase(),
+                        )}
                         showSplitColumn={selectedCategory.toLowerCase() === "roll"}
                       />
                     </Table>
