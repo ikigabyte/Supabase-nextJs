@@ -1941,7 +1941,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const convertKeyToTitle = (key: string) => {
     const parts = key.split("-");
     const titleParts =
-      parts[0] === "roll" && parts.length >= 4
+      parts[0] === "special"
+        ? parts.slice(1)
+        : parts[0] === "roll" && parts.length >= 4
         ? [parts[1], parts[0], ...parts.slice(2)]
         : parts;
 
