@@ -7,6 +7,15 @@ export function capitalizeFirstLetter(string: string | null) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 } 
 
+export function capitalizeEveryWord(string: string | null) {
+  if (typeof string !== "string") {
+    return "-";
+  }
+  return string
+    .split(" ")
+    .map((word) => capitalizeFirstLetter(word))
+    .join(" ");
+} 
 export function formatDisplayShape(shape: string | null | undefined) {
   if (typeof shape !== "string") return "-";
   const baseShape = shape.split("-")[0]?.trim();

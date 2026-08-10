@@ -10,19 +10,36 @@ import { redirect } from "next/navigation";
 import { TimelineOrder } from "@/types/custom";
 // import { OrderTableHeader } from "@/components/order-table-header";
 // import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHead,
+  TableHeader,
+} from "@/components/ui/table";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 // Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { Eye, Plus, Minus, ExternalLink, CalendarIcon, X } from "lucide-react";
 import {
   capitalizeFirstLetter,
+  capitalizeEveryWord,
   formatDisplayQuantity,
   getDisplayQuantityNumber,
   isDisplayTileQuantity,
@@ -32,14 +49,26 @@ import {
 // import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
 const NOTE_COOLDOWN_MS = 10 * 1000;
 const ZENDESK_TICKET_BASE_URL = "https://stickerbeat.zendesk.com/agent/tickets";
-const REALTIME_DISCONNECTED_WARNING = "⚠️ Realtime disconnected. Please refresh the page";
+const REALTIME_DISCONNECTED_WARNING =
+  "⚠️ Realtime disconnected. Please refresh the page";
 type RealtimeStatus = "UNKNOWN" | "OPEN" | "ERROR";
 
-import { forceUpdateTimeline, updateOrderNotes, sendOrderShipped, updateTrackingOrderSpecialColor } from "@/utils/actions";
+import {
+  forceUpdateTimeline,
+  updateOrderNotes,
+  sendOrderShipped,
+  updateTrackingOrderSpecialColor,
+} from "@/utils/actions";
 // import { forceRefreshTimeline } from "@/utils/google-functions";
 
 const TIMELINE_COLUMNS = [
@@ -55,8 +84,6 @@ const TIMELINE_COLUMNS = [
   { label: "Notes", width: "240px", minWidth: "220px" },
   { label: "Shipped", width: "72px", minWidth: "64px" },
 ] as const;
-
-
 
 type TimelineItem = {
   FileName?: string;
@@ -82,12 +109,15 @@ type TrackingTimelineMetadata = {
   specialColor?: string | null;
 };
 
-const TIMELINE_HEADER_ROW_CLASS = "h-.5 [&>th]:py-0 text-xs bg-gray-500 hover:bg-gray-500";
-const TIMELINE_HEAD_CLASS = "border-r border-gray-200 font-bold text-white truncate text-[11px]";
+const TIMELINE_HEADER_ROW_CLASS =
+  "h-.5 [&>th]:py-0 text-xs bg-gray-500 hover:bg-gray-500";
+const TIMELINE_HEAD_CLASS =
+  "border-r border-gray-200 font-bold text-white truncate text-[11px]";
 const TIMELINE_ROW_CLASS =
   "[&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white";
 const TIMELINE_CELL_CLASS = "px-3 py-1 font-semibold align-middle truncate";
-const TIMELINE_PRIORITY_CELL_CLASS = "px-2 py-1 font-semibold align-middle whitespace-nowrap";
+const TIMELINE_PRIORITY_CELL_CLASS =
+  "px-2 py-1 font-semibold align-middle whitespace-nowrap";
 const TIMELINE_NOTES_CELL_CLASS =
   "px-3 py-1 font-semibold align-top whitespace-normal break-words [overflow-wrap:anywhere]";
 const draggingThreshold = 1;
@@ -109,19 +139,33 @@ const ACTIVE_STATUSES = new Set([
   "pack_and_ship",
 ]);
 
+const shippingMethodOrder = (method?: string | null) => {
+  const m = (method ?? "").toLowerCase();
+  if (m === "express") return 0;
+  if (m === "overnight_split_shipping") return 0;
+  if (m === "rush_shipping") return 1;
+  if (m === "standard") return 2;
+  if (m === "standard_split_shipping") return 2;
+  return 3;
+};
 
-const SHIPPED_STATUSES = new Set([
-  "shipped",
-  "to_ship",
-  "pack_and_ship",
-]);
+const SHIPPED_STATUSES = new Set(["shipped", "to_ship", "pack_and_ship"]);
 
-const TIMELINE_FETCH_STATUSES = Array.from(new Set([...ACTIVE_STATUSES, ...SHIPPED_STATUSES]));
+const TIMELINE_FETCH_STATUSES = Array.from(
+  new Set([...ACTIVE_STATUSES, ...SHIPPED_STATUSES]),
+);
 const ACTIVE_TICKET_STATUSES = new Set(["pending", "open"]);
 
 const SHIPPED_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const SHIPPED_STATUS_VISIBLE_WINDOW_MS = 25 * 60 * 60 * 1000;
-const PRODUCTION_STATUS_ORDER = ["bda_production", "print", "cut", "prepack", "pack", "ship"] as const;
+const PRODUCTION_STATUS_ORDER = [
+  "bda_production",
+  "print",
+  "cut",
+  "prepack",
+  "pack",
+  "ship",
+] as const;
 type ProductionStatus = (typeof PRODUCTION_STATUS_ORDER)[number];
 
 function formatLastUpdated(isoString: string) {
@@ -175,7 +219,10 @@ function formatTimelineDateRange(range?: DateRange) {
   return `${formatTimelineMonthDay(range.from)} -> ${formatTimelineMonthDay(range.to)}`;
 }
 
-function isTimelineDateWithinRange(dateValue: string | Date | null, range?: DateRange) {
+function isTimelineDateWithinRange(
+  dateValue: string | Date | null,
+  range?: DateRange,
+) {
   const date = parseTimelineDate(dateValue);
   if (!date || Number.isNaN(date.getTime()) || !range?.from) return false;
 
@@ -188,10 +235,14 @@ function isTimelineDateWithinRange(dateValue: string | Date | null, range?: Date
   return start <= day && day <= end;
 }
 
-function getTimelineDateStatus(dateA: string | Date, dateB: string | Date): "past" | "today" | "future" {
+function getTimelineDateStatus(
+  dateA: string | Date,
+  dateB: string | Date,
+): "past" | "today" | "future" {
   const a = parseTimelineDate(dateA);
   const b = parseTimelineDate(dateB);
-  if (!a || !b || Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return "future";
+  if (!a || !b || Number.isNaN(a.getTime()) || Number.isNaN(b.getTime()))
+    return "future";
   a.setHours(0, 0, 0, 0);
   b.setHours(0, 0, 0, 0);
   if (a.getTime() < b.getTime()) return "past";
@@ -202,7 +253,8 @@ function getTimelineDateStatus(dateA: string | Date, dateB: string | Date): "pas
 function getTimelineDayDiff(dateA: string | Date | null, dateB: string | Date) {
   const a = parseTimelineDate(dateA);
   const b = parseTimelineDate(dateB);
-  if (!a || !b || Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  if (!a || !b || Number.isNaN(a.getTime()) || Number.isNaN(b.getTime()))
+    return null;
 
   a.setHours(0, 0, 0, 0);
   b.setHours(0, 0, 0, 0);
@@ -232,7 +284,8 @@ function getTimelineDayLabel(dateKey: string) {
 
 function getTimelineTableTitleDate(dateKey: string) {
   const date = parseTimelineDate(dateKey);
-  if (!date || Number.isNaN(date.getTime())) return getTimelineDayLabel(dateKey);
+  if (!date || Number.isNaN(date.getTime()))
+    return getTimelineDayLabel(dateKey);
   return format(date, "MMMM - d");
 }
 
@@ -241,7 +294,9 @@ function extractTimelineDashNumber(name?: string): number {
   return match ? parseInt(match[1], 10) : Infinity;
 }
 
-function getTimelineItemIndexNumber(itemIndex: TimelineItem["itemIndex"]): number {
+function getTimelineItemIndexNumber(
+  itemIndex: TimelineItem["itemIndex"],
+): number {
   const value = Number(itemIndex ?? 0);
   return Number.isFinite(value) ? value : 0;
 }
@@ -250,10 +305,13 @@ function sortTimelineItemsByDashNumber(items: TimelineItem[]) {
   return [...items].sort((a, b) => {
     const aName = a.FileName ?? a.Title;
     const bName = b.FileName ?? b.Title;
-    const dashDiff = extractTimelineDashNumber(aName) - extractTimelineDashNumber(bName);
+    const dashDiff =
+      extractTimelineDashNumber(aName) - extractTimelineDashNumber(bName);
     if (dashDiff !== 0) return dashDiff;
 
-    const itemIndexDiff = getTimelineItemIndexNumber(a.itemIndex) - getTimelineItemIndexNumber(b.itemIndex);
+    const itemIndexDiff =
+      getTimelineItemIndexNumber(a.itemIndex) -
+      getTimelineItemIndexNumber(b.itemIndex);
     if (itemIndexDiff !== 0) return itemIndexDiff;
 
     return (aName ?? "").localeCompare(bName ?? "");
@@ -262,7 +320,9 @@ function sortTimelineItemsByDashNumber(items: TimelineItem[]) {
 
 function sortTimelineRowsByDashNumber(rows: Order[]) {
   return [...rows].sort((a, b) => {
-    const dashDiff = extractTimelineDashNumber(a.name_id) - extractTimelineDashNumber(b.name_id);
+    const dashDiff =
+      extractTimelineDashNumber(a.name_id) -
+      extractTimelineDashNumber(b.name_id);
     if (dashDiff !== 0) return dashDiff;
     return a.name_id.localeCompare(b.name_id);
   });
@@ -271,9 +331,14 @@ function sortTimelineRowsByDashNumber(rows: Order[]) {
 function normalizeTimelineItems(items: unknown): TimelineItem[] {
   if (!items || typeof items !== "object") return [];
 
-  const rawItems = Array.isArray(items) ? items : Object.values(items as Record<string, unknown>);
+  const rawItems = Array.isArray(items)
+    ? items
+    : Object.values(items as Record<string, unknown>);
   const normalizedItems = rawItems
-    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .filter(
+      (item): item is Record<string, unknown> =>
+        !!item && typeof item === "object",
+    )
     .map((item) => ({
       FileName: typeof item.FileName === "string" ? item.FileName : undefined,
       Title: typeof item.Title === "string" ? item.Title : undefined,
@@ -283,37 +348,54 @@ function normalizeTimelineItems(items: unknown): TimelineItem[] {
         typeof item.Quantity === "string"
           ? item.Quantity
           : typeof item.quantity === "string"
-          ? item.quantity
-          : undefined,
+            ? item.quantity
+            : undefined,
       Notes: typeof item.Notes === "string" ? item.Notes : undefined,
       itemIndex:
-        typeof item.itemIndex === "number" || typeof item.itemIndex === "string" ? item.itemIndex : undefined,
+        typeof item.itemIndex === "number" || typeof item.itemIndex === "string"
+          ? item.itemIndex
+          : undefined,
     }));
 
   return sortTimelineItemsByDashNumber(normalizedItems);
 }
 
 function formatTimelineItemValue(value?: string) {
+  // format
   if (!value) return "-";
-  const normalizedValue = value.replace(/_/g, " ").replace(/\bto\b/gi, "").replace(/\s+/g, "").trim();
+  const normalizedValue = value.trim().toLowerCase().replace(/_/g, " ");
   if (!normalizedValue) return "-";
-  return capitalizeFirstLetter(normalizedValue);
+  return capitalizeEveryWord(normalizedValue);
 }
 
-function getMixedSummary(items: TimelineItem[], field: "Status" | "Material" | "Quantity") {
+function getMixedSummary(
+  items: TimelineItem[],
+  field: "Status" | "Material" | "Quantity",
+) {
   const values = Array.from(
-    new Set(items.map((item) => item[field]?.trim()).filter((value): value is string => !!value)),
+    new Set(
+      items
+        .map((item) => item[field]?.trim())
+        .filter((value): value is string => !!value),
+    ),
   );
   if (values.length === 0) return "-";
   if (values.length > 1) return "Mixed";
   return formatTimelineItemValue(values[0]);
 }
 
-function getTimelineQuantitySummary(rows: Order[], fallbackItems: TimelineItem[]) {
+function getTimelineQuantitySummary(
+  rows: Order[],
+  fallbackItems: TimelineItem[],
+) {
   if (rows.length > 0) {
-    const hasTileQuantities = rows.some((row) => isDisplayTileQuantity(row.quantity));
+    const hasTileQuantities = rows.some((row) =>
+      isDisplayTileQuantity(row.quantity),
+    );
     const hasRegularQuantities = rows.some(
-      (row) => !isDisplayTileQuantity(row.quantity) && getDisplayQuantityNumber(row.quantity) !== null
+      (row) =>
+        !isDisplayTileQuantity(row.quantity) &&
+        getDisplayQuantityNumber(row.quantity) !== null,
     );
     if (hasTileQuantities && hasRegularQuantities) return "MIXED";
 
@@ -321,17 +403,25 @@ function getTimelineQuantitySummary(rows: Order[], fallbackItems: TimelineItem[]
       .map((row) => getDisplayQuantityNumber(row.quantity))
       .filter((value): value is number => value !== null);
     if (quantities.length === 0) return "-";
-    const totalQuantity = quantities.reduce((total, quantity) => total + quantity, 0);
+    const totalQuantity = quantities.reduce(
+      (total, quantity) => total + quantity,
+      0,
+    );
     return hasTileQuantities ? `${totalQuantity} Tiles` : String(totalQuantity);
   }
 
   return getMixedSummary(fallbackItems, "Quantity");
 }
 
-function getTimelineStatusCellBackground(fallbackItems: TimelineItem[], overrideColor?: string | null) {
+function getTimelineStatusCellBackground(
+  fallbackItems: TimelineItem[],
+  overrideColor?: string | null,
+) {
   if (overrideColor !== undefined) return overrideColor ?? undefined;
 
-  const itemColors = fallbackItems.map((item) => item.StatusColor?.trim()).filter((color): color is string => !!color);
+  const itemColors = fallbackItems
+    .map((item) => item.StatusColor?.trim())
+    .filter((color): color is string => !!color);
   const colors = Array.from(new Set(itemColors));
 
   if (colors.length === 0) return undefined;
@@ -339,25 +429,39 @@ function getTimelineStatusCellBackground(fallbackItems: TimelineItem[], override
 
   const segmentSize = 100 / colors.length;
   return `linear-gradient(90deg, ${colors
-    .map((color, index) => `${color} ${index * segmentSize}%, ${color} ${(index + 1) * segmentSize}%`)
+    .map(
+      (color, index) =>
+        `${color} ${index * segmentSize}%, ${color} ${(index + 1) * segmentSize}%`,
+    )
     .join(", ")})`;
 }
 
 function isOrderNumberSpecialColor(color?: string | null) {
-  return color?.trim().toLowerCase() === ORDER_NUMBER_SPECIAL_COLOR.toLowerCase();
+  return (
+    color?.trim().toLowerCase() === ORDER_NUMBER_SPECIAL_COLOR.toLowerCase()
+  );
 }
 
 function normalizeTrackingStatus(value?: string | null) {
   return (value ?? "").trim().toLowerCase();
 }
 
-function normalizeProductionStatus(value?: string | null): ProductionStatus | null {
-  const normalized = normalizeTrackingStatus(value).replace(/^to_/, "").replace(/^to\s+/, "");
+function normalizeProductionStatus(
+  value?: string | null,
+): ProductionStatus | null {
+  const normalized = normalizeTrackingStatus(value)
+    .replace(/^to_/, "")
+    .replace(/^to\s+/, "");
   if (normalized === "pack_and_ship") return "pack";
-  return PRODUCTION_STATUS_ORDER.includes(normalized as ProductionStatus) ? (normalized as ProductionStatus) : null;
+  return PRODUCTION_STATUS_ORDER.includes(normalized as ProductionStatus)
+    ? (normalized as ProductionStatus)
+    : null;
 }
 
-function getLowerTimelineStatus(items: TimelineItem[], fallbackStatus?: string | null) {
+function getLowerTimelineStatus(
+  items: TimelineItem[],
+  fallbackStatus?: string | null,
+) {
   const statuses = items
     .map((item) => normalizeProductionStatus(item.Status))
     .filter((status): status is ProductionStatus => !!status);
@@ -368,18 +472,28 @@ function getLowerTimelineStatus(items: TimelineItem[], fallbackStatus?: string |
   if (statuses.length === 0) return fallbackStatus ?? undefined;
 
   return statuses.reduce((lowest, status) =>
-    PRODUCTION_STATUS_ORDER.indexOf(status) < PRODUCTION_STATUS_ORDER.indexOf(lowest) ? status : lowest,
+    PRODUCTION_STATUS_ORDER.indexOf(status) <
+    PRODUCTION_STATUS_ORDER.indexOf(lowest)
+      ? status
+      : lowest,
   );
 }
 
 function isBeforePack(status?: string | null) {
   const productionStatus = normalizeProductionStatus(status);
-  return !!productionStatus && PRODUCTION_STATUS_ORDER.indexOf(productionStatus) < PRODUCTION_STATUS_ORDER.indexOf("pack");
+  return (
+    !!productionStatus &&
+    PRODUCTION_STATUS_ORDER.indexOf(productionStatus) <
+      PRODUCTION_STATUS_ORDER.indexOf("pack")
+  );
 }
 
 type TimelineProductionWarning = "normal" | "warning" | "important";
 
-function getTimelineProductionWarning(status: string | undefined, shipDate?: string | Date | null): TimelineProductionWarning {
+function getTimelineProductionWarning(
+  status: string | undefined,
+  shipDate?: string | Date | null,
+): TimelineProductionWarning {
   if (!isBeforePack(status)) return "normal";
   const dayDiff = getTimelineDayDiff(shipDate ?? null, new Date());
   if (dayDiff === null) return "normal";
@@ -388,7 +502,9 @@ function getTimelineProductionWarning(status: string | undefined, shipDate?: str
   return "normal";
 }
 
-function getTimelineProductionWarningClassName(warning: TimelineProductionWarning) {
+function getTimelineProductionWarningClassName(
+  warning: TimelineProductionWarning,
+) {
   if (warning === "important") return "text-red-600";
   if (warning === "warning") return "text-yellow-600";
   return "";
@@ -405,14 +521,22 @@ function hasTimelineShipDate(order: TimelineOrder) {
 }
 
 function isTimelineTicketSolved(order: TimelineOrder) {
-  return normalizeTrackingStatus(order.ticket_status) === "solved" || normalizeTrackingStatus(order.current_status) === "closed";
+  return (
+    normalizeTrackingStatus(order.ticket_status) === "solved" ||
+    normalizeTrackingStatus(order.current_status) === "closed"
+  );
 }
 
 function isTimelineTicketActive(order: TimelineOrder) {
-  return ACTIVE_TICKET_STATUSES.has(normalizeTrackingStatus(order.ticket_status));
+  return ACTIVE_TICKET_STATUSES.has(
+    normalizeTrackingStatus(order.ticket_status),
+  );
 }
 
-function isTimelineOrderRecentlyShipped(order: TimelineOrder, now = Date.now()) {
+function isTimelineOrderRecentlyShipped(
+  order: TimelineOrder,
+  now = Date.now(),
+) {
   const shippedTime = toTimelineTime(order.shipped_stamp);
   if (shippedTime === null) return false;
 
@@ -420,7 +544,10 @@ function isTimelineOrderRecentlyShipped(order: TimelineOrder, now = Date.now()) 
   return age >= 0 && age <= SHIPPED_VISIBLE_WINDOW_MS;
 }
 
-function isTimelineOrderRecentlyUpdated(order: TimelineOrder, now = Date.now()) {
+function isTimelineOrderRecentlyUpdated(
+  order: TimelineOrder,
+  now = Date.now(),
+) {
   const updatedTime = toTimelineTime(order.last_update);
   if (updatedTime === null) return false;
 
@@ -446,7 +573,8 @@ function isTimelineOrderShipped(order: TimelineOrder) {
   return (
     isTimelineTicketSolved(order) &&
     (isTimelineOrderRecentlyShipped(order) ||
-      (hasTimelineShippedStatus(order) && isTimelineOrderRecentlyUpdated(order)))
+      (hasTimelineShippedStatus(order) &&
+        isTimelineOrderRecentlyUpdated(order)))
   );
 }
 
@@ -460,7 +588,10 @@ function getCreativeSummary(items: TimelineItem[]) {
 }
 
 function formatCreativeName(fileName?: string, title?: string) {
-  const name = (fileName || title || "-").replace(/(^|-)BDO[A-Za-z0-9]*-/g, "$1");
+  const name = (fileName || title || "-").replace(
+    /(^|-)BDO[A-Za-z0-9]*-/g,
+    "$1",
+  );
   if (name.length <= 60) return name;
 
   return `${name.slice(0, 52)}...${name.slice(-5)}`;
@@ -468,14 +599,24 @@ function formatCreativeName(fileName?: string, title?: string) {
 
 function getTimelineNotesSummary(rows: Order[]) {
   const notes = Array.from(
-    new Set(rows.map((row) => row.notes?.trim()).filter((note): note is string => !!note)),
+    new Set(
+      rows
+        .map((row) => row.notes?.trim())
+        .filter((note): note is string => !!note),
+    ),
   );
 
   if (notes.length === 0) return "-";
   return notes.join(" | ");
 }
 
-function TimelineNoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
+function TimelineNoteInput({
+  note,
+  onCommit,
+}: {
+  note: string;
+  onCommit: (value: string) => void;
+}) {
   const [value, setValue] = useState(note);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastCommittedRef = useRef<string>(note);
@@ -546,7 +687,8 @@ function getTimelineDataRows(table: HTMLTableElement) {
   if (!tbody) return [];
   return Array.from(tbody.children).filter(
     (row): row is HTMLTableRowElement =>
-      row instanceof HTMLTableRowElement && row.getAttribute("datatype") === "data",
+      row instanceof HTMLTableRowElement &&
+      row.getAttribute("datatype") === "data",
   );
 }
 
@@ -568,7 +710,9 @@ function isEditableElement(target: EventTarget | null) {
   return !!element?.closest("input, textarea, [contenteditable='true']");
 }
 
-function collectSelectedTimelineOrderIds(selectionMap: Map<HTMLTableElement, DragSel>) {
+function collectSelectedTimelineOrderIds(
+  selectionMap: Map<HTMLTableElement, DragSel>,
+) {
   const selectedIds = new Set<number>();
 
   selectionMap.forEach((selection, table) => {
@@ -627,36 +771,53 @@ export function TimelineOrders() {
 
   // Inline orders rendering state: map order_id -> array of orders
   const [ordersById, setOrdersById] = useState<Record<number, Order[]>>({});
-  const [trackingMetadataByOrderId, setTrackingMetadataByOrderId] = useState<Record<number, TrackingTimelineMetadata>>({});
+  const [trackingMetadataByOrderId, setTrackingMetadataByOrderId] = useState<
+    Record<number, TrackingTimelineMetadata>
+  >({});
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
   const [openTabsDialogOpen, setOpenTabsDialogOpen] = useState(false);
   const [pendingOpenOrderIds, setPendingOpenOrderIds] = useState<number[]>([]);
-  const [selectedDateRange] = useState<DateRange>(() => getDefaultTimelineDateRange());
+  const [selectedDateRange] = useState<DateRange>(() =>
+    getDefaultTimelineDateRange(),
+  );
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [pendingSelectedDate, setPendingSelectedDate] = useState<Date | undefined>(undefined);
+  const [pendingSelectedDate, setPendingSelectedDate] = useState<
+    Date | undefined
+  >(undefined);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showShippedOrders, setShowShippedOrders] = useState(false);
-  const [selectedTimelineOrderIds, setSelectedTimelineOrderIds] = useState<Set<number>>(new Set());
-  const [statusColorOverridesByOrderId, setStatusColorOverridesByOrderId] = useState<Record<number, string | null>>({});
+  const [selectedTimelineOrderIds, setSelectedTimelineOrderIds] = useState<
+    Set<number>
+  >(new Set());
+  const [statusColorOverridesByOrderId, setStatusColorOverridesByOrderId] =
+    useState<Record<number, string | null>>({});
   const [dragging, setDragging] = useState(false);
   const dragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
-  const pendingDragSelections = useRef<Map<HTMLTableElement, DragSel>>(new Map());
+  const pendingDragSelections = useRef<Map<HTMLTableElement, DragSel>>(
+    new Map(),
+  );
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const noteCooldownUntilRef = useRef<Record<string, number>>({});
   const noteInFlightRef = useRef<Record<string, boolean>>({});
   const shipActionInFlightRef = useRef(false);
-  const [shipOrderInFlightId, setShipOrderInFlightId] = useState<number | null>(null);
+  const [shipOrderInFlightId, setShipOrderInFlightId] = useState<number | null>(
+    null,
+  );
 
   const [refreshDisabled, setRefreshDisabled] = useState(true);
-  const [refreshHint, setRefreshHint] = useState<string>("Checking last refresh...");
+  const [refreshHint, setRefreshHint] = useState<string>(
+    "Checking last refresh...",
+  );
   const [lastRefreshMs, setLastRefreshMs] = useState<number | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [cooldownOpen, setCooldownOpen] = useState(false);
   const [cooldownMessage, setCooldownMessage] = useState("");
   const [displayWarning, setDisplayWarning] = useState("");
-  const [ordersRealtimeStatus, setOrdersRealtimeStatus] = useState<RealtimeStatus>("UNKNOWN");
-  const [trackingRealtimeStatus, setTrackingRealtimeStatus] = useState<RealtimeStatus>("UNKNOWN");
+  const [ordersRealtimeStatus, setOrdersRealtimeStatus] =
+    useState<RealtimeStatus>("UNKNOWN");
+  const [trackingRealtimeStatus, setTrackingRealtimeStatus] =
+    useState<RealtimeStatus>("UNKNOWN");
 
   const parseLastRefreshMs = (value?: string | null): number | null => {
     if (!value) return null;
@@ -678,7 +839,9 @@ export function TimelineOrders() {
   };
 
   const handleOpenSelectedOrders = () => {
-    const orderIds = Array.from(selectedTimelineOrderIds).filter((orderId) => Number.isFinite(orderId)).sort((a, b) => a - b);
+    const orderIds = Array.from(selectedTimelineOrderIds)
+      .filter((orderId) => Number.isFinite(orderId))
+      .sort((a, b) => a - b);
     if (orderIds.length === 0) return;
 
     if (orderIds.length > 3) {
@@ -708,12 +871,17 @@ export function TimelineOrders() {
   };
 
   useEffect(() => {
-    if (ordersRealtimeStatus === "ERROR" || trackingRealtimeStatus === "ERROR") {
+    if (
+      ordersRealtimeStatus === "ERROR" ||
+      trackingRealtimeStatus === "ERROR"
+    ) {
       setDisplayWarning(REALTIME_DISCONNECTED_WARNING);
       return;
     }
 
-    setDisplayWarning((current) => (current === REALTIME_DISCONNECTED_WARNING ? "" : current));
+    setDisplayWarning((current) =>
+      current === REALTIME_DISCONNECTED_WARNING ? "" : current,
+    );
   }, [ordersRealtimeStatus, trackingRealtimeStatus]);
 
   const handleStatusColorSelect = async (color: string | null) => {
@@ -742,7 +910,10 @@ export function TimelineOrders() {
     });
 
     try {
-      const result = await updateTrackingOrderSpecialColor(selectedOrderIds, color);
+      const result = await updateTrackingOrderSpecialColor(
+        selectedOrderIds,
+        color,
+      );
       if (!result.ok) {
         toast.error(result.message);
         setStatusColorOverridesByOrderId(previousOverrides);
@@ -761,7 +932,11 @@ export function TimelineOrders() {
 
   const fetchTimelineOrderRows = useCallback(async () => {
     const allIds = Array.from(
-      new Set([...combinedOrders].map((o) => Number(o.order_id)).filter((id) => Number.isFinite(id)) as number[]),
+      new Set(
+        [...combinedOrders]
+          .map((o) => Number(o.order_id))
+          .filter((id) => Number.isFinite(id)) as number[],
+      ),
     );
 
     if (allIds.length === 0) {
@@ -796,7 +971,9 @@ export function TimelineOrders() {
     });
 
     Object.keys(grouped).forEach((orderId) => {
-      grouped[Number(orderId)] = sortTimelineRowsByDashNumber(grouped[Number(orderId)]);
+      grouped[Number(orderId)] = sortTimelineRowsByDashNumber(
+        grouped[Number(orderId)],
+      );
     });
 
     setOrdersById(grouped);
@@ -810,7 +987,9 @@ export function TimelineOrders() {
     });
 
     if (shipActionInFlightRef.current) {
-      console.log("[timeline shipped] blocked duplicate ship action", { orderId });
+      console.log("[timeline shipped] blocked duplicate ship action", {
+        orderId,
+      });
       toast.error("Please wait for the current ship action to finish.");
       return;
     }
@@ -821,10 +1000,17 @@ export function TimelineOrders() {
     try {
       console.log("[timeline shipped] calling sendOrderShipped", { orderId });
       const result = await sendOrderShipped(orderId);
-      console.log("[timeline shipped] sendOrderShipped completed", { orderId, result });
-      console.log("[timeline shipped] refreshing timeline order rows", { orderId });
+      console.log("[timeline shipped] sendOrderShipped completed", {
+        orderId,
+        result,
+      });
+      console.log("[timeline shipped] refreshing timeline order rows", {
+        orderId,
+      });
       await fetchTimelineOrderRows();
-      console.log("[timeline shipped] refreshed timeline order rows", { orderId });
+      console.log("[timeline shipped] refreshed timeline order rows", {
+        orderId,
+      });
     } catch (error) {
       console.error("[timeline shipped] failed", { orderId, error });
     } finally {
@@ -843,7 +1029,8 @@ export function TimelineOrders() {
 
     if (inFlight || now < cooldownUntil) {
       toast.error("Please wait before updating notes again.", {
-        description: "You can only update notes every 10 seconds, please try again shortly",
+        description:
+          "You can only update notes every 10 seconds, please try again shortly",
         duration: 3000,
       });
       return;
@@ -863,7 +1050,7 @@ export function TimelineOrders() {
     try {
       await updateOrderNotes(order, newNotes);
       toast.success("Notes updated", {
-        description: `Notes for ${(order.order_id ?? "")} have been updated.`,
+        description: `Notes for ${order.order_id ?? ""} have been updated.`,
       });
     } catch (error) {
       console.error("Failed to update timeline notes:", error);
@@ -919,7 +1106,9 @@ export function TimelineOrders() {
       }
       // Disable immediately and start cooldown locally
       setRefreshDisabled(true);
-      setCooldownMessage("A request to update the orders has been sent, this might take a couple of minutes. ");
+      setCooldownMessage(
+        "A request to update the orders has been sent, this might take a couple of minutes. ",
+      );
       setCooldownOpen(true);
       setRefreshHint(`Available in ${formatRemaining(REFRESH_COOLDOWN_MS)}`);
       setLastRefreshMs(now);
@@ -971,7 +1160,8 @@ export function TimelineOrders() {
 
       nextMetadataByOrderId[orderId] = {
         items: normalizeTimelineItems(row.items),
-        specialColor: typeof row.special_color === "string" ? row.special_color : null,
+        specialColor:
+          typeof row.special_color === "string" ? row.special_color : null,
       };
     });
     setTrackingMetadataByOrderId(nextMetadataByOrderId);
@@ -987,7 +1177,8 @@ export function TimelineOrders() {
         if (!Number.isFinite(orderId)) return;
         if (!Object.prototype.hasOwnProperty.call(next, orderId)) return;
 
-        const savedColor = typeof row.special_color === "string" ? row.special_color : null;
+        const savedColor =
+          typeof row.special_color === "string" ? row.special_color : null;
         if (savedColor === next[orderId]) {
           delete next[orderId];
           changed = true;
@@ -1000,89 +1191,119 @@ export function TimelineOrders() {
 
   useEffect(() => {
     const visibleOrderIds = new Set(
-      combinedOrders.map((order) => Number(order.order_id)).filter((id) => Number.isFinite(id)),
+      combinedOrders
+        .map((order) => Number(order.order_id))
+        .filter((id) => Number.isFinite(id)),
     );
 
     const channel = supabase
       .channel("timeline_orders_realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
-        const newOrder = payload.new as Order;
-        const orderId = Number(newOrder.order_id);
-        if (!visibleOrderIds.has(orderId)) return;
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "orders" },
+        (payload) => {
+          const newOrder = payload.new as Order;
+          const orderId = Number(newOrder.order_id);
+          if (!visibleOrderIds.has(orderId)) return;
 
-        setOrdersById((prev) => {
-          const existingRows = prev[orderId] ?? [];
-          if (existingRows.some((row) => row.name_id === newOrder.name_id)) {
+          setOrdersById((prev) => {
+            const existingRows = prev[orderId] ?? [];
+            if (existingRows.some((row) => row.name_id === newOrder.name_id)) {
+              return {
+                ...prev,
+                [orderId]: sortTimelineRowsByDashNumber(
+                  existingRows.map((row) =>
+                    row.name_id === newOrder.name_id ? newOrder : row,
+                  ),
+                ),
+              };
+            }
+
+            return {
+              ...prev,
+              [orderId]: sortTimelineRowsByDashNumber([
+                ...existingRows,
+                newOrder,
+              ]),
+            };
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders" },
+        (payload) => {
+          const oldRow = payload.old as Partial<Order>;
+          const updated = payload.new as Order;
+          const orderId = Number(updated.order_id);
+
+          if (orderId === 0) {
+            if (updated.name_id === "0") {
+              setDisplayWarning(
+                "⚠️  SB Database is under maintenance, some features may be unavailable.",
+              );
+              return;
+            }
+
+            if (oldRow.name_id !== updated.name_id) {
+              setDisplayWarning(
+                "🟢 New update on the website, please refresh the page.",
+              );
+              return;
+            }
+          }
+
+          if (!visibleOrderIds.has(orderId)) return;
+
+          setOrdersById((prev) => {
+            const existingRows = prev[orderId] ?? [];
+            if (existingRows.length === 0) {
+              return {
+                ...prev,
+                [orderId]: sortTimelineRowsByDashNumber([updated]),
+              };
+            }
+
             return {
               ...prev,
               [orderId]: sortTimelineRowsByDashNumber(
-                existingRows.map((row) => (row.name_id === newOrder.name_id ? newOrder : row)),
+                existingRows.map((row) =>
+                  row.name_id === updated.name_id ? updated : row,
+                ),
               ),
             };
-          }
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "orders" },
+        (payload) => {
+          const deleted = payload.old as Partial<Order>;
+          const orderId = Number(deleted.order_id);
+          if (!visibleOrderIds.has(orderId)) return;
 
-          return {
-            ...prev,
-            [orderId]: sortTimelineRowsByDashNumber([...existingRows, newOrder]),
-          };
-        });
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
-        const oldRow = payload.old as Partial<Order>;
-        const updated = payload.new as Order;
-        const orderId = Number(updated.order_id);
-
-        if (orderId === 0) {
-          if (updated.name_id === "0") {
-            setDisplayWarning("⚠️  SB Database is under maintenance, some features may be unavailable.");
-            return;
-          }
-
-          if (oldRow.name_id !== updated.name_id) {
-            setDisplayWarning("🟢 New update on the website, please refresh the page.");
-            return;
-          }
-        }
-
-        if (!visibleOrderIds.has(orderId)) return;
-
-        setOrdersById((prev) => {
-          const existingRows = prev[orderId] ?? [];
-          if (existingRows.length === 0) {
+          setOrdersById((prev) => {
+            const existingRows = prev[orderId] ?? [];
             return {
               ...prev,
-              [orderId]: sortTimelineRowsByDashNumber([updated]),
+              [orderId]: existingRows.filter(
+                (row) => row.name_id !== deleted.name_id,
+              ),
             };
-          }
-
-          return {
-            ...prev,
-            [orderId]: sortTimelineRowsByDashNumber(
-              existingRows.map((row) => (row.name_id === updated.name_id ? updated : row)),
-            ),
-          };
-        });
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
-        const deleted = payload.old as Partial<Order>;
-        const orderId = Number(deleted.order_id);
-        if (!visibleOrderIds.has(orderId)) return;
-
-        setOrdersById((prev) => {
-          const existingRows = prev[orderId] ?? [];
-          return {
-            ...prev,
-            [orderId]: existingRows.filter((row) => row.name_id !== deleted.name_id),
-          };
-        });
-      })
+          });
+        },
+      )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setOrdersRealtimeStatus("OPEN");
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.error("Timeline orders realtime subscription failed:", status);
+          console.error(
+            "Timeline orders realtime subscription failed:",
+            status,
+          );
           setOrdersRealtimeStatus("ERROR");
         }
       });
@@ -1094,7 +1315,9 @@ export function TimelineOrders() {
 
   useEffect(() => {
     const applySelection = (selectionMap: Map<HTMLTableElement, DragSel>) => {
-      setSelectedTimelineOrderIds(collectSelectedTimelineOrderIds(selectionMap));
+      setSelectedTimelineOrderIds(
+        collectSelectedTimelineOrderIds(selectionMap),
+      );
     };
 
     const onMouseDown = (event: MouseEvent) => {
@@ -1105,7 +1328,9 @@ export function TimelineOrders() {
         return;
       }
 
-      const row = target.closest("tr[datatype='data']") as HTMLTableRowElement | null;
+      const row = target.closest(
+        "tr[datatype='data']",
+      ) as HTMLTableRowElement | null;
       if (!row) return;
       const table = row.closest("table") as HTMLTableElement | null;
       if (!table) return;
@@ -1147,7 +1372,9 @@ export function TimelineOrders() {
 
       if (!dragging) return;
       const target = event.target as HTMLElement;
-      const row = target.closest("tr[datatype='data']") as HTMLTableRowElement | null;
+      const row = target.closest(
+        "tr[datatype='data']",
+      ) as HTMLTableRowElement | null;
       if (!row) return;
       const table = row.closest("table") as HTMLTableElement | null;
       if (!table) return;
@@ -1184,7 +1411,9 @@ export function TimelineOrders() {
         dragSelections.current = new Map(pendingDragSelections.current);
         applySelection(dragSelections.current);
       } else {
-        const row = target.closest("tr[datatype='data']") as HTMLTableRowElement | null;
+        const row = target.closest(
+          "tr[datatype='data']",
+        ) as HTMLTableRowElement | null;
         const table = row?.closest("table") as HTMLTableElement | null;
         const rowIndex = row ? getTimelineRowIndex(row) : -1;
 
@@ -1197,7 +1426,11 @@ export function TimelineOrders() {
           const prev = dragSelections.current.get(table);
           const next: DragSel = prev
             ? { ...prev, extras: new Set(prev.extras ?? []) }
-            : { startRow: rowIndex, endRow: rowIndex, extras: new Set<number>() };
+            : {
+                startRow: rowIndex,
+                endRow: rowIndex,
+                extras: new Set<number>(),
+              };
 
           if (next.extras?.has(rowIndex)) next.extras.delete(rowIndex);
           else next.extras?.add(rowIndex);
@@ -1205,7 +1438,11 @@ export function TimelineOrders() {
           applySelection(dragSelections.current);
         } else {
           dragSelections.current.clear();
-          dragSelections.current.set(table, { startRow: rowIndex, endRow: rowIndex, extras: new Set() });
+          dragSelections.current.set(table, {
+            startRow: rowIndex,
+            endRow: rowIndex,
+            extras: new Set(),
+          });
           applySelection(dragSelections.current);
         }
       }
@@ -1216,7 +1453,11 @@ export function TimelineOrders() {
     };
 
     const onSelectStart = (event: Event) => {
-      if (!document.body.classList.contains("multi-select-mode") || isEditableElement(event.target)) return;
+      if (
+        !document.body.classList.contains("multi-select-mode") ||
+        isEditableElement(event.target)
+      )
+        return;
       event.preventDefault();
       clearBrowserSelection();
     };
@@ -1263,30 +1504,34 @@ export function TimelineOrders() {
   useEffect(() => {
     let cancelled = false;
 
-    const compareNullableTime = (a: number | null, b: number | null): number => {
+    const compareNullableTime = (
+      a: number | null,
+      b: number | null,
+    ): number => {
       if (a === null && b === null) return 0;
       if (a === null) return 1;
       if (b === null) return -1;
       return a - b;
     };
 
-    const shippingMethodOrder = (method?: string | null) => {
-      const m = (method ?? "").toLowerCase();
-      if (m === "express") return 0;
-      if (m === "rush_shipping") return 1;
-      if (m === "standard") return 2;
-      return 3;
-    };
-
     const sortAllOrders = (orders: TimelineOrder[]) => {
       return [...orders].sort((a, b) => {
-        const shipCmp = compareNullableTime(toTimelineTime(a.ship_date), toTimelineTime(b.ship_date));
+        const shipCmp = compareNullableTime(
+          toTimelineTime(a.ship_date),
+          toTimelineTime(b.ship_date),
+        );
         if (shipCmp !== 0) return shipCmp;
 
-        const providedDateCmp = compareNullableTime(toTimelineTime(a.ihd_date), toTimelineTime(b.ihd_date));
+        const providedDateCmp = compareNullableTime(
+          toTimelineTime(a.ihd_date),
+          toTimelineTime(b.ihd_date),
+        );
         if (providedDateCmp !== 0) return providedDateCmp;
 
-        return shippingMethodOrder(a.shipping_method) - shippingMethodOrder(b.shipping_method);
+        return (
+          shippingMethodOrder(a.shipping_method) -
+          shippingMethodOrder(b.shipping_method)
+        );
       });
     };
 
@@ -1306,7 +1551,9 @@ export function TimelineOrders() {
             return;
           }
 
-          const nextOrders = sortAllOrders(((data ?? []) as TimelineOrder[]).filter(shouldParseTrackingOrder));
+          const nextOrders = sortAllOrders(
+            ((data ?? []) as TimelineOrder[]).filter(shouldParseTrackingOrder),
+          );
 
           setCombinedOrders(nextOrders);
         });
@@ -1316,16 +1563,23 @@ export function TimelineOrders() {
 
     const channel = supabase
       .channel("tracking_timeline_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tracking_orders" }, () => {
-        fetchTrackingTimelineOrders();
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tracking_orders" },
+        () => {
+          fetchTrackingTimelineOrders();
+        },
+      )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setTrackingRealtimeStatus("OPEN");
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.error("Tracking timeline realtime subscription failed:", status);
+          console.error(
+            "Tracking timeline realtime subscription failed:",
+            status,
+          );
           setTrackingRealtimeStatus("ERROR");
         }
       });
@@ -1357,17 +1611,23 @@ export function TimelineOrders() {
   // };
 
   const visibleTimelineOrders = combinedOrders.filter((order) => {
-    if (isTimelineTicketSolved(order)) return showShippedOrders && isTimelineOrderShipped(order);
+    if (isTimelineTicketSolved(order))
+      return showShippedOrders && isTimelineOrderShipped(order);
     return isTimelineOrderActive(order);
   });
-  const calendarOrderCountsByDay = visibleTimelineOrders.reduce<Record<string, number>>((counts, order) => {
+  const calendarOrderCountsByDay = visibleTimelineOrders.reduce<
+    Record<string, number>
+  >((counts, order) => {
     const dayKey = getTimelineDayKey(order.ship_date);
     if (!dayKey) return counts;
     counts[dayKey] = (counts[dayKey] ?? 0) + 1;
     return counts;
   }, {});
-  const renderCalendarDayButton = (props: React.ComponentProps<typeof CalendarDayButton>) => {
-    const count = calendarOrderCountsByDay[format(props.day.date, "yyyy-MM-dd")] ?? 0;
+  const renderCalendarDayButton = (
+    props: React.ComponentProps<typeof CalendarDayButton>,
+  ) => {
+    const count =
+      calendarOrderCountsByDay[format(props.day.date, "yyyy-MM-dd")] ?? 0;
 
     return (
       <CalendarDayButton
@@ -1378,18 +1638,26 @@ export function TimelineOrders() {
         }}
       >
         {props.children}
-        {count > 0 && <span className="text-[10px] leading-none opacity-75">({count})</span>}
+        {count > 0 && (
+          <span className="text-[10px] leading-none opacity-75">({count})</span>
+        )}
       </CalendarDayButton>
     );
   };
 
   const pastDueOrders = visibleTimelineOrders.filter(
-    (order) => order.ship_date && getTimelineDateStatus(order.ship_date, new Date()) === "past",
+    (order) =>
+      order.ship_date &&
+      getTimelineDateStatus(order.ship_date, new Date()) === "past",
   );
   const upcomingOrders = visibleTimelineOrders.filter(
-    (order) => !!order.ship_date && isTimelineDateWithinRange(order.ship_date, selectedDateRange),
+    (order) =>
+      !!order.ship_date &&
+      isTimelineDateWithinRange(order.ship_date, selectedDateRange),
   );
-  const upcomingOrdersByDay = upcomingOrders.reduce<Record<string, TimelineOrder[]>>((groups, order) => {
+  const upcomingOrdersByDay = upcomingOrders.reduce<
+    Record<string, TimelineOrder[]>
+  >((groups, order) => {
     const dayKey = getTimelineDayKey(order.ship_date);
     if (!dayKey) return groups;
     groups[dayKey] = [...(groups[dayKey] ?? []), order];
@@ -1397,12 +1665,23 @@ export function TimelineOrders() {
   }, {});
   const upcomingDayKeys = Object.keys(upcomingOrdersByDay).sort();
   const selectedDayOrders = visibleTimelineOrders.filter(
-    (order) => !!selectedDate && !!order.ship_date && isSameTimelineDay(order.ship_date, selectedDate),
+    (order) =>
+      !!selectedDate &&
+      !!order.ship_date &&
+      isSameTimelineDay(order.ship_date, selectedDate),
   );
-  const selectedDateLabel = selectedDate ? format(selectedDate, "PPP") : formatTimelineDateRange(selectedDateRange);
-  const selectedDateTitle = selectedDate ? format(selectedDate, "MMMM - d") : "";
+  const selectedDateLabel = selectedDate
+    ? format(selectedDate, "PPP")
+    : formatTimelineDateRange(selectedDateRange);
+  const selectedDateTitle = selectedDate
+    ? format(selectedDate, "MMMM - d")
+    : "";
 
-  const renderTimelineTable = (title: string, orders: TimelineOrder[], emptyMessage: string) => (
+  const renderTimelineTable = (
+    title: string,
+    orders: TimelineOrder[],
+    emptyMessage: string,
+  ) => (
     <section className="flex flex-col gap-2">
       <h2 className="font-bold text-lg">
         {title} ({orders.length})
@@ -1411,7 +1690,10 @@ export function TimelineOrders() {
         <Table className="mb-5 w-full min-w-[1056px] table-fixed">
           <colgroup>
             {TIMELINE_COLUMNS.map((column) => (
-              <col key={column.label} style={{ width: column.width, minWidth: column.minWidth }} />
+              <col
+                key={column.label}
+                style={{ width: column.width, minWidth: column.minWidth }}
+              />
             ))}
           </colgroup>
           <TableHeader>
@@ -1428,238 +1710,303 @@ export function TimelineOrders() {
             </TableRow>
           </TableHeader>
           <TableBody className="py-5">
-          {orders.length === 0 && (
-            <TableRow className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}>
-              <TableCell colSpan={HEADER_COLS} className="px-3 py-2 text-xs font-medium text-muted-foreground">
-                {emptyMessage}
-              </TableCell>
-            </TableRow>
-          )}
-          {orders.map((order) => {
-            const orderIdNum = Number(order.order_id);
-            const rows = ordersById[orderIdNum] ?? [];
-            const trackingMetadata = trackingMetadataByOrderId[orderIdNum];
-            const metadataItems = trackingMetadata?.items ?? [];
-            const orderItems: TimelineItem[] = rows.map((row, index) => ({
-              FileName: row.name_id,
-              Status: row.production_status ?? undefined,
-              Material: row.material ?? undefined,
-              Quantity: row.quantity ?? undefined,
-              Notes: row.notes ?? undefined,
-              itemIndex: index + 1,
-            }));
-            const items = orderItems.length > 0 ? orderItems : metadataItems;
-            const hasRows = !ordersLoading && rows.length > 0;
-            const hasCreatives = items.length > 0;
-            const dueDateStatus = order.ship_date ? getTimelineDateStatus(order.ship_date, new Date()) : "future";
-            const dueDateRowClass =
-              dueDateStatus === "past"
-                ? "bg-red-200 hover:bg-red-200"
-                : dueDateStatus === "today"
-                ? "bg-yellow-100 hover:bg-yellow-100"
-                : "bg-gray-200 hover:bg-gray-200";
-            const notesSummary = hasRows ? getTimelineNotesSummary(rows) : "-";
-            const notesByNameId = new Map(rows.map((row) => [row.name_id, row.notes?.trim() || "-"]));
-            const isOpen = openIds.has(orderIdNum);
-            const creativeSummary = getCreativeSummary(items);
-            const lowerStatus = getLowerTimelineStatus(items, order.current_status);
-            const statusSummary = formatTimelineItemValue(lowerStatus);
-            const productionWarning = getTimelineProductionWarning(lowerStatus, order.ship_date);
-            const hasProductionWarning = productionWarning !== "normal";
-            const statusTitle = hasProductionWarning ? `${statusSummary} - Production warning` : statusSummary;
-            const hasPendingStatusColorOverride = Object.prototype.hasOwnProperty.call(
-              statusColorOverridesByOrderId,
-              orderIdNum,
-            );
-            const specialColor = hasPendingStatusColorOverride
-              ? statusColorOverridesByOrderId[orderIdNum]
-              : trackingMetadata?.specialColor;
-            const shouldColorOrderNumberCell = isOrderNumberSpecialColor(specialColor);
-            const statusCellBackground = getTimelineStatusCellBackground(
-              items,
-              shouldColorOrderNumberCell ? undefined : specialColor,
-            );
-            const orderNumberCellBackground = shouldColorOrderNumberCell ? specialColor ?? undefined : undefined;
-            const materialSummary = getMixedSummary(items, "Material");
-            const quantitySummary = getTimelineQuantitySummary(rows, items);
-            const isSelected = selectedTimelineOrderIds.has(orderIdNum);
-            const isShipped = isTimelineOrderShipped(order);
-            const isThisOrderShipping = shipOrderInFlightId === orderIdNum;
-
-            return (
-              <React.Fragment key={`due-group-${orderIdNum}`}>
-                <TableRow
-                  datatype="data"
-                  data-order-id={orderIdNum}
-                  className={`${TIMELINE_ROW_CLASS} ${dueDateRowClass} h-6 ${
-                    isSelected ? "bg-blue-100 hover:bg-blue-100" : ""
-                  } ${isShipped ? "text-gray-500" : ""}`}
+            {orders.length === 0 && (
+              <TableRow
+                className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}
+              >
+                <TableCell
+                  colSpan={HEADER_COLS}
+                  className="px-3 py-2 text-xs font-medium text-muted-foreground"
                 >
-                  <TableCell className="px-1 py-1 text-center align-middle whitespace-nowrap">
-                    <Button
-                      data-ignore-selection="true"
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={!hasCreatives}
-                      aria-label={`${isOpen ? "Hide" : "Show"} creatives for order ${orderIdNum || "unknown"}`}
-                      className={`h-6 w-6 p-0 hover:bg-white/40 disabled:cursor-not-allowed disabled:opacity-40 ${
-                        isShipped ? "text-gray-500" : "text-black"
-                      }`}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (!hasCreatives) return;
-                        toggleOpen(orderIdNum, !isOpen);
-                      }}
-                    >
-                      {isOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                    </Button>
-                  </TableCell>
-                  <TableCell
-                    className={`${TIMELINE_PRIORITY_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
-                    style={{ background: orderNumberCellBackground }}
-                  >
-                    {orderIdNum ? (
-                      <TooltipProvider delayDuration={150}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              data-ignore-selection="true"
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className={`flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold ${
-                                orderNumberCellBackground ? "text-white hover:bg-black/10" : "hover:bg-white/50"
-                              }`}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                window.open(getZendeskTicketUrl(orderIdNum), "_blank", "noopener,noreferrer");
-                              }}
-                            >
-                              <span>{orderIdNum}</span>
-                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">View on Zendesk</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <span>—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
-                    {formatTimelineMonthDay(order.ship_date)}
-                  </TableCell>
-                  <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
-                    {formatTimelineMonthDay(order.ihd_date)}
-                  </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS}>
-                    {formatTimelineItemValue(order.shipping_method ?? undefined)}
-                  </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS}>
-                    {creativeSummary}
-                  </TableCell>
-                           <TableCell className={TIMELINE_CELL_CLASS}>
-                    {quantitySummary}
-                  </TableCell>
+                  {emptyMessage}
+                </TableCell>
+              </TableRow>
+            )}
+            {orders.map((order) => {
+              const orderIdNum = Number(order.order_id);
+              const rows = ordersById[orderIdNum] ?? [];
+              const trackingMetadata = trackingMetadataByOrderId[orderIdNum];
+              const metadataItems = trackingMetadata?.items ?? [];
+              const orderItems: TimelineItem[] = rows.map((row, index) => ({
+                FileName: row.name_id,
+                Status: row.production_status ?? undefined,
+                Material: row.material ?? undefined,
+                Quantity: row.quantity ?? undefined,
+                Notes: row.notes ?? undefined,
+                itemIndex: index + 1,
+              }));
+              const items = orderItems.length > 0 ? orderItems : metadataItems;
+              const hasRows = !ordersLoading && rows.length > 0;
+              const hasCreatives = items.length > 0;
+              const dueDateStatus = order.ship_date
+                ? getTimelineDateStatus(order.ship_date, new Date())
+                : "future";
+              const dueDateRowClass =
+                dueDateStatus === "past"
+                  ? "bg-red-200 hover:bg-red-200"
+                  : dueDateStatus === "today"
+                    ? "bg-yellow-100 hover:bg-yellow-100"
+                    : "bg-gray-200 hover:bg-gray-200";
+              const notesSummary = hasRows
+                ? getTimelineNotesSummary(rows)
+                : "-";
+              const notesByNameId = new Map(
+                rows.map((row) => [row.name_id, row.notes?.trim() || "-"]),
+              );
+              const isOpen = openIds.has(orderIdNum);
+              const creativeSummary = getCreativeSummary(items);
+              const lowerStatus = getLowerTimelineStatus(
+                items,
+                order.current_status,
+              );
+              const statusSummary = formatTimelineItemValue(lowerStatus);
+              const productionWarning = getTimelineProductionWarning(
+                lowerStatus,
+                order.ship_date,
+              );
+              const hasProductionWarning = productionWarning !== "normal";
+              const statusTitle = hasProductionWarning
+                ? `${statusSummary} - Production warning`
+                : statusSummary;
+              const hasPendingStatusColorOverride =
+                Object.prototype.hasOwnProperty.call(
+                  statusColorOverridesByOrderId,
+                  orderIdNum,
+                );
+              const specialColor = hasPendingStatusColorOverride
+                ? statusColorOverridesByOrderId[orderIdNum]
+                : trackingMetadata?.specialColor;
+              const shouldColorOrderNumberCell =
+                isOrderNumberSpecialColor(specialColor);
+              const statusCellBackground = getTimelineStatusCellBackground(
+                items,
+                shouldColorOrderNumberCell ? undefined : specialColor,
+              );
+              const orderNumberCellBackground = shouldColorOrderNumberCell
+                ? (specialColor ?? undefined)
+                : undefined;
+              const materialSummary = getMixedSummary(items, "Material");
+              const quantitySummary = getTimelineQuantitySummary(rows, items);
+              const isSelected = selectedTimelineOrderIds.has(orderIdNum);
+              const isShipped = isTimelineOrderShipped(order);
+              const isThisOrderShipping = shipOrderInFlightId === orderIdNum;
 
-                  <TableCell
-                    className={`${TIMELINE_CELL_CLASS} ${getTimelineProductionWarningClassName(productionWarning)}`}
-                    title={statusTitle}
-                    style={{ background: statusCellBackground }}
+              return (
+                <React.Fragment key={`due-group-${orderIdNum}`}>
+                  <TableRow
+                    datatype="data"
+                    data-order-id={orderIdNum}
+                    className={`${TIMELINE_ROW_CLASS} ${dueDateRowClass} h-6 ${
+                      isSelected ? "bg-blue-100 hover:bg-blue-100" : ""
+                    } ${isShipped ? "text-gray-500" : ""}`}
                   >
-                    {hasProductionWarning ? `${statusSummary} ⚠` : statusSummary}
-                  </TableCell>
-                  <TableCell className={TIMELINE_CELL_CLASS}>
-                    {materialSummary}
-                  </TableCell>
-         
-                  <TableCell className={TIMELINE_NOTES_CELL_CLASS} title={notesSummary}>
-                    {notesSummary}
-                  </TableCell>
-                  <TableCell className="px-1 py-1 text-center align-middle" data-ignore-selection="true">
-                    <Checkbox
-                      checked={isShipped}
-                      disabled={isShipped || isThisOrderShipping}
-                      aria-label={`Mark order ${orderIdNum || "unknown"} as shipped`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                      }}
-                      onCheckedChange={(checked) => {
-                        if (isShipped) return;
-                        if (checked !== true) return;
-                        void handleShipTimelineOrder(orderIdNum);
-                      }}
-                    />
-                  </TableCell>
-                </TableRow>
-                {hasCreatives && isOpen &&
-                  items.map((item, index) => {
-                    const creativeName = item.FileName || item.Title || "-";
-                    const sourceRow = item.FileName
-                      ? rows.find((row) => row.name_id === item.FileName)
-                      : rows[index];
-                    const itemNotes = sourceRow?.notes ?? item.Notes ?? notesByNameId.get(item.FileName ?? "") ?? "";
-
-                    return (
-                      <TableRow
-                        key={`${orderIdNum}-${item.itemIndex ?? index}-${item.FileName ?? item.Title ?? "creative"}`}
-                        className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}
+                    <TableCell className="px-1 py-1 text-center align-middle whitespace-nowrap">
+                      <Button
+                        data-ignore-selection="true"
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={!hasCreatives}
+                        aria-label={`${isOpen ? "Hide" : "Show"} creatives for order ${orderIdNum || "unknown"}`}
+                        className={`h-6 w-6 p-0 hover:bg-white/40 disabled:cursor-not-allowed disabled:opacity-40 ${
+                          isShipped ? "text-gray-500" : "text-black"
+                        }`}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (!hasCreatives) return;
+                          toggleOpen(orderIdNum, !isOpen);
+                        }}
                       >
-                        <TableCell className="px-1 py-1 align-middle whitespace-nowrap" />
-                        <TableCell
-                          className={`${TIMELINE_PRIORITY_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
-                          style={{ background: orderNumberCellBackground }}
+                        {isOpen ? (
+                          <Minus className="h-4 w-4" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TableCell>
+                    <TableCell
+                      className={`${TIMELINE_PRIORITY_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
+                      style={{ background: orderNumberCellBackground }}
+                    >
+                      {orderIdNum ? (
+                        <TooltipProvider delayDuration={150}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                data-ignore-selection="true"
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className={`flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold ${
+                                  orderNumberCellBackground
+                                    ? "text-white hover:bg-black/10"
+                                    : "hover:bg-white/50"
+                                }`}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  window.open(
+                                    getZendeskTicketUrl(orderIdNum),
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                  );
+                                }}
+                              >
+                                <span>{orderIdNum}</span>
+                                <ExternalLink
+                                  className="h-3 w-3 shrink-0"
+                                  aria-hidden="true"
+                                />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              View on Zendesk
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
+                      {formatTimelineMonthDay(order.ship_date)}
+                    </TableCell>
+                    <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
+                      {formatTimelineMonthDay(order.ihd_date)}
+                    </TableCell>
+                    <TableCell className={TIMELINE_CELL_CLASS}>
+                      {formatTimelineItemValue(
+                        order.shipping_method ?? undefined,
+                      )}
+                    </TableCell>
+                    <TableCell className={TIMELINE_CELL_CLASS}>
+                      {creativeSummary}
+                    </TableCell>
+                    <TableCell className={TIMELINE_CELL_CLASS}>
+                      {quantitySummary}
+                    </TableCell>
+
+                    <TableCell
+                      className={`${TIMELINE_CELL_CLASS} ${getTimelineProductionWarningClassName(productionWarning)}`}
+                      title={statusTitle}
+                      style={{ background: statusCellBackground }}
+                    >
+                      {hasProductionWarning
+                        ? `${statusSummary} ⚠`
+                        : statusSummary}
+                    </TableCell>
+                    <TableCell className={TIMELINE_CELL_CLASS}>
+                      {materialSummary}
+                    </TableCell>
+
+                    <TableCell
+                      className={TIMELINE_NOTES_CELL_CLASS}
+                      title={notesSummary}
+                    >
+                      {notesSummary}
+                    </TableCell>
+                    <TableCell
+                      className="px-1 py-1 text-center align-middle"
+                      data-ignore-selection="true"
+                    >
+                      <Checkbox
+                        checked={isShipped}
+                        disabled={isShipped || isThisOrderShipping}
+                        aria-label={`Mark order ${orderIdNum || "unknown"} as shipped`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                        }}
+                        onCheckedChange={(checked) => {
+                          if (isShipped) return;
+                          if (checked !== true) return;
+                          void handleShipTimelineOrder(orderIdNum);
+                        }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                  {hasCreatives &&
+                    isOpen &&
+                    items.map((item, index) => {
+                      const creativeName = item.FileName || item.Title || "-";
+                      const sourceRow = item.FileName
+                        ? rows.find((row) => row.name_id === item.FileName)
+                        : rows[index];
+                      const itemNotes =
+                        sourceRow?.notes ??
+                        item.Notes ??
+                        notesByNameId.get(item.FileName ?? "") ??
+                        "";
+
+                      return (
+                        <TableRow
+                          key={`${orderIdNum}-${item.itemIndex ?? index}-${item.FileName ?? item.Title ?? "creative"}`}
+                          className={`${TIMELINE_ROW_CLASS} bg-gray-50 hover:bg-gray-50 h-6`}
                         >
-                          {orderIdNum || "—"}
-                        </TableCell>
-                        <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
-                          {formatTimelineMonthDay(order.ship_date)}
-                        </TableCell>
-                        <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
-                          {formatTimelineMonthDay(order.ihd_date)}
-                        </TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS}>
-                          {formatTimelineItemValue(order.shipping_method ?? undefined)}
-                        </TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS} title={creativeName}>
-                          {formatCreativeName(item.FileName, item.Title)}
-                        </TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS}>{formatDisplayQuantity(item.Quantity)}</TableCell>
-                        <TableCell
-                          className={TIMELINE_CELL_CLASS}
-                          title={item.Status ?? "-"}
-                          style={{ background: statusCellBackground }}
-                        >
-                          {formatTimelineItemValue(item.Status)}
-                        </TableCell>
-                        <TableCell className={TIMELINE_CELL_CLASS}>{formatTimelineItemValue(item.Material)}</TableCell>
-                        
-                        <TableCell
-                          className={TIMELINE_NOTES_CELL_CLASS}
-                          title={itemNotes || "-"}
-                          data-ignore-selection="true"
-                        >
-                          {sourceRow ? (
-                            <TimelineNoteInput
-                              note={itemNotes}
-                              onCommit={(value) => {
-                                void handleTimelineNoteChange(sourceRow, value);
-                              }}
-                            />
-                          ) : (
-                            itemNotes || "-"
-                          )}
-                        </TableCell>
-                        <TableCell className="px-1 py-1 align-middle" />
-                      </TableRow>
-                    );
-                  })}
-              </React.Fragment>
-            );
-          })}
+                          <TableCell className="px-1 py-1 align-middle whitespace-nowrap" />
+                          <TableCell
+                            className={`${TIMELINE_PRIORITY_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
+                            style={{ background: orderNumberCellBackground }}
+                          >
+                            {orderIdNum || "—"}
+                          </TableCell>
+                          <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
+                            {formatTimelineMonthDay(order.ship_date)}
+                          </TableCell>
+                          <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
+                            {formatTimelineMonthDay(order.ihd_date)}
+                          </TableCell>
+                          <TableCell className={TIMELINE_CELL_CLASS}>
+                            {formatTimelineItemValue(
+                              order.shipping_method ?? undefined,
+                            )}
+                          </TableCell>
+                          <TableCell
+                            className={TIMELINE_CELL_CLASS}
+                            title={creativeName}
+                          >
+                            {formatCreativeName(item.FileName, item.Title)}
+                          </TableCell>
+                          <TableCell className={TIMELINE_CELL_CLASS}>
+                            {formatDisplayQuantity(item.Quantity)}
+                          </TableCell>
+                          <TableCell
+                            className={TIMELINE_CELL_CLASS}
+                            title={item.Status ?? "-"}
+                            style={{ background: statusCellBackground }}
+                          >
+                            {formatTimelineItemValue(item.Status)}
+                          </TableCell>
+                          <TableCell className={TIMELINE_CELL_CLASS}>
+                            {formatTimelineItemValue(item.Material)}
+                          </TableCell>
+
+                          <TableCell
+                            className={TIMELINE_NOTES_CELL_CLASS}
+                            title={itemNotes || "-"}
+                            data-ignore-selection="true"
+                          >
+                            {sourceRow ? (
+                              <TimelineNoteInput
+                                note={itemNotes}
+                                onCommit={(value) => {
+                                  void handleTimelineNoteChange(
+                                    sourceRow,
+                                    value,
+                                  );
+                                }}
+                              />
+                            ) : (
+                              itemNotes || "-"
+                            )}
+                          </TableCell>
+                          <TableCell className="px-1 py-1 align-middle" />
+                        </TableRow>
+                      );
+                    })}
+                </React.Fragment>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
@@ -1673,14 +2020,17 @@ export function TimelineOrders() {
 
   // console.log(orders);
   // How do we get the last updated thing, maybe we keep just an order
-  const isRealtimeDisconnected = ordersRealtimeStatus === "ERROR" || trackingRealtimeStatus === "ERROR";
+  const isRealtimeDisconnected =
+    ordersRealtimeStatus === "ERROR" || trackingRealtimeStatus === "ERROR";
   const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : "#76C043";
 
   return (
     <>
       {displayWarning !== "" && (
         <div className="fixed left-0 right-0 top-0 z-[100]">
-          <div className="bg-red-900 p-2 text-center font-bold text-white">{displayWarning}</div>
+          <div className="bg-red-900 p-2 text-center font-bold text-white">
+            {displayWarning}
+          </div>
         </div>
       )}
       <Toaster theme="dark" richColors={true} />
@@ -1698,11 +2048,16 @@ export function TimelineOrders() {
           <DialogHeader>
             <DialogTitle>Open Orders</DialogTitle>
             <DialogDescription>
-              You're about to open {pendingOpenOrderIds.length} orders on new tabs
+              You're about to open {pendingOpenOrderIds.length} orders on new
+              tabs
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setOpenTabsDialogOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setOpenTabsDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -1723,17 +2078,27 @@ export function TimelineOrders() {
         <h1 className="font-bold text-5xl "> Daily List </h1>
         <div className="flex flex-wrap items-center gap-2 text-zinc-700">
           <span className="relative h-4 w-4">
-            <span className="absolute inset-0 rounded-full" style={{ backgroundColor: realtimeIndicatorColor }} />
-            <span className="active-pulse-ring absolute inset-0 rounded-full border-2" style={{ borderColor: realtimeIndicatorColor }} />
+            <span
+              className="absolute inset-0 rounded-full"
+              style={{ backgroundColor: realtimeIndicatorColor }}
+            />
+            <span
+              className="active-pulse-ring absolute inset-0 rounded-full border-2"
+              style={{ borderColor: realtimeIndicatorColor }}
+            />
           </span>
-          <p className="text-lg font-medium">Current range: {selectedDateLabel}</p>
+          <p className="text-lg font-medium">
+            Current range: {selectedDateLabel}
+          </p>
         </div>
         <div className="flex w-full items-center justify-end gap-2">
           <div className="flex gap-2">
             <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium">
               <Checkbox
                 checked={showShippedOrders}
-                onCheckedChange={(checked) => setShowShippedOrders(checked === true)}
+                onCheckedChange={(checked) =>
+                  setShowShippedOrders(checked === true)
+                }
               />
               <span>Show shipped orders</span>
             </label>
@@ -1742,7 +2107,10 @@ export function TimelineOrders() {
               open={datePickerOpen}
               onOpenChange={(open) => {
                 setDatePickerOpen(open);
-                if (open) setPendingSelectedDate(selectedDate ?? getTimelineDayStart(new Date()));
+                if (open)
+                  setPendingSelectedDate(
+                    selectedDate ?? getTimelineDayStart(new Date()),
+                  );
               }}
             >
               <PopoverTrigger asChild>
@@ -1751,26 +2119,48 @@ export function TimelineOrders() {
                   {selectedDate ? format(selectedDate, "PPP") : "Pick date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start" data-ignore-selection="true">
+              <PopoverContent
+                className="w-auto p-0"
+                align="start"
+                data-ignore-selection="true"
+              >
                 <Calendar
                   className="[--cell-size:2.75rem]"
                   mode="single"
                   selected={pendingSelectedDate}
-                  onSelect={(date) => setPendingSelectedDate(date ? getTimelineDayStart(date) : undefined)}
+                  onSelect={(date) =>
+                    setPendingSelectedDate(
+                      date ? getTimelineDayStart(date) : undefined,
+                    )
+                  }
                   components={{ DayButton: renderCalendarDayButton }}
                 />
                 <div className="flex items-center justify-end gap-2 border-t p-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setDatePickerOpen(false)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDatePickerOpen(false)}
+                  >
                     Cancel
                   </Button>
-                  <Button type="button" size="sm" disabled={!pendingSelectedDate} onClick={applySelectedDate}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!pendingSelectedDate}
+                    onClick={applySelectedDate}
+                  >
                     Okay
                   </Button>
                 </div>
               </PopoverContent>
             </Popover>
             {selectedDate && (
-              <Button type="button" variant="ghost" onClick={handleClearSelectedDate}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleClearSelectedDate}
+              >
                 Clear
               </Button>
             )}
@@ -1778,28 +2168,37 @@ export function TimelineOrders() {
         </div>
         {renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")}
         {selectedDate
-          ? renderTimelineTable(selectedDateTitle, selectedDayOrders, "No orders due for this date.")
-          : upcomingDayKeys.length === 0
           ? renderTimelineTable(
-              `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
-              [],
-              "No orders in this date range.",
+              selectedDateTitle,
+              selectedDayOrders,
+              "No orders due for this date.",
             )
-          : upcomingDayKeys.map((dayKey) => (
-              <React.Fragment key={dayKey}>
-                {renderTimelineTable(
-                  getTimelineTableTitleDate(dayKey),
-                  upcomingOrdersByDay[dayKey],
-                  "No upcoming orders.",
-                )}
-              </React.Fragment>
-            ))}
+          : upcomingDayKeys.length === 0
+            ? renderTimelineTable(
+                `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
+                [],
+                "No orders in this date range.",
+              )
+            : upcomingDayKeys.map((dayKey) => (
+                <React.Fragment key={dayKey}>
+                  {renderTimelineTable(
+                    getTimelineTableTitleDate(dayKey),
+                    upcomingOrdersByDay[dayKey],
+                    "No upcoming orders.",
+                  )}
+                </React.Fragment>
+              ))}
       </section>
       {selectedTimelineOrderIds.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-200 shadow-lg" data-ignore-selection="true">
+        <div
+          className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-200 shadow-lg"
+          data-ignore-selection="true"
+        >
           <div className="flex h-14 w-full items-center gap-3 px-4">
             <div className="min-w-0 flex-1 text-sm">
-              <span className="block font-semibold">Selected: {selectedTimelineOrderIds.size}</span>
+              <span className="block font-semibold">
+                Selected: {selectedTimelineOrderIds.size}
+              </span>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {STATUS_COLOR_OPTIONS.map((color) => (
