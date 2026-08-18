@@ -478,11 +478,13 @@ function isTimelineOrderOutOfSync(
   const orderProductionStatus = normalizeProductionStatus(currentStatus);
   if (!orderProductionStatus) return false;
 
-  return !rows.some(
-    (row) =>
-      normalizeProductionStatus(row.production_status) ===
-      orderProductionStatus,
-  );
+  const creativeProductionStatuses = rows
+    .map((row) => normalizeProductionStatus(row.production_status))
+    .filter((status): status is ProductionStatus => !!status);
+
+  if (creativeProductionStatuses.length === 0) return false;
+
+  return !creativeProductionStatuses.includes(orderProductionStatus);
 }
 
 function getLowerTimelineStatus(
