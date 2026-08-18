@@ -33,10 +33,23 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 // Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
-import { Eye, Plus, Minus, ExternalLink, CalendarIcon, X } from "lucide-react";
+import {
+  Eye,
+  Plus,
+  Minus,
+  ExternalLink,
+  CalendarIcon,
+  Unlink,
+  X,
+} from "lucide-react";
 import {
   capitalizeFirstLetter,
   capitalizeEveryWord,
@@ -456,6 +469,20 @@ function normalizeProductionStatus(
   return PRODUCTION_STATUS_ORDER.includes(normalized as ProductionStatus)
     ? (normalized as ProductionStatus)
     : null;
+}
+
+function isTimelineOrderOutOfSync(
+  rows: Order[],
+  currentStatus?: string | null,
+) {
+  const orderProductionStatus = normalizeProductionStatus(currentStatus);
+  if (!orderProductionStatus) return false;
+
+  return !rows.some(
+    (row) =>
+      normalizeProductionStatus(row.production_status) ===
+      orderProductionStatus,
+  );
 }
 
 function getLowerTimelineStatus(
@@ -1738,6 +1765,9 @@ export function TimelineOrders() {
               const items = orderItems.length > 0 ? orderItems : metadataItems;
               const hasRows = !ordersLoading && rows.length > 0;
               const hasCreatives = items.length > 0;
+              const isOutOfSync =
+                !ordersLoading &&
+                isTimelineOrderOutOfSync(rows, order.current_status);
               const dueDateStatus = order.ship_date
                 ? getTimelineDateStatus(order.ship_date, new Date())
                 : "future";
@@ -1831,39 +1861,66 @@ export function TimelineOrders() {
                     >
                       {orderIdNum ? (
                         <TooltipProvider delayDuration={150}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                data-ignore-selection="true"
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className={`flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold ${
-                                  orderNumberCellBackground
-                                    ? "text-white hover:bg-black/10"
-                                    : "hover:bg-white/50"
-                                }`}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  window.open(
-                                    getZendeskTicketUrl(orderIdNum),
-                                    "_blank",
-                                    "noopener,noreferrer",
-                                  );
-                                }}
-                              >
-                                <span>{orderIdNum}</span>
-                                <ExternalLink
-                                  className="h-3 w-3 shrink-0"
-                                  aria-hidden="true"
-                                />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              View on Zendesk
-                            </TooltipContent>
-                          </Tooltip>
+                          <div className="flex items-center">
+                            {isOutOfSync && (
+                              <HoverCard>
+                                <HoverCardTrigger asChild>
+                                  <span
+                                    className="inline-flex shrink-0 text-red-600"
+                                    aria-label="This order may be out of sync"
+                                    tabIndex={0}
+                                  >
+                                    <Unlink
+                                      className="h-4 w-4"
+                                      aria-hidden="true"
+                                    />
+                                  </span>
+                                </HoverCardTrigger>
+                                <HoverCardContent side="top">
+                                  this order may be out of sync
+                                </HoverCardContent>
+                              </HoverCard>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  data-ignore-selection="true"
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`flex h-6 max-w-full items-center gap-1 px-2 text-xs font-bold ${
+                                    orderNumberCellBackground
+                                      ? "text-white hover:bg-black/10"
+                                      : "hover:bg-white/50"
+                                  }`}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    window.open(
+                                      getZendeskTicketUrl(orderIdNum),
+                                      "_blank",
+                                      "noopener,noreferrer",
+                                    );
+                                  }}
+                                >
+                                  <span
+                                    className={
+                                      isOutOfSync ? "text-red-600" : undefined
+                                    }
+                                  >
+                                    {orderIdNum}
+                                  </span>
+                                  <ExternalLink
+                                    className="h-3 w-3 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                View on Zendesk
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                         </TooltipProvider>
                       ) : (
                         <span>—</span>
@@ -1948,7 +2005,13 @@ export function TimelineOrders() {
                             className={`${TIMELINE_PRIORITY_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
                             style={{ background: orderNumberCellBackground }}
                           >
-                            {orderIdNum || "—"}
+                            <span
+                              className={
+                                isOutOfSync ? "text-red-600" : undefined
+                              }
+                            >
+                              {orderIdNum || "—"}
+                            </span>
                           </TableCell>
                           <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
                             {formatTimelineMonthDay(order.ship_date)}
