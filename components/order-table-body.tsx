@@ -119,15 +119,18 @@ function boldUntilDash(text: string) {
 
 const splitCoresValue = (cores: string | null) => {
   const value = (cores ?? "").trim();
-  const dashIndex = value.indexOf("-");
+  const splitIndex = value.indexOf("_");
 
-  if (dashIndex === -1) {
+  if (splitIndex === -1) {
     return { cores: value, split: "AUTO" };
   }
 
+  const splitValue = value.slice(splitIndex + 1).trim();
+  const splitParts = splitValue.match(/^(\d+)\s*-\s*(\d+)$/);
+
   return {
-    cores: value.slice(0, dashIndex).trim(),
-    split: value.slice(dashIndex + 1).trim() || "AUTO",
+    cores: value.slice(0, splitIndex).trim(),
+    split: splitParts ? `${splitParts[1]} of ${splitParts[2]}` : splitValue || "AUTO",
   };
 };
 

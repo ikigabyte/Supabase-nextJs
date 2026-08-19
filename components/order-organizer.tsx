@@ -602,6 +602,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // const shiftDown = useRef(false); // you can delete this if you don't use it elsewhere
   const lastUrlSelectedNameId = useRef<string | null>(null);
   const pendingUrlNameId = useRef<string | null>(null);
+  const [urlSelectionVersion, bumpUrlSelectionVersion] = useState(0);
 
   const lastSubscribedAtRef = useRef<number>(0);
 
@@ -1921,9 +1922,10 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
     // Now we know the table + row exist → safe to select
     selectRowByNameId(id);
+    rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
     lastUrlSelectedNameId.current = id;
     pendingUrlNameId.current = null; // consume it
-  }, [grouped, selectedCategory, orders.length]);
+  }, [grouped, selectedCategory, orders.length, urlSelectionVersion]);
 
   useEffect(() => {
     const groupKeys = Object.keys(grouped);
@@ -1985,6 +1987,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // Only queue if different from last used
       if (decoded !== lastUrlSelectedNameId.current) {
         pendingUrlNameId.current = decoded; // <-- defer selection
+        bumpUrlSelectionVersion((version) => version + 1);
       }
     } else {
       // No value (e.g. /toprint?clear) → reset

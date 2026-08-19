@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { addDays, format } from "date-fns";
 import { type DateRange } from "react-day-picker";
 import { Button } from "./ui/button";
-import { redirect } from "next/navigation";
-// import { OrderTypes } from "@/utils/orderTypes";
+import { redirect, useRouter } from "next/navigation";
+import type { OrderTypes } from "@/utils/orderTypes";
 // import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { TimelineOrder } from "@/types/custom";
 // import { OrderTableHeader } from "@/components/order-table-header";
@@ -41,6 +41,7 @@ import {
 // Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
+import { assignKeyType } from "@/utils/orderKeyAssigner";
 import {
   Eye,
   Plus,
@@ -711,6 +712,29 @@ function getZendeskTicketUrl(orderId: number) {
   return `${ZENDESK_TICKET_BASE_URL}/${orderId}`;
 }
 
+function getDatabaseItemUrl(order: Order) {
+  const productionStatus = order.production_status ?? "";
+  const keyType =
+    assignKeyType(order, productionStatus as OrderTypes) ?? "unassigned";
+  const category = keyType.split("-")[0]?.toLowerCase() || "unassigned";
+  const orderQuery = encodeURIComponent(order.name_id);
+
+  switch (productionStatus) {
+    case "print":
+      return `/database/toprint?${encodeURIComponent(category)}=${orderQuery}`;
+    case "cut":
+      return `/database/tocut?${encodeURIComponent(category)}=${orderQuery}`;
+    case "pack":
+      return `/database/topack?${encodeURIComponent(category)}=${orderQuery}`;
+    case "prepack":
+      return `/database/toprepack?${encodeURIComponent(category)}=${orderQuery}`;
+    case "ship":
+      return `/database/toship?${encodeURIComponent(category)}=${orderQuery}`;
+    default:
+      return `/database/search?order=${orderQuery}`;
+  }
+}
+
 function getTimelineDataRows(table: HTMLTableElement) {
   const tbody = table.querySelector("tbody");
   if (!tbody) return [];
@@ -782,6 +806,7 @@ function collectSelectedTimelineOrderIds(
 const supabase = getBrowserClient();
 
 export function TimelineOrders() {
+  const router = useRouter();
   const [combinedOrders, setCombinedOrders] = useState<TimelineOrder[]>([]);
   // const [futureOrders, setFutureOrders] = useState<TimelineOrder[]>([]);
   const lastClickTime = useRef<number>(0);
@@ -865,6 +890,29 @@ export function TimelineOrders() {
     orderIds.forEach((orderId) => {
       window.open(getZendeskTicketUrl(orderId), "_blank");
     });
+  };
+
+  const handleViewDatabaseItem = async (orderId: number, nameId: string) => {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("order_id", orderId)
+      .eq("name_id", nameId)
+      .limit(1);
+
+    if (error) {
+      console.error("Error finding timeline item in database:", error);
+      toast.error("Could not find that item in the database.");
+      return;
+    }
+
+    const matchingOrder = data?.[0];
+    if (!matchingOrder) {
+      toast.error("That item was not found in the database.");
+      return;
+    }
+
+    router.push(getDatabaseItemUrl(matchingOrder));
   };
 
   const handleOpenSelectedOrders = () => {
@@ -1879,7 +1927,7 @@ export function TimelineOrders() {
                                   </span>
                                 </HoverCardTrigger>
                                 <HoverCardContent side="top">
-                                  this order may be out of sync
+                                  This order may be out of sync. Please double check the zendesk ticket.
                                 </HoverCardContent>
                               </HoverCard>
                             )}
@@ -2030,7 +2078,46 @@ export function TimelineOrders() {
                             className={TIMELINE_CELL_CLASS}
                             title={creativeName}
                           >
-                            {formatCreativeName(item.FileName, item.Title)}
+                            {item.FileName || item.Title ? (
+                              <TooltipProvider delayDuration={150}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      data-ignore-selection="true"
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="flex h-6 max-w-full items-center gap-1 px-2 text-xs font-semibold hover:bg-white/50"
+                                      aria-label={`View ${creativeName} in Database`}
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        void handleViewDatabaseItem(
+                                          orderIdNum,
+                                          item.FileName || item.Title || "",
+                                        );
+                                      }}
+                                    >
+                                      <span className="truncate">
+                                        {formatCreativeName(
+                                          item.FileName,
+                                          item.Title,
+                                        )}
+                                      </span>
+                                      <ExternalLink
+                                        className="h-3 w-3 shrink-0"
+                                        aria-hidden="true"
+                                      />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    View in Database
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              "-"
+                            )}
                           </TableCell>
                           <TableCell className={TIMELINE_CELL_CLASS}>
                             {formatDisplayQuantity(item.Quantity)}
