@@ -16,9 +16,7 @@ export async function proxy(request: NextRequest) {
 
   if (!user) {
     console.log("User not logged in, redirecting to login page");
-    const loginUrl = new URL("/database/login", request.url);
-    loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL("/database/login", request.url));
   }
 
   return response;

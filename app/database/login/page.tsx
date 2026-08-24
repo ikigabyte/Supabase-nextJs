@@ -6,26 +6,20 @@ import { emailLogin, signup } from "./actions";
 import { redirect } from "next/navigation";
 import { getServerClient } from "@/utils/supabase/server";
 import { OAuthButtons } from "./oath-signin";
-import { getDatabaseRedirectPath } from "./redirect";
 
 import Form from "next/form";
 
 export default async function Login({
   searchParams,
 }: {
-  searchParams: Promise<{
-    message?: string | string[] | undefined;
-    next?: string | string[] | undefined;
-  }>;
+  searchParams: Promise<{ message?: string | string[] | undefined }>;
 }) {
   // Await and normalize searchParams.message
   const normalize = (v?: string | string[] | undefined): string | undefined => {
     if (v === undefined) return undefined;
     return Array.isArray(v) ? v[0] : v;
   };
-  const params = await searchParams;
-  const message = normalize(params.message);
-  const redirectPath = getDatabaseRedirectPath(normalize(params.next));
+  const message = normalize((await searchParams).message);
   // console.log("Login page message:", message);
   // const error = normalize((await searchParams).error);
   // console.log("Login page error:", error);
@@ -34,7 +28,7 @@ export default async function Login({
     data: { user },
   } = await supabase.auth.getUser();
   if (user) {
-    redirect(redirectPath);
+    redirect("/database/toprint?rush");
   }
   return (
     <section className="h-[calc(100vh-57px)] flex justify-center items-center">
@@ -47,7 +41,6 @@ export default async function Login({
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Form action={emailLogin} formMethod="POST" className="grid gap-4">
-            <input type="hidden" name="next" value={redirectPath} />
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" autoComplete="email" required />
