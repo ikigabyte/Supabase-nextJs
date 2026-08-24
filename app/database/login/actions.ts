@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerClient } from "@/utils/supabase/server";
+import { getDatabaseRedirectPath } from "./redirect";
 
 // Email and password for formData
 export async function emailLogin(formData: FormData) {
   const supabase = await getServerClient();
+  const redirectPath = getDatabaseRedirectPath(formData.get("next") as string | null);
   console.log("Supabase client initialized:", supabase);
   // type-casting here for convenience
   // in practice, you should validate your inputs
@@ -20,11 +22,13 @@ export async function emailLogin(formData: FormData) {
   // console.log("Data being sent to Supabase:", data);
   if (error) {
     console.error("Error logging in", error);
-    redirect("/database/login?message=Could not authenticate user");
+    redirect(
+      `/database/login?message=Could not authenticate user&next=${encodeURIComponent(redirectPath)}`,
+    );
   }
   revalidatePath("/", "layout"); // * Clearing the cache here
   console.log("VALID USER LOGGING IN NOW");
-  redirect("/database/toprint?rush"); // * Redirecting to the rush print queue
+  redirect(redirectPath);
 }
 
 export async function signup(formData: FormData) {
