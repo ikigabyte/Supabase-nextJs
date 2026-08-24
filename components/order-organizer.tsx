@@ -603,6 +603,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const lastUrlSelectedNameId = useRef<string | null>(null);
   const pendingUrlNameId = useRef<string | null>(null);
   const [urlSelectionVersion, bumpUrlSelectionVersion] = useState(0);
+  const hasShownOrderNotFoundToast = useRef(false);
 
   const lastSubscribedAtRef = useRef<number>(0);
 
@@ -1910,6 +1911,13 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [scrollAreaName, setScrollAreaName] = useState<string>("History");
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!searchParams.has("orderNotFound") || hasShownOrderNotFoundToast.current) return;
+
+    hasShownOrderNotFoundToast.current = true;
+    toast.error("Order no longer in log");
+  }, [searchParams]);
 
   useEffect(() => {
     const id = pendingUrlNameId.current;
