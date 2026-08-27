@@ -187,7 +187,7 @@ export function assignKeyType(
   }
 
   // 3) For other order types (cut, ship, pack)
-  const simpleKey = order.material === "roll" ? "roll" : "regular";
+  const simpleKey = order.material?.includes("roll") ? "roll" : "regular";
   return keys.find((k) => k === simpleKey) || "unassigned";
 }
 
