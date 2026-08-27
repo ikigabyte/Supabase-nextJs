@@ -1,7 +1,15 @@
 "use client";
 // import * as React from "react"
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { addDays, format } from "date-fns";
+import {
+  addDays,
+  addMonths,
+  differenceInCalendarDays,
+  eachDayOfInterval,
+  endOfMonth,
+  format,
+  startOfMonth,
+} from "date-fns";
 import { type DateRange } from "react-day-picker";
 import { Button } from "./ui/button";
 import { redirect, useRouter } from "next/navigation";
@@ -25,6 +33,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -48,7 +64,10 @@ import {
   Minus,
   ExternalLink,
   CalendarIcon,
-  Unlink,
+  ChevronLeft,
+  ChevronRight,
+  MailOpen,
+  Search,
   X,
 } from "lucide-react";
 import {
@@ -76,6 +95,8 @@ const ZENDESK_TICKET_BASE_URL = "https://stickerbeat.zendesk.com/agent/tickets";
 const REALTIME_DISCONNECTED_WARNING =
   "⚠️ Realtime disconnected. Please refresh the page";
 type RealtimeStatus = "UNKNOWN" | "OPEN" | "ERROR";
+type TimelineView = "active" | "shipped" | "sync-conflicts";
+type TimelineDisplayMode = "list" | "timeline";
 
 import {
   forceUpdateTimeline,
@@ -216,6 +237,22 @@ function getTimelineDayStart(date: Date) {
   return nextDate;
 }
 
+function getTimelineOrderDateSpan(order: TimelineOrder) {
+  const shipDate = parseTimelineDate(order.ship_date);
+  if (!shipDate || Number.isNaN(shipDate.getTime())) return null;
+
+  const start = getTimelineDayStart(shipDate);
+  const parsedIhdDate = parseTimelineDate(order.ihd_date);
+  const end =
+    parsedIhdDate &&
+    !Number.isNaN(parsedIhdDate.getTime()) &&
+    parsedIhdDate.getTime() >= start.getTime()
+      ? getTimelineDayStart(parsedIhdDate)
+      : start;
+
+  return { start, end };
+}
+
 function getDefaultTimelineDateRange(): DateRange {
   const from = getTimelineDayStart(new Date());
   return { from, to: addDays(from, 7) };
@@ -225,6 +262,12 @@ function formatTimelineMonthDay(dateValue?: string | Date | null) {
   const date = parseTimelineDate(dateValue ?? null);
   if (!date || Number.isNaN(date.getTime())) return "-";
   return format(date, "MMM d ");
+}
+
+function formatTimelineShippedStamp(value?: string | null) {
+  const date = parseTimelineDate(value ?? null);
+  if (!date || Number.isNaN(date.getTime())) return "-";
+  return format(date, "dd/MM h:mma");
 }
 
 function formatTimelineDateRange(range?: DateRange) {
@@ -825,6 +868,7 @@ export function TimelineOrders() {
 
   // Inline orders rendering state: map order_id -> array of orders
   const [ordersById, setOrdersById] = useState<Record<number, Order[]>>({});
+  const hasLoadedTimelineRowsRef = useRef(false);
   const [trackingMetadataByOrderId, setTrackingMetadataByOrderId] = useState<
     Record<number, TrackingTimelineMetadata>
   >({});
@@ -839,7 +883,13 @@ export function TimelineOrders() {
     Date | undefined
   >(undefined);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [showShippedOrders, setShowShippedOrders] = useState(false);
+  const [timelineView, setTimelineView] = useState<TimelineView>("active");
+  const [timelineDisplayMode, setTimelineDisplayMode] =
+    useState<TimelineDisplayMode>("list");
+  const [timelineMonthStart, setTimelineMonthStart] = useState(() =>
+    startOfMonth(new Date()),
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedTimelineOrderIds, setSelectedTimelineOrderIds] = useState<
     Set<number>
   >(new Set());
@@ -872,6 +922,16 @@ export function TimelineOrders() {
     useState<RealtimeStatus>("UNKNOWN");
   const [trackingRealtimeStatus, setTrackingRealtimeStatus] =
     useState<RealtimeStatus>("UNKNOWN");
+
+  const timelineOrderIdsKey = Array.from(
+    new Set(
+      combinedOrders
+        .map((order) => Number(order.order_id))
+        .filter((orderId) => Number.isFinite(orderId)),
+    ),
+  )
+    .sort((a, b) => a - b)
+    .join(",");
 
   const parseLastRefreshMs = (value?: string | null): number | null => {
     if (!value) return null;
@@ -1008,21 +1068,21 @@ export function TimelineOrders() {
   };
 
   const fetchTimelineOrderRows = useCallback(async () => {
-    const allIds = Array.from(
-      new Set(
-        [...combinedOrders]
-          .map((o) => Number(o.order_id))
-          .filter((id) => Number.isFinite(id)) as number[],
-      ),
-    );
+    const allIds = timelineOrderIdsKey
+      .split(",")
+      .filter(Boolean)
+      .map(Number);
 
     if (allIds.length === 0) {
       setOrdersById({});
       setOrdersLoading(false);
+      hasLoadedTimelineRowsRef.current = false;
       return;
     }
 
-    setOrdersLoading(true);
+    if (!hasLoadedTimelineRowsRef.current) {
+      setOrdersLoading(true);
+    }
 
     const base: Record<number, Order[]> = {};
     for (const id of allIds) base[id] = [];
@@ -1034,7 +1094,9 @@ export function TimelineOrders() {
 
     if (error) {
       console.error("Error fetching orders for timeline:", error);
-      setOrdersById(base);
+      if (!hasLoadedTimelineRowsRef.current) {
+        setOrdersById(base);
+      }
       setOrdersLoading(false);
       return;
     }
@@ -1054,8 +1116,9 @@ export function TimelineOrders() {
     });
 
     setOrdersById(grouped);
+    hasLoadedTimelineRowsRef.current = true;
     setOrdersLoading(false);
-  }, [combinedOrders]);
+  }, [timelineOrderIdsKey]);
 
   const handleShipTimelineOrder = async (orderId: number) => {
     console.log("[timeline shipped] ship click received", {
@@ -1268,9 +1331,7 @@ export function TimelineOrders() {
 
   useEffect(() => {
     const visibleOrderIds = new Set(
-      combinedOrders
-        .map((order) => Number(order.order_id))
-        .filter((id) => Number.isFinite(id)),
+      timelineOrderIdsKey.split(",").filter(Boolean).map(Number),
     );
 
     const channel = supabase
@@ -1388,7 +1449,7 @@ export function TimelineOrders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [combinedOrders]);
+  }, [timelineOrderIdsKey]);
 
   useEffect(() => {
     const applySelection = (selectionMap: Map<HTMLTableElement, DragSel>) => {
@@ -1687,10 +1748,69 @@ export function TimelineOrders() {
   //   // await new Promise((resolve) => setTimeout(resolve, 1000));
   // };
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const visibleTimelineOrders = combinedOrders.filter((order) => {
-    if (isTimelineTicketSolved(order))
-      return showShippedOrders && isTimelineOrderShipped(order);
-    return isTimelineOrderActive(order);
+    const orderId = Number(order.order_id);
+    const isVisible =
+      timelineView === "active"
+        ? isTimelineOrderActive(order)
+        : timelineView === "shipped"
+          ? isTimelineOrderShipped(order)
+          : !ordersLoading &&
+            isTimelineOrderOutOfSync(
+              ordersById[orderId] ?? [],
+              order.current_status,
+            );
+
+    return (
+      isVisible &&
+      (!normalizedSearchQuery ||
+        String(order.order_id ?? "")
+          .toLowerCase()
+          .includes(normalizedSearchQuery))
+    );
+  });
+  const earliestVisibleShipDate = visibleTimelineOrders.reduce<Date | null>(
+    (earliest, order) => {
+      const shipDate = parseTimelineDate(order.ship_date);
+      if (!shipDate || Number.isNaN(shipDate.getTime())) return earliest;
+      return !earliest || shipDate.getTime() < earliest.getTime()
+        ? shipDate
+        : earliest;
+    },
+    null,
+  );
+  const earliestVisibleShipDayKey = earliestVisibleShipDate
+    ? format(earliestVisibleShipDate, "yyyy-MM-dd")
+    : "";
+
+  useEffect(() => {
+    if (timelineDisplayMode !== "timeline") return;
+    const earliestDate = parseTimelineDate(earliestVisibleShipDayKey);
+    setTimelineMonthStart(startOfMonth(earliestDate ?? new Date()));
+  }, [
+    earliestVisibleShipDayKey,
+    normalizedSearchQuery,
+    timelineDisplayMode,
+    timelineView,
+  ]);
+
+  const timelineMonthEnd = endOfMonth(timelineMonthStart);
+  const timelineMonthDays = eachDayOfInterval({
+    start: timelineMonthStart,
+    end: timelineMonthEnd,
+  });
+  const timelineOrdersForMonth = visibleTimelineOrders.flatMap((order) => {
+    const span = getTimelineOrderDateSpan(order);
+    if (
+      !span ||
+      span.end.getTime() < timelineMonthStart.getTime() ||
+      span.start.getTime() > timelineMonthEnd.getTime()
+    ) {
+      return [];
+    }
+
+    return [{ order, ...span }];
   });
   const calendarOrderCountsByDay = visibleTimelineOrders.reduce<
     Record<string, number>
@@ -1754,12 +1874,327 @@ export function TimelineOrders() {
     ? format(selectedDate, "MMMM - d")
     : "";
 
+  const renderMonthlyTimeline = () => (
+    <section className="flex flex-col gap-3 pb-10">
+      <div className="overflow-x-auto rounded-md border border-zinc-200 bg-white">
+        <div style={{ minWidth: `${timelineMonthDays.length * 56}px` }}>
+          <div
+            className="grid bg-zinc-100"
+            style={{
+              gridTemplateColumns: `repeat(${timelineMonthDays.length}, minmax(56px, 1fr))`,
+            }}
+          >
+            {timelineMonthDays.map((day) => (
+              <div
+                key={format(day, "yyyy-MM-dd")}
+                className="border-r border-zinc-200 px-1 py-2 text-center last:border-r-0"
+              >
+                <div className="text-xs font-semibold uppercase text-zinc-500">
+                  {format(day, "EEE")}
+                </div>
+                <div className="text-sm font-bold text-zinc-900">
+                  {format(day, "MMM d")}
+                </div>
+              </div>
+            ))}
+          </div>
+          {timelineOrdersForMonth.length === 0 ? (
+            <div className="border-t border-zinc-200 px-4 py-12 text-center text-sm text-muted-foreground">
+              No orders overlap this month.
+            </div>
+          ) : (
+            timelineOrdersForMonth.map(({ order, start, end }) => {
+              const visibleStart =
+                start.getTime() < timelineMonthStart.getTime()
+                  ? timelineMonthStart
+                  : start;
+              const visibleEnd =
+                end.getTime() > timelineMonthEnd.getTime()
+                  ? timelineMonthEnd
+                  : end;
+              const continuesFromPreviousMonth =
+                start.getTime() < timelineMonthStart.getTime();
+              const continuesIntoNextMonth =
+                end.getTime() > timelineMonthEnd.getTime();
+              const startColumn =
+                differenceInCalendarDays(visibleStart, timelineMonthStart) + 1;
+              const daySpan =
+                differenceInCalendarDays(visibleEnd, visibleStart) + 1;
+              const orderId = Number(order.order_id);
+              const rows = ordersById[orderId] ?? [];
+              const metadataItems =
+                trackingMetadataByOrderId[orderId]?.items ?? [];
+              const orderItems: TimelineItem[] = rows.map((row, index) => ({
+                FileName: row.name_id,
+                Status: row.production_status ?? undefined,
+                Material: row.material ?? undefined,
+                Quantity: row.quantity ?? undefined,
+                Notes: row.notes ?? undefined,
+                itemIndex: index + 1,
+              }));
+              const items =
+                orderItems.length > 0 ? orderItems : metadataItems;
+              const lowerStatus = getLowerTimelineStatus(
+                items,
+                order.current_status,
+              );
+              const productionWarning = getTimelineProductionWarning(
+                lowerStatus,
+                order.ship_date,
+              );
+              const barColorClass =
+                productionWarning === "important"
+                  ? "bg-red-200 text-red-950"
+                  : productionWarning === "warning"
+                    ? "bg-yellow-100 text-yellow-950"
+                    : "bg-gray-200 text-gray-950";
+              const creativeSummary = getCreativeSummary(items);
+              const quantitySummary = getTimelineQuantitySummary(rows, items);
+              const materialSummary = getMixedSummary(items, "Material");
+              const notesSummary =
+                !ordersLoading && rows.length > 0
+                  ? getTimelineNotesSummary(rows)
+                  : "-";
+              const statusSummary = formatTimelineItemValue(lowerStatus);
+              const isShipped = isTimelineOrderShipped(order);
+              const isOutOfSync =
+                !ordersLoading &&
+                isTimelineOrderOutOfSync(rows, order.current_status);
+
+              return (
+                <div
+                  key={String(order.order_id)}
+                  className="grid min-h-11 border-t border-zinc-200"
+                  style={{
+                    gridTemplateColumns: `repeat(${timelineMonthDays.length}, minmax(56px, 1fr))`,
+                  }}
+                >
+                  {timelineMonthDays.map((day) => (
+                    <div
+                      key={format(day, "yyyy-MM-dd")}
+                      className="col-span-1 row-start-1 border-r border-zinc-100 last:border-r-0"
+                      aria-hidden="true"
+                    />
+                  ))}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        data-ignore-selection="true"
+                        className={`z-10 m-1 flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-left text-xs font-semibold hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 ${barColorClass}`}
+                        style={{
+                          gridColumn: `${startColumn} / span ${daySpan}`,
+                          gridRow: 1,
+                        }}
+                        aria-label={`Show details for order ${order.order_id}`}
+                      >
+                        {continuesFromPreviousMonth && (
+                          <ChevronLeft
+                            className="h-3.5 w-3.5 shrink-0"
+                            aria-label="Continues from previous month"
+                          />
+                        )}
+                        <span className="truncate">{order.order_id}</span>
+                        {productionWarning !== "normal" && (
+                          <HoverCard>
+                            <HoverCardTrigger asChild>
+                              <span
+                                className="inline-flex shrink-0"
+                                aria-label="Order might be past due date"
+                                tabIndex={0}
+                              >
+                                ⚠
+                              </span>
+                            </HoverCardTrigger>
+                            <HoverCardContent
+                              side="top"
+                              className="w-auto whitespace-nowrap"
+                            >
+                              Order might be past due date
+                            </HoverCardContent>
+                          </HoverCard>
+                        )}
+                        {continuesIntoNextMonth && (
+                          <ChevronRight
+                            className="ml-auto h-3.5 w-3.5 shrink-0"
+                            aria-label="Continues into next month"
+                          />
+                        )}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      sideOffset={6}
+                      className="max-h-[80vh] w-[900px] max-w-[calc(100vw-2rem)] overflow-y-auto p-0"
+                      data-ignore-selection="true"
+                    >
+                      <div className="border-b bg-zinc-50 px-4 py-3">
+                        <h3 className="text-lg font-bold">
+                          Order #{order.order_id}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Order details and line items
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-5 gap-y-3 p-4 text-sm md:grid-cols-4">
+                        <div>
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            Due
+                          </div>
+                          <div className="font-medium">
+                            {formatTimelineMonthDay(order.ship_date)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            IHD
+                          </div>
+                          <div className="font-medium">
+                            {formatTimelineMonthDay(order.ihd_date)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            Shipping Method
+                          </div>
+                          <div className="font-medium">
+                            {formatTimelineItemValue(
+                              order.shipping_method ?? undefined,
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            Shipped
+                          </div>
+                          <div className="font-medium">
+                            {isShipped ? "Yes" : "No"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            Creatives
+                          </div>
+                          <div className="font-medium">{creativeSummary}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            Total Qty
+                          </div>
+                          <div className="font-medium">{quantitySummary}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            Status
+                          </div>
+                          <div
+                            className={`font-medium ${getTimelineProductionWarningClassName(productionWarning)}`}
+                          >
+                            {statusSummary}
+                            {productionWarning !== "normal" ? " ⚠" : ""}
+                            {isOutOfSync ? " (Sync Conflict)" : ""}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            Material
+                          </div>
+                          <div className="font-medium">{materialSummary}</div>
+                        </div>
+                        <div className="col-span-2 md:col-span-4">
+                          <div className="text-xs font-semibold uppercase text-muted-foreground">
+                            Notes
+                          </div>
+                          <div className="whitespace-pre-wrap break-words font-medium">
+                            {notesSummary}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t px-4 py-3">
+                        <h4 className="mb-2 text-sm font-bold">
+                          Line Items ({items.length})
+                        </h4>
+                        {ordersLoading ? (
+                          <p className="py-4 text-sm text-muted-foreground">
+                            Loading line items...
+                          </p>
+                        ) : items.length === 0 ? (
+                          <p className="py-4 text-sm text-muted-foreground">
+                            No line items found.
+                          </p>
+                        ) : (
+                          <div className="overflow-x-auto rounded-md border">
+                            <Table className="min-w-[720px] text-xs">
+                              <TableHeader>
+                                <TableRow className="bg-zinc-100 hover:bg-zinc-100">
+                                  <TableHead className="font-bold">
+                                    Creative
+                                  </TableHead>
+                                  <TableHead className="font-bold">
+                                    Qty
+                                  </TableHead>
+                                  <TableHead className="font-bold">
+                                    Status
+                                  </TableHead>
+                                  <TableHead className="font-bold">
+                                    Material
+                                  </TableHead>
+                                  <TableHead className="font-bold">
+                                    Notes
+                                  </TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {items.map((item, index) => (
+                                  <TableRow
+                                    key={`${orderId}-${item.itemIndex ?? index}-${item.FileName ?? item.Title ?? "creative"}`}
+                                  >
+                                    <TableCell
+                                      className="max-w-72 whitespace-normal break-words font-medium"
+                                      title={
+                                        item.FileName || item.Title || "-"
+                                      }
+                                    >
+                                      {item.FileName || item.Title || "-"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {formatDisplayQuantity(item.Quantity)}
+                                    </TableCell>
+                                    <TableCell>
+                                      {formatTimelineItemValue(item.Status)}
+                                    </TableCell>
+                                    <TableCell>
+                                      {formatTimelineItemValue(item.Material)}
+                                    </TableCell>
+                                    <TableCell className="max-w-72 whitespace-normal break-words">
+                                      {item.Notes?.trim() || "-"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </section>
+  );
+
   const renderTimelineTable = (
     title: string,
     orders: TimelineOrder[],
     emptyMessage: string,
   ) => (
-    <section className="flex flex-col gap-2">
+    <section className="flex flex-col gap-2 last:pb-10">
       <h2 className="font-bold text-lg">
         {title} ({orders.length})
       </h2>
@@ -1845,9 +2280,6 @@ export function TimelineOrders() {
                 order.ship_date,
               );
               const hasProductionWarning = productionWarning !== "normal";
-              const statusTitle = hasProductionWarning
-                ? `${statusSummary} - Production warning`
-                : statusSummary;
               const hasPendingStatusColorOverride =
                 Object.prototype.hasOwnProperty.call(
                   statusColorOverridesByOrderId,
@@ -1869,6 +2301,8 @@ export function TimelineOrders() {
               const quantitySummary = getTimelineQuantitySummary(rows, items);
               const isSelected = selectedTimelineOrderIds.has(orderIdNum);
               const isShipped = isTimelineOrderShipped(order);
+              const isTicketOpen =
+                normalizeTrackingStatus(order.ticket_status) === "open";
               const isThisOrderShipping = shipOrderInFlightId === orderIdNum;
 
               return (
@@ -1887,7 +2321,7 @@ export function TimelineOrders() {
                         variant="ghost"
                         size="icon"
                         disabled={!hasCreatives}
-                        aria-label={`${isOpen ? "Hide" : "Show"} creatives for order ${orderIdNum || "unknown"}`}
+                        aria-label={`${isOpen ? "Hide" : "Show"} creatives for order ${orderIdNum || "Not found in log"}`}
                         className={`h-6 w-6 p-0 hover:bg-white/40 disabled:cursor-not-allowed disabled:opacity-40 ${
                           isShipped ? "text-gray-500" : "text-black"
                         }`}
@@ -1912,25 +2346,6 @@ export function TimelineOrders() {
                       {orderIdNum ? (
                         <TooltipProvider delayDuration={150}>
                           <div className="flex items-center">
-                            {isOutOfSync && (
-                              <HoverCard>
-                                <HoverCardTrigger asChild>
-                                  <span
-                                    className="inline-flex shrink-0 text-red-600"
-                                    aria-label="This order may be out of sync"
-                                    tabIndex={0}
-                                  >
-                                    <Unlink
-                                      className="h-4 w-4"
-                                      aria-hidden="true"
-                                    />
-                                  </span>
-                                </HoverCardTrigger>
-                                <HoverCardContent side="top">
-                                  This order may be out of sync. Please double check the zendesk ticket.
-                                </HoverCardContent>
-                              </HoverCard>
-                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -1955,19 +2370,23 @@ export function TimelineOrders() {
                                 >
                                   <span
                                     className={
-                                      isOutOfSync ? "text-red-600" : undefined
+                                      isTicketOpen ? "text-red-600" : undefined
                                     }
                                   >
                                     {orderIdNum}
                                   </span>
-                                  <ExternalLink
-                                    className="h-3 w-3 shrink-0"
-                                    aria-hidden="true"
-                                  />
+                                  {isTicketOpen && (
+                                    <MailOpen
+                                      className="h-4 w-4 shrink-0 text-red-600"
+                                      aria-label="New client comment"
+                                    />
+                                  )}
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent side="top">
-                                View on Zendesk
+                                {isTicketOpen
+                                  ? "[NEW COMMENT] View on Zendesk"
+                                  : "View on Zendesk"}
                               </TooltipContent>
                             </Tooltip>
                           </div>
@@ -1996,12 +2415,41 @@ export function TimelineOrders() {
 
                     <TableCell
                       className={`${TIMELINE_CELL_CLASS} ${getTimelineProductionWarningClassName(productionWarning)}`}
-                      title={statusTitle}
                       style={{ background: statusCellBackground }}
                     >
-                      {hasProductionWarning
-                        ? `${statusSummary} ⚠`
-                        : statusSummary}
+                      <span className="flex w-full items-center gap-1">
+                        <span>{statusSummary}</span>
+                        {hasProductionWarning && (
+                          <HoverCard>
+                            <HoverCardTrigger asChild>
+                              <span
+                                className="inline-flex shrink-0"
+                                aria-label="Order is past due production"
+                              >
+                                ⚠
+                              </span>
+                            </HoverCardTrigger>
+                            <HoverCardContent side="top">
+                              Order is past due production
+                            </HoverCardContent>
+                          </HoverCard>
+                        )}
+                        {isOutOfSync && (
+                          <HoverCard>
+                            <HoverCardTrigger asChild>
+                              <span
+                                className="inline-flex shrink-0 text-red-600"
+                                aria-label="Ticket order doesn't match the production of the items"
+                              >
+                                (Sync Conflict)
+                              </span>
+                            </HoverCardTrigger>
+                            <HoverCardContent side="top">
+                              Ticket order doesn't match the production of the items
+                            </HoverCardContent>
+                          </HoverCard>
+                        )}
+                      </span>
                     </TableCell>
                     <TableCell className={TIMELINE_CELL_CLASS}>
                       {materialSummary}
@@ -2017,19 +2465,24 @@ export function TimelineOrders() {
                       className="px-1 py-1 text-center align-middle"
                       data-ignore-selection="true"
                     >
-                      <Checkbox
-                        checked={isShipped}
-                        disabled={isShipped || isThisOrderShipping}
-                        aria-label={`Mark order ${orderIdNum || "unknown"} as shipped`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                        }}
-                        onCheckedChange={(checked) => {
-                          if (isShipped) return;
-                          if (checked !== true) return;
-                          void handleShipTimelineOrder(orderIdNum);
-                        }}
-                      />
+                      {isShipped ? (
+                        <span className="text-xs font-semibold whitespace-nowrap">
+                          {formatTimelineShippedStamp(order.shipped_stamp)}
+                        </span>
+                      ) : (
+                        <Checkbox
+                          checked={false}
+                          disabled={isThisOrderShipping}
+                          aria-label={`Mark order ${orderIdNum || "unknown"} as shipped`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                          }}
+                          onCheckedChange={(checked) => {
+                            if (checked !== true) return;
+                            void handleShipTimelineOrder(orderIdNum);
+                          }}
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                   {hasCreatives &&
@@ -2055,13 +2508,7 @@ export function TimelineOrders() {
                             className={`${TIMELINE_PRIORITY_CELL_CLASS} ${orderNumberCellBackground ? "text-white" : ""}`}
                             style={{ background: orderNumberCellBackground }}
                           >
-                            <span
-                              className={
-                                isOutOfSync ? "text-red-600" : undefined
-                              }
-                            >
-                              {orderIdNum || "—"}
-                            </span>
+                            <span>{orderIdNum || "—"}</span>
                           </TableCell>
                           <TableCell className={TIMELINE_PRIORITY_CELL_CLASS}>
                             {formatTimelineMonthDay(order.ship_date)}
@@ -2227,121 +2674,196 @@ export function TimelineOrders() {
       </Dialog>
 
       <section className="p-2 pt-10 w-[96%] max-w-none flex flex-col gap-2">
-        <h1 className="font-bold text-5xl "> Daily List </h1>
-        <div className="flex flex-wrap items-center gap-2 text-zinc-700">
-          <span className="relative h-4 w-4">
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{ backgroundColor: realtimeIndicatorColor }}
-            />
-            <span
-              className="active-pulse-ring absolute inset-0 rounded-full border-2"
-              style={{ borderColor: realtimeIndicatorColor }}
-            />
+        <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: realtimeIndicatorColor }}
+          />
+          <span>
+            Realtime status: {isRealtimeDisconnected ? "disconnected" : "live"}
           </span>
-          <p className="text-lg font-medium">
-            Current range: {selectedDateLabel}
-          </p>
         </div>
-        <div className="flex w-full items-center justify-end gap-2">
-          <div className="flex gap-2">
-            <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium">
-              <Checkbox
-                checked={showShippedOrders}
-                onCheckedChange={(checked) =>
-                  setShowShippedOrders(checked === true)
-                }
-              />
-              <span>Show shipped orders</span>
-            </label>
-
-            <Popover
-              open={datePickerOpen}
-              onOpenChange={(open) => {
-                setDatePickerOpen(open);
-                if (open)
-                  setPendingSelectedDate(
-                    selectedDate ?? getTimelineDayStart(new Date()),
-                  );
-              }}
-            >
-              <PopoverTrigger asChild>
-                <Button type="button" variant="outline">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "PPP") : "Pick date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-auto p-0"
-                align="start"
-                data-ignore-selection="true"
-              >
-                <Calendar
-                  className="[--cell-size:2.75rem]"
-                  mode="single"
-                  selected={pendingSelectedDate}
-                  onSelect={(date) =>
-                    setPendingSelectedDate(
-                      date ? getTimelineDayStart(date) : undefined,
-                    )
-                  }
-                  components={{ DayButton: renderCalendarDayButton }}
-                />
-                <div className="flex items-center justify-end gap-2 border-t p-2">
+        <h1 className="font-bold text-5xl">
+          {timelineDisplayMode === "list" ? "Daily List" : "Timeline View"}
+        </h1>
+        <div className="flex w-full flex-wrap items-center justify-between gap-4 border-b pb-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-5">
+            {timelineDisplayMode === "list" ? (
+              <>
+                <Popover
+                  open={datePickerOpen}
+                  onOpenChange={(open) => {
+                    setDatePickerOpen(open);
+                    if (open)
+                      setPendingSelectedDate(
+                        selectedDate ?? getTimelineDayStart(new Date()),
+                      );
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-8 px-0 text-sm font-medium text-foreground hover:bg-transparent"
+                    >
+                      <CalendarIcon className="mr-1.5 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, "PPP") : "Pick date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-auto p-0"
+                    align="start"
+                    data-ignore-selection="true"
+                  >
+                    <Calendar
+                      className="[--cell-size:2.75rem]"
+                      mode="single"
+                      selected={pendingSelectedDate}
+                      onSelect={(date) =>
+                        setPendingSelectedDate(
+                          date ? getTimelineDayStart(date) : undefined,
+                        )
+                      }
+                      components={{ DayButton: renderCalendarDayButton }}
+                    />
+                    <div className="flex items-center justify-end gap-2 border-t p-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDatePickerOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!pendingSelectedDate}
+                        onClick={applySelectedDate}
+                      >
+                        Okay
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {selectedDate && (
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
-                    onClick={() => setDatePickerOpen(false)}
+                    className="h-8 px-0 text-sm"
+                    onClick={handleClearSelectedDate}
                   >
-                    Cancel
+                    Clear
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!pendingSelectedDate}
-                    onClick={applySelectedDate}
-                  >
-                    Okay
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-            {selectedDate && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleClearSelectedDate}
-              >
-                Clear
-              </Button>
+                )}
+                <p className="text-sm font-medium text-foreground">
+                  Current range: {selectedDateLabel}
+                </p>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setTimelineMonthStart((current) => addMonths(current, -1))
+                  }
+                >
+                  Previous
+                </Button>
+                <p className="min-w-44 text-center text-sm font-semibold text-foreground">
+                  {format(timelineMonthStart, "MMMM yyyy")}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setTimelineMonthStart((current) => addMonths(current, 1))
+                  }
+                >
+                  Next
+                </Button>
+              </>
             )}
           </div>
+          <div className="flex flex-wrap items-center gap-5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setTimelineDisplayMode((current) =>
+                  current === "list" ? "timeline" : "list",
+                )
+              }
+            >
+              {timelineDisplayMode === "list" ? "Timeline View" : "List View"}
+            </Button>
+            <Select
+              value={timelineView}
+              onValueChange={(value: TimelineView) => setTimelineView(value)}
+            >
+              <SelectTrigger className="h-8 w-44 border-0 px-0 text-sm font-medium text-foreground shadow-none">
+                <SelectValue placeholder="View" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active orders</SelectItem>
+                <SelectItem value="shipped">Shipped orders</SelectItem>
+                <SelectItem value="sync-conflicts">Sync conflicts</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative w-52 max-w-full">
+              <Search
+                className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2"
+                aria-hidden="true"
+              />
+              <Input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search order #"
+                aria-label="Search orders"
+                className="h-8 border-0 border-b px-0 pl-6 shadow-none"
+              />
+            </div>
+          </div>
         </div>
-        {renderTimelineTable("Past Due", pastDueOrders, "No past due orders.")}
-        {selectedDate
-          ? renderTimelineTable(
-              selectedDateTitle,
-              selectedDayOrders,
-              "No orders due for this date.",
-            )
-          : upcomingDayKeys.length === 0
-            ? renderTimelineTable(
-                `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
-                [],
-                "No orders in this date range.",
-              )
-            : upcomingDayKeys.map((dayKey) => (
-                <React.Fragment key={dayKey}>
-                  {renderTimelineTable(
-                    getTimelineTableTitleDate(dayKey),
-                    upcomingOrdersByDay[dayKey],
-                    "No upcoming orders.",
-                  )}
-                </React.Fragment>
-              ))}
+        {timelineDisplayMode === "timeline" ? (
+          renderMonthlyTimeline()
+        ) : (
+          <>
+            {renderTimelineTable(
+              "Past Due",
+              pastDueOrders,
+              "No past due orders.",
+            )}
+            {selectedDate
+              ? renderTimelineTable(
+                  selectedDateTitle,
+                  selectedDayOrders,
+                  "No orders due for this date.",
+                )
+              : upcomingDayKeys.length === 0
+                ? renderTimelineTable(
+                    `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
+                    [],
+                    "No orders in this date range.",
+                  )
+                : upcomingDayKeys.map((dayKey) => (
+                    <React.Fragment key={dayKey}>
+                      {renderTimelineTable(
+                        getTimelineTableTitleDate(dayKey),
+                        upcomingOrdersByDay[dayKey],
+                        "No upcoming orders.",
+                      )}
+                    </React.Fragment>
+                  ))}
+          </>
+        )}
       </section>
-      {selectedTimelineOrderIds.size > 0 && (
+      {timelineDisplayMode === "list" && selectedTimelineOrderIds.size > 0 && (
         <div
           className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-200 shadow-lg"
           data-ignore-selection="true"
