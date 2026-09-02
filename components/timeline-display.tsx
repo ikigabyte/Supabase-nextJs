@@ -1749,6 +1749,7 @@ export function TimelineOrders() {
   // };
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const isSearching = normalizedSearchQuery.length > 0;
   const visibleTimelineOrders = combinedOrders.filter((order) => {
     const orderId = Number(order.order_id);
     const isVisible =
@@ -1873,6 +1874,9 @@ export function TimelineOrders() {
   const selectedDateTitle = selectedDate
     ? format(selectedDate, "MMMM - d")
     : "";
+  const searchResultLabel = `Found ${visibleTimelineOrders.length} order${
+    visibleTimelineOrders.length === 1 ? "" : "s"
+  } for ${searchQuery.trim()}`;
 
   const renderMonthlyTimeline = () => (
     <section className="flex flex-col gap-3 pb-10">
@@ -2686,80 +2690,111 @@ export function TimelineOrders() {
         <h1 className="font-bold text-5xl">
           {timelineDisplayMode === "list" ? "Daily List" : "Timeline View"}
         </h1>
-        <div className="flex w-full flex-wrap items-center justify-between gap-4 border-b pb-2 text-sm text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-5">
+        <div className="flex w-full flex-wrap items-center gap-4 border-b pb-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-52 max-w-full">
+              <Search
+                className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2"
+                aria-hidden="true"
+              />
+              <Input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search order #"
+                aria-label="Search orders"
+                className="h-8 border-0 border-b px-0 pl-6 shadow-none"
+              />
+            </div>
+            {isSearching && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-8 gap-2"
+                onClick={() => setSearchQuery("")}
+              >
+                {searchResultLabel}
+                <X className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">Clear search</span>
+              </Button>
+            )}
+          </div>
+          <div className="order-3 flex flex-wrap items-center gap-5">
             {timelineDisplayMode === "list" ? (
-              <>
-                <Popover
-                  open={datePickerOpen}
-                  onOpenChange={(open) => {
-                    setDatePickerOpen(open);
-                    if (open)
-                      setPendingSelectedDate(
-                        selectedDate ?? getTimelineDayStart(new Date()),
-                      );
-                  }}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-8 px-0 text-sm font-medium text-foreground hover:bg-transparent"
-                    >
-                      <CalendarIcon className="mr-1.5 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, "PPP") : "Pick date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-auto p-0"
-                    align="start"
-                    data-ignore-selection="true"
-                  >
-                    <Calendar
-                      className="[--cell-size:2.75rem]"
-                      mode="single"
-                      selected={pendingSelectedDate}
-                      onSelect={(date) =>
+              !isSearching && (
+                <>
+                  <Popover
+                    open={datePickerOpen}
+                    onOpenChange={(open) => {
+                      setDatePickerOpen(open);
+                      if (open)
                         setPendingSelectedDate(
-                          date ? getTimelineDayStart(date) : undefined,
-                        )
-                      }
-                      components={{ DayButton: renderCalendarDayButton }}
-                    />
-                    <div className="flex items-center justify-end gap-2 border-t p-2">
+                          selectedDate ?? getTimelineDayStart(new Date()),
+                        );
+                    }}
+                  >
+                    <PopoverTrigger asChild>
                       <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
-                        onClick={() => setDatePickerOpen(false)}
+                        className="h-8 px-0 text-sm font-medium text-foreground hover:bg-transparent"
                       >
-                        Cancel
+                        <CalendarIcon className="mr-1.5 h-4 w-4" />
+                        {selectedDate ? format(selectedDate, "PPP") : "Pick date"}
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={!pendingSelectedDate}
-                        onClick={applySelectedDate}
-                      >
-                        Okay
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                {selectedDate && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-8 px-0 text-sm"
-                    onClick={handleClearSelectedDate}
-                  >
-                    Clear
-                  </Button>
-                )}
-                <p className="text-sm font-medium text-foreground">
-                  Current range: {selectedDateLabel}
-                </p>
-              </>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-auto p-0"
+                      align="start"
+                      data-ignore-selection="true"
+                    >
+                      <Calendar
+                        className="[--cell-size:2.75rem]"
+                        mode="single"
+                        selected={pendingSelectedDate}
+                        onSelect={(date) =>
+                          setPendingSelectedDate(
+                            date ? getTimelineDayStart(date) : undefined,
+                          )
+                        }
+                        components={{ DayButton: renderCalendarDayButton }}
+                      />
+                      <div className="flex items-center justify-end gap-2 border-t p-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDatePickerOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!pendingSelectedDate}
+                          onClick={applySelectedDate}
+                        >
+                          Okay
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {selectedDate && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-8 px-0 text-sm"
+                      onClick={handleClearSelectedDate}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                  <p className="text-sm font-medium text-foreground">
+                    Current range: {selectedDateLabel}
+                  </p>
+                </>
+              )
             ) : (
               <>
                 <Button
@@ -2788,7 +2823,7 @@ export function TimelineOrders() {
               </>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-5">
+          <div className="ml-auto flex flex-wrap items-center gap-5">
             <Button
               type="button"
               variant="outline"
@@ -2814,52 +2849,48 @@ export function TimelineOrders() {
                 <SelectItem value="sync-conflicts">Sync conflicts</SelectItem>
               </SelectContent>
             </Select>
-            <div className="relative w-52 max-w-full">
-              <Search
-                className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2"
-                aria-hidden="true"
-              />
-              <Input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search order #"
-                aria-label="Search orders"
-                className="h-8 border-0 border-b px-0 pl-6 shadow-none"
-              />
-            </div>
           </div>
         </div>
         {timelineDisplayMode === "timeline" ? (
           renderMonthlyTimeline()
         ) : (
           <>
-            {renderTimelineTable(
-              "Past Due",
-              pastDueOrders,
-              "No past due orders.",
-            )}
-            {selectedDate
+            {isSearching
               ? renderTimelineTable(
-                  selectedDateTitle,
-                  selectedDayOrders,
-                  "No orders due for this date.",
+                  "Search results",
+                  visibleTimelineOrders,
+                  `No orders found for ${searchQuery.trim()}.`,
                 )
-              : upcomingDayKeys.length === 0
-                ? renderTimelineTable(
-                    `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
-                    [],
-                    "No orders in this date range.",
-                  )
-                : upcomingDayKeys.map((dayKey) => (
-                    <React.Fragment key={dayKey}>
-                      {renderTimelineTable(
-                        getTimelineTableTitleDate(dayKey),
-                        upcomingOrdersByDay[dayKey],
-                        "No upcoming orders.",
-                      )}
-                    </React.Fragment>
-                  ))}
+              : (
+                <>
+                  {renderTimelineTable(
+                    "Past Due",
+                    pastDueOrders,
+                    "No past due orders.",
+                  )}
+                  {selectedDate
+                    ? renderTimelineTable(
+                        selectedDateTitle,
+                        selectedDayOrders,
+                        "No orders due for this date.",
+                      )
+                    : upcomingDayKeys.length === 0
+                      ? renderTimelineTable(
+                          `Orders - ${formatTimelineDateRange(selectedDateRange)}`,
+                          [],
+                          "No orders in this date range.",
+                        )
+                      : upcomingDayKeys.map((dayKey) => (
+                          <React.Fragment key={dayKey}>
+                            {renderTimelineTable(
+                              getTimelineTableTitleDate(dayKey),
+                              upcomingOrdersByDay[dayKey],
+                              "No upcoming orders.",
+                            )}
+                          </React.Fragment>
+                        ))}
+                </>
+              )}
           </>
         )}
       </section>
