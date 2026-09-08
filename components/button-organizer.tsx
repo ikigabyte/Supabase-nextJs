@@ -208,35 +208,9 @@ export function ButtonOrganizer({
           >
             <div className="flex w-full items-center gap-1 min-w-0">
               {/* Total Quantity */}
-              <div className="flex-1 min-w-0 text-sm">
+              <div className="flex-1 min-w-0 pr-4 text-right text-base">
                 <span className="block font-semibold">Total: {rowValue}</span>
               </div>
-
-              {/* Copy button */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="default" size="sm" className="shrink-0" onClick={copyPrintData}>
-                      <ClipboardCopy />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="center">
-                    [CTRL + C] Copy Print Data
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              {/* Assignee */}
-              {isAdmin && (
-                <div className="shrink-0">
-                  <DropdownAssignee
-                    currentUser={currentUserSelected}
-                    users={condensedUsers}
-                    setCurrentUser={setCurrentUser}
-                    userRows={userRows}
-                  />
-                </div>
-              )}
             </div>
           </div>
         )}

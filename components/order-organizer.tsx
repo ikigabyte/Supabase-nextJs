@@ -27,6 +27,9 @@ import {
   assignAssigneeToRows,
   assignColorToQuantityRow,
   createReprint,
+  changeOrderProductionStatus,
+  type ProductionStatus,
+  pauseOrder,
 } from "@/utils/actions";
 import { Separator } from "./ui/separator";
 import { getMaterialHeaders } from "@/types/headers";
@@ -607,40 +610,47 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
   const lastSubscribedAtRef = useRef<number>(0);
 
-  async function copyPrintData() {
+  async function copyPrintData(rowEl?: HTMLTableRowElement) {
     let values = [] as string[];
     console.log("Copying print data from selections");
-    if (dragSelections.current.size === 0) {
+    if (!rowEl && dragSelections.current.size === 0) {
       toast("No print data", {});
       // console.warn("No selections to copy");
       return;
     }
-    dragSelections.current.forEach((selection, table) => {
-      const tbody = table.querySelector("tbody");
-      if (!tbody) return;
-      // Only data rows (exclude separators)
-      const dataRows = Array.from(tbody.children).filter(
-        (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
-      );
-      const rowStart = Math.min(selection.startRow, selection.endRow);
-      const rowEnd = Math.max(selection.startRow, selection.endRow);
 
-      const picked = new Set<number>();
-      for (let i = rowStart; i <= rowEnd; i++) picked.add(i);
-      (selection.extras ?? new Set()).forEach((i) => picked.add(i));
+    const addRowPrintData = (row: Element) => {
+      const cells = Array.from(row.children).slice(1, 4) as HTMLTableCellElement[];
+      const valuesRow = cells.map((cell) => cell.innerText.toUpperCase() + "   ");
+      values.push(valuesRow.join(""));
+    };
 
-      [...picked]
-        .sort((a, b) => a - b)
-        .forEach((i) => {
-          const row = dataRows[i];
-          if (!row) return;
-          const cells = Array.from(row.children).slice(1, 4) as HTMLTableCellElement[];
-          const types = cells.map((cell) => cell.getAttribute("datatype") || cell.innerText.toUpperCase());
-          // console.log("Selected row columns:", types);
-          const valuesRow = cells.map((cell) => cell.innerText.toUpperCase() + "   ");
-          values.push(valuesRow.join(""));
-        });
-    });
+    if (rowEl) {
+      addRowPrintData(rowEl);
+    } else {
+      dragSelections.current.forEach((selection, table) => {
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        // Only data rows (exclude separators)
+        const dataRows = Array.from(tbody.children).filter(
+          (el) => el.nodeName === "TR" && el.getAttribute("datatype") === "data"
+        );
+        const rowStart = Math.min(selection.startRow, selection.endRow);
+        const rowEnd = Math.max(selection.startRow, selection.endRow);
+
+        const picked = new Set<number>();
+        for (let i = rowStart; i <= rowEnd; i++) picked.add(i);
+        (selection.extras ?? new Set()).forEach((i) => picked.add(i));
+
+        [...picked]
+          .sort((a, b) => a - b)
+          .forEach((i) => {
+            const row = dataRows[i];
+            if (!row) return;
+            addRowPrintData(row);
+          });
+      });
+    }
     // console.log(values);
     toast("Copied Print Data", {
       description: `For orders selected (${values.length} rows).`,
@@ -2239,6 +2249,63 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
   });
 }, []);
 
+  const handleProductionStatusChange = useCallback(
+    async (newStatus: ProductionStatus) => {
+      if (!currentRowClicked) return;
+
+      const orderToMove = currentRowClicked;
+      const currentStatus = orderToMove.production_status ?? orderType;
+      if (currentStatus === newStatus) return;
+
+      try {
+        await changeOrderProductionStatus(orderToMove, newStatus);
+        setOrders((prev) => prev.filter((order) => order.name_id !== orderToMove.name_id));
+        setIsRowClicked(false);
+        setCurrentRowClicked(null);
+        toast.success(newStatus === "completed" ? "Order completed" : "Production status changed", {
+          description: `${convertToSpaces(orderToMove.name_id)} moved from ${currentStatus} to ${newStatus}.`,
+        });
+      } catch (error) {
+        console.error("Failed to change production status", error);
+        toast.error("Order failed to update", {
+          description: "Try refreshing the page before changing the production status again.",
+        });
+      }
+    },
+    [currentRowClicked, orderType],
+  );
+
+  const handlePauseOrder = useCallback(async () => {
+    if (!currentRowClicked) return;
+
+    const orderToPause = currentRowClicked;
+    const isPaused = orderToPause.asignee?.trim().toUpperCase() === "HOLD";
+    const nextAssignee = isPaused ? null : "HOLD";
+    try {
+      if (isPaused) {
+        await assignAssigneeToRows([orderToPause.name_id], null);
+      } else {
+        await pauseOrder(orderToPause.name_id);
+      }
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.name_id === orderToPause.name_id ? { ...order, asignee: nextAssignee } : order,
+        ),
+      );
+      setCurrentRowClicked((current) =>
+        current?.name_id === orderToPause.name_id ? { ...current, asignee: nextAssignee } : current,
+      );
+      toast.success(isPaused ? "Order unpaused" : "Order paused", {
+        description: `${convertToSpaces(orderToPause.name_id)} is ${isPaused ? "no longer on hold" : "now on hold"}.`,
+      });
+    } catch (error) {
+      console.error("Failed to change order hold state", error);
+      toast.error(isPaused ? "Order failed to unpause" : "Order failed to pause", {
+        description: "Try refreshing the page before changing the order hold state again.",
+      });
+    }
+  }, [currentRowClicked]);
+
   const handleMenuOptionClick = useCallback(
     async (option: string, quantity?: number) => {
       if (currentRowClicked == null) {
@@ -2394,9 +2461,9 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
   // );
 
   const handleAsigneeClick = useCallback(
-    async (row: Order) => {
+    async (row: Order, selectedUser: string = userSelected) => {
       const current = normalizeAssignee(row.asignee);
-      const chosen = normalizeAssignee(userSelected);
+      const chosen = normalizeAssignee(selectedUser);
       const canOverride = !current || isAdmin;
       if (!canOverride) {
         toast("Cannot assign", {
@@ -2478,6 +2545,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
         return;
       }
       setMenuAnchorEl(rowEl);
+      setIsRowHovered(false);
       if (rowEl) {
         const rect = rowEl.getBoundingClientRect();
         setMenuPos({ x: rect.right, y: rect.bottom });
@@ -2495,7 +2563,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
       }
       setCurrentRowClicked(row);
     },
-    [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked]
+    [isRowClicked, toast, setMenuPos, setIsRowClicked, setCurrentRowClicked, setIsRowHovered]
   );
 
   const allKeys = hasUnassignedOrders ? [...(orderKeys[orderType] || []), "unassigned"] : orderKeys[orderType] || [];
@@ -2725,7 +2793,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
           selectionVersion={selectionVersion}
         />
 
-        {isRowHovered && (
+        {isRowHovered && !isRowClicked && (
           <div
             style={{
               position: "fixed",
@@ -2741,7 +2809,9 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
       {/* <DropdownAsignee/> */}
       {isRowClicked && (
         <OrderViewer
+          key={`${currentRowClicked?.name_id}-${menuPos.x}-${menuPos.y}`}
           currentRow={currentRowClicked}
+          anchorEl={menuAnchorEl}
           status={orderType}
           role={userRole}
           onRevertStatus={() => handleMenuOptionClick("revert")}
@@ -2749,6 +2819,17 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
           onDeleteLine={() => handleMenuOptionClick("delete")}
           onDeleteAll={() => handleMenuOptionClick("deleteAll")}
           onCreateReprint={(nameId, quantity) => handleReprintCreate(nameId, quantity)}
+          onCopyPrintData={() => {
+            if (menuAnchorEl) void copyPrintData(menuAnchorEl as HTMLTableRowElement);
+          }}
+          onAssigneeChange={(user) => {
+            setUserSelected(user);
+            if (currentRowClicked) void handleAsigneeClick(currentRowClicked, user);
+          }}
+          currentUserSelected={userSelected}
+          userRows={userRows}
+          onProductionStatusChange={(newStatus) => void handleProductionStatusChange(newStatus)}
+          onPauseOrder={() => void handlePauseOrder()}
         />
       )}
       <Toaster theme={"dark"} richColors={true} />

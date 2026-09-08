@@ -9,6 +9,8 @@ import { updateZendeskNotes, updateZendeskStatus, reprintInternalNote, forceRefr
 // import { GoTrueAdminApi } from "@supabase/supabase-js";
 
 type AdminRow = { role: "admin" | string };
+export type ProductionStatus = "print" | "cut" | "prepack" | "pack" | "ship" | "completed";
+const productionStatuses: readonly ProductionStatus[] = ["print", "cut", "prepack", "pack", "ship", "completed"];
 const getNewStatus = (currentStatus: string, revert: boolean) => {
   if (revert) {
     switch (currentStatus) {
@@ -423,6 +425,30 @@ export async function assignAssigneeToRows(nameIds: string[], asigneeValue?: str
   // }
 }
 
+export async function pauseOrder(nameId: string) {
+  if (!nameId) throw new Error("No nameId provided");
+
+  const supabase = await getServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("User is not logged in");
+
+  const { data, error } = await supabase
+    .from("orders")
+    .update({ asignee: "HOLD" })
+    .eq("name_id", nameId)
+    .select("name_id, asignee")
+    .single();
+
+  if (error || !data || data.asignee !== "HOLD") {
+    console.error("Error pausing order", { nameId, error });
+    throw new Error("Error pausing order");
+  }
+
+  return { ok: true, order: data };
+}
+
 // export async function assignOrderToUser(order: Order, asigneeValue?: string | null) {
 //   if (!order) throw new Error("No order provided");
 
@@ -557,6 +583,21 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
 
   if (!user) throw new Error("User is not logged in");
 
+  const { data: currentOrder, error: currentOrderError } = await supabase
+    .from("orders")
+    .select("asignee")
+    .eq("name_id", order.name_id)
+    .single();
+
+  if (currentOrderError) {
+    console.error("Error checking order hold status", { nameId: order.name_id, currentOrderError });
+    throw new Error("Order failed to update");
+  }
+
+  if (currentOrder?.asignee?.trim().toUpperCase() === "HOLD") {
+    throw new Error("Order is on hold");
+  }
+
   const newStatus = bypassStatus || getNewStatus(order.production_status || "", revert);
   if (!newStatus) throw new Error("No new status found");
 
@@ -637,6 +678,18 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   //   void updateZendeskStatus(order.order_id, newStatus); // don't block
   // }
   return { ok: true, status: newStatus, order: updatedOrder };
+}
+
+export async function changeOrderProductionStatus(order: Order, newStatus: ProductionStatus) {
+  if (!productionStatuses.includes(newStatus)) {
+    throw new Error("Invalid production status");
+  }
+
+  if (order.asignee?.trim().toUpperCase() === "HOLD") {
+    throw new Error("Order is on hold");
+  }
+
+  return updateOrderStatus(order, false, newStatus);
 }
 
 export async function sendOrderShipped(orderId: number) {

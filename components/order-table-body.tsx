@@ -17,7 +17,7 @@ import { Textarea } from "./ui/textarea";
 import { Button } from "@/components/ui/button";
 import { getCorrectUserColor } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { Eye } from "lucide-react";
+import { Eye, TriangleAlert } from "lucide-react";
 import { getInkBackgroundColor, getMaterialBackgroundColor } from "@/utils/colorMap";
 
 // import {
@@ -561,6 +561,7 @@ export function OrderTableBody({
         const showSeparator = i > 0 && row.order_id !== prev.order_id && row.production_status !== "print";
         const convertedProductionDate = convertToOrderTypeDate(row.due_date, productionStatus);
         const assignee = normalizeAssignee(row.asignee);
+        const isPaused = assignee?.toUpperCase() === "HOLD";
         const { cores: coresDisplay, split: splitDisplay } = splitCoresValue(row.ink);
         // Try to find initials for the assignee from userColors map
         let assigneeInitials: string | null = null;
@@ -597,6 +598,7 @@ export function OrderTableBody({
               className={`
               [&>td]:py-1 align-top max-h-[14px] text-xs whitespace-nowrap break-all border-y-2 border-white
               ${currentDay ? dayOfTheWeekColor[currentDay] : "bg-white-100"} 
+                ${isPaused ? "text-gray-500" : ""}
                 ${isHighlighted ? "bg-blue-100 hover:bg-blue-100" : ""}`}
               onClick={(e) => {
                 // Toggle multi-selection on left click, storing name_id and quantity
@@ -625,7 +627,8 @@ export function OrderTableBody({
                   cellRefs.current[i][0] = el;
                 }}
                 className={
-                  "text-black text-center" +
+                  (isPaused ? "text-gray-500 " : "text-black ") +
+                  "text-center" +
                   (isHighlighted ? " bg-blue-100 " : " bg-gray-100") +
                   " w-[32px] min-w-[32px] max-w-[32px] px-0"
                 }
@@ -649,6 +652,7 @@ export function OrderTableBody({
                 // }
                 className={
                   "whitespace-normal break-all " +
+                  (isSelected ? "ring-2 ring-inset ring-blue-500 " : "") +
                   (isHighlighted
                     ? "bg-blue-100 hover:bg-blue-100"
                     : row.production_status === "print"
@@ -675,7 +679,7 @@ export function OrderTableBody({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span
-                    className="min-w-0 flex-1 break-all"
+                    className={`min-w-0 flex-1 break-all ${isSelected ? "text-blue-500" : ""}`}
                     onMouseEnter={(event) => handleMouseEnter(event, row, "history")}
                     onMouseLeave={handleMouseLeave}
                   >
@@ -796,15 +800,25 @@ export function OrderTableBody({
                           e.stopPropagation();
                           onAsigneeClick(row);
                         }}
-                        className={`h-5 w-8 rounded-full px-0 py-0 text-xs ${
+                        className={`h-5 rounded-full px-0 py-0 text-xs ${
+                          isPaused
+                            ? "w-8 bg-yellow-300 text-black hover:bg-yellow-300 hover:text-black"
+                            : "w-8"
+                        } ${
                           !assignee ? "border border-dotted border-gray-400 text-gray-400 bg-transparent" : ""
                         }`}
-                        style={assignee ? getCorrectUserColor(userColors, assignee) : undefined}
+                        style={assignee && !isPaused ? getCorrectUserColor(userColors, assignee) : undefined}
                       >
-                        {assigneeInitials || (assignee ? truncate(assignee, 2) : "N/A")}
+                        {isPaused ? (
+                          <TriangleAlert className="h-3.5 w-3.5" aria-label="Order on hold" />
+                        ) : (
+                          assigneeInitials || (assignee ? truncate(assignee, 2) : "N/A")
+                        )}
                       </Button>
                     </TooltipTrigger>
-                    {assignee && <TooltipContent>{assignee}</TooltipContent>}
+                    {assignee && (
+                      <TooltipContent>{isPaused ? "This order is on hold for now" : assignee}</TooltipContent>
+                    )}
                   </Tooltip>
                 </TooltipProvider>
               </TableCell>
@@ -825,31 +839,40 @@ export function OrderTableBody({
                 />
               </TableCell>
               <TableCell>
-                <Checkbox
-                  checked={isChecked}
-                  disabled={isChecked}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-	                  onCheckedChange={(checked) => {
-	                    if (checked) {
-	                      onRealtimeDisconnectedCheckboxClick?.();
-	                      setCheckedRows((prev) => {
-	                        const next = new Set(prev);
-	                        next.add(row.name_id);
-	                        return next;
-	                      });
-	                      onOrderClick(row);
-	                      setTimeout(() => {
-	                        setCheckedRows((prev) => {
-	                          const next = new Set(prev);
-	                          next.delete(row.name_id);
-	                          return next;
-	                        });
-                      }, 3000); // 3 seconds
-                    }
-                  }}
-                />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Checkbox
+                          checked={isChecked}
+                          disabled={isChecked || isPaused}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+	                        onCheckedChange={(checked) => {
+	                          if (checked) {
+	                            onRealtimeDisconnectedCheckboxClick?.();
+	                            setCheckedRows((prev) => {
+	                              const next = new Set(prev);
+	                              next.add(row.name_id);
+	                              return next;
+	                            });
+	                            onOrderClick(row);
+	                            setTimeout(() => {
+	                              setCheckedRows((prev) => {
+	                                const next = new Set(prev);
+	                                next.delete(row.name_id);
+	                                return next;
+	                              });
+                            }, 3000); // 3 seconds
+                          }
+                        }}
+                      />
+                    </span>
+                    </TooltipTrigger>
+                    {isPaused && <TooltipContent>This order is on hold for now</TooltipContent>}
+                  </Tooltip>
+                </TooltipProvider>
               </TableCell>
             </TableRow>
           </React.Fragment>
