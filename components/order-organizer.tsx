@@ -2241,13 +2241,20 @@ const handleNoteChange = useCallback(
   [setOrders],
 );
 
+  const closeOrderMenu = useCallback(() => {
+    setIsRowClicked(false);
+    setCurrentRowClicked(null);
+    setMenuAnchorEl(null);
+  }, []);
+
 const handleReprintCreate = useCallback(async (nameId: string, quantity: number) => {
   await createReprint(nameId, quantity);
   // console.log("Creating reprint for", nameId, "quantity", quantity);
   toast("Reprint created", {
     description: `Created reprint for ${nameId} (Quantity: ${quantity})`,
   });
-}, []);
+  closeOrderMenu();
+}, [closeOrderMenu]);
 
   const handleProductionStatusChange = useCallback(
     async (newStatus: ProductionStatus) => {
@@ -2260,8 +2267,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
       try {
         await changeOrderProductionStatus(orderToMove, newStatus);
         setOrders((prev) => prev.filter((order) => order.name_id !== orderToMove.name_id));
-        setIsRowClicked(false);
-        setCurrentRowClicked(null);
+        closeOrderMenu();
         toast.success(newStatus === "completed" ? "Order completed" : "Production status changed", {
           description: `${convertToSpaces(orderToMove.name_id)} moved from ${currentStatus} to ${newStatus}.`,
         });
@@ -2272,7 +2278,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
         });
       }
     },
-    [currentRowClicked, orderType],
+    [closeOrderMenu, currentRowClicked, orderType],
   );
 
   const handlePauseOrder = useCallback(async () => {
@@ -2298,13 +2304,14 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
       toast.success(isPaused ? "Order unpaused" : "Order paused", {
         description: `${convertToSpaces(orderToPause.name_id)} is ${isPaused ? "no longer on hold" : "now on hold"}.`,
       });
+      closeOrderMenu();
     } catch (error) {
       console.error("Failed to change order hold state", error);
       toast.error(isPaused ? "Order failed to unpause" : "Order failed to pause", {
         description: "Try refreshing the page before changing the order hold state again.",
       });
     }
-  }, [currentRowClicked]);
+  }, [closeOrderMenu, currentRowClicked]);
 
   const handleMenuOptionClick = useCallback(
     async (option: string, quantity?: number) => {
@@ -2346,8 +2353,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
           }
           // toast({
         );
-        setIsRowClicked(false);
-        setCurrentRowClicked(null);
+        closeOrderMenu();
         return;
       }
       if (option == "delete") {
@@ -2360,6 +2366,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
             onClick: () => {},
           },
         });
+        closeOrderMenu();
         return;
       }
       if (option == "deleteAll") {
@@ -2373,12 +2380,14 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
           },
           duration: 3000,
         });
+        closeOrderMenu();
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
       window.open(`https://stickerbeat.zendesk.com/agent/tickets/${currentRowClicked?.order_id}`, "_blank");
+      closeOrderMenu();
     },
-    [currentRowClicked, orderType]
+    [closeOrderMenu, currentRowClicked, orderType]
   );
 
   if (headers.length === 0) {
@@ -2819,12 +2828,14 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
           onDeleteLine={() => handleMenuOptionClick("delete")}
           onDeleteAll={() => handleMenuOptionClick("deleteAll")}
           onCreateReprint={(nameId, quantity) => handleReprintCreate(nameId, quantity)}
-          onCopyPrintData={() => {
-            if (menuAnchorEl) void copyPrintData(menuAnchorEl as HTMLTableRowElement);
+          onCopyPrintData={async () => {
+            if (menuAnchorEl) await copyPrintData(menuAnchorEl as HTMLTableRowElement);
+            closeOrderMenu();
           }}
-          onAssigneeChange={(user) => {
+          onAssigneeChange={async (user) => {
             setUserSelected(user);
-            if (currentRowClicked) void handleAsigneeClick(currentRowClicked, user);
+            if (currentRowClicked) await handleAsigneeClick(currentRowClicked, user);
+            closeOrderMenu();
           }}
           currentUserSelected={userSelected}
           userRows={userRows}

@@ -842,7 +842,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
   const userEmail = user.email || user.id;
 
   const timeStamp = getTimeStamp();
-  updateZendeskNotes(order.order_id, "[ @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
+  await updateZendeskNotes(order.order_id, "[ @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
   // if (!ignore_zendesk || ignore_zendesk == "false") {
 
   // }
