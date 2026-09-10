@@ -110,6 +110,11 @@ type DragSel = {
 };
 
 type ViewerActivity = { user_id: string; last: Date };
+type OrderViewerChange = {
+  eventType: string;
+  new: Partial<OrderViewerRow>;
+  old: Partial<OrderViewerRow>;
+};
 
 const laminationHeaderColors = {
   matte: "text-purple-500",
@@ -700,6 +705,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const hadViewerSelectionRef = useRef(false);
   const [viewersByUser, setViewersByUser] = useState<Map<string, Date>>(new Map());
   const [viewerOrdersByUser, setViewerOrdersByUser] = useState<Map<string, Map<string, Date>>>(new Map());
+  const viewerDisplayOrderRef = useRef(new Map<string, number>());
+  const nextViewerDisplayOrderRef = useRef(0);
   const [nowTick, setNowTick] = useState(() => Date.now());
   // useEffect(() => {
   //   // console.log("Now tick updated:", nowTick);
@@ -887,60 +894,72 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     return next;
   }, []);
 
+  const ensureViewerDisplayOrder = useCallback((userId: string) => {
+    const existing = viewerDisplayOrderRef.current.get(userId);
+    if (existing !== undefined) return existing;
+
+    const order = nextViewerDisplayOrderRef.current;
+    nextViewerDisplayOrderRef.current += 1;
+    viewerDisplayOrderRef.current.set(userId, order);
+    return order;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
+    let changeTimer: ReturnType<typeof setTimeout> | null = null;
+    const pendingChanges: OrderViewerChange[] = [];
 
-    const upsert = (row: OrderViewerRow) => {
-      const d = parsePgTs(row.last_updated);
-      const userId = row.user_id;
+    const applyPendingChanges = () => {
+      changeTimer = null;
+      const changes = pendingChanges.splice(0);
+      if (changes.length === 0 || cancelled) return;
 
       setViewerOrdersByUser((prev) => {
         const next = new Map(prev);
-        const existingOrders = next.get(userId) ?? new Map<string, Date>();
-        const nextOrders = new Map(existingOrders);
-        const currentOrderTs = nextOrders.get(row.name_id);
-        if (!currentOrderTs || d > currentOrderTs) {
-          nextOrders.set(row.name_id, d);
-        }
-        next.set(userId, nextOrders);
+
+        changes.forEach((change) => {
+          const row = change.eventType === "DELETE" ? change.old : change.new;
+          const userId = row.user_id;
+          const nameId = row.name_id;
+          if (!userId || !nameId) return;
+
+          const nextOrders = new Map(next.get(userId) ?? []);
+          if (change.eventType === "DELETE") {
+            nextOrders.delete(nameId);
+          } else {
+            const lastUpdated = parsePgTs(row.last_updated);
+            const currentOrderTs = nextOrders.get(nameId);
+            if (!currentOrderTs || lastUpdated > currentOrderTs) {
+              nextOrders.set(nameId, lastUpdated);
+            }
+            ensureViewerDisplayOrder(userId);
+          }
+
+          if (nextOrders.size === 0) next.delete(userId);
+          else next.set(userId, nextOrders);
+        });
+
         setViewersByUser(computeLatestViewersByUser(next));
         return next;
       });
+      setNowTick(Date.now());
     };
 
-    const removeViewerOrder = (row: Partial<OrderViewerRow>) => {
-      const userId = row.user_id;
-      const nameId = row.name_id;
-      if (!userId || !nameId) return;
-
-      setViewerOrdersByUser((prev) => {
-        const next = new Map(prev);
-        const existingOrders = next.get(userId);
-        if (!existingOrders) return prev;
-
-        const nextOrders = new Map(existingOrders);
-        nextOrders.delete(nameId);
-
-        if (nextOrders.size === 0) next.delete(userId);
-        else next.set(userId, nextOrders);
-
-        setViewersByUser(computeLatestViewersByUser(next));
-        return next;
-      });
+    const queueChange = (change: OrderViewerChange) => {
+      pendingChanges.push(change);
+      if (changeTimer) clearTimeout(changeTimer);
+      // A selection replacement deletes the old rows before inserting the new set.
+      // Wait briefly so that sequence is rendered once, rather than flashing empty.
+      changeTimer = setTimeout(applyPendingChanges, 200);
     };
 
     (async () => {
       const { data, error } = await supabase.from("order_viewers").select("user_id, last_updated, name_id");
       if (!error && !cancelled) {
-        const map = new Map<string, Date>();
         const ordersByUserMap = new Map<string, Map<string, Date>>();
         (data as OrderViewerRow[]).forEach((r) => {
           const d = parsePgTs(r.last_updated);
           const userId = r.user_id;
-          const prev = map.get(userId);
-          if (!prev || d > prev) {
-            map.set(userId, d);
-          }
 
           const existingOrders = ordersByUserMap.get(userId) ?? new Map<string, Date>();
           const currentOrderTs = existingOrders.get(r.name_id);
@@ -949,6 +968,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           }
           ordersByUserMap.set(userId, existingOrders);
         });
+        [...computeLatestViewersByUser(ordersByUserMap).entries()]
+          .sort(([, a], [, b]) => b.getTime() - a.getTime())
+          .forEach(([userId]) => ensureViewerDisplayOrder(userId));
         setViewerOrdersByUser(ordersByUserMap);
         setViewersByUser(computeLatestViewersByUser(ordersByUserMap));
         setNowTick(Date.now());
@@ -963,21 +985,21 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         "postgres_changes",
         { event: "*", schema: "public", table: "order_viewers" }, // INSERT + UPDATE (+ DELETE if you ever need)
         (payload) => {
-          setNowTick(Date.now());
-          if (payload.eventType === "DELETE") {
-            removeViewerOrder(payload.old as Partial<OrderViewerRow>);
-            return;
-          }
-          if (payload.new) upsert(payload.new as OrderViewerRow);
+          queueChange({
+            eventType: payload.eventType,
+            new: payload.new as Partial<OrderViewerRow>,
+            old: payload.old as Partial<OrderViewerRow>,
+          });
         }
       )
       .subscribe();
 
     return () => {
       cancelled = true;
+      if (changeTimer) clearTimeout(changeTimer);
       supabase.removeChannel(ch);
     };
-  }, [computeLatestViewersByUser, supabase]);
+  }, [computeLatestViewersByUser, ensureViewerDisplayOrder, supabase]);
 
   // console.log(userRows)
   // 5) ----- derive active/idle lists -----
@@ -995,10 +1017,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // else offline -> hidden
     });
 
-    active.sort((a, b) => b.last.getTime() - a.last.getTime());
-    idle.sort((a, b) => b.last.getTime() - a.last.getTime());
+    const stableViewerOrder = (a: ViewerActivity, b: ViewerActivity) =>
+      ensureViewerDisplayOrder(a.user_id) - ensureViewerDisplayOrder(b.user_id);
+    active.sort(stableViewerOrder);
+    idle.sort(stableViewerOrder);
     return { activeViewers: active, idleViewers: idle };
-  }, [viewersByUser, nowTick]);
+  }, [viewersByUser, nowTick, ensureViewerDisplayOrder]);
 
   const syncLocalViewerSelection = useCallback((userId: string, selectedNameIds: string[]) => {
     const now = new Date();
@@ -1478,7 +1502,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     const pressed = new Set<string>();
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "c") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "c") {
         copyPrintData();
         return;
       }
@@ -2313,6 +2337,35 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
     }
   }, [closeOrderMenu, currentRowClicked]);
 
+  const handleQuantityColorChange = useCallback(
+    async (color: string | null) => {
+      if (!currentRowClicked) return;
+
+      const orderToUpdate = currentRowClicked;
+      try {
+        await assignColorToQuantityRow([orderToUpdate.name_id], color);
+        setOrders((prev) =>
+          prev.map((order) =>
+            order.name_id === orderToUpdate.name_id ? { ...order, quantityColor: color } : order,
+          ),
+        );
+        setCurrentRowClicked((current) =>
+          current?.name_id === orderToUpdate.name_id ? { ...current, quantityColor: color } : current,
+        );
+        toast.success(color ? "Quantity color changed" : "Quantity color removed", {
+          description: `${convertToSpaces(orderToUpdate.name_id)} quantity color ${color ? "updated" : "removed"}.`,
+        });
+        closeOrderMenu();
+      } catch (error) {
+        console.error("Failed to change quantity color", error);
+        toast.error("Quantity color failed to update", {
+          description: "Try refreshing the page before changing the quantity color again.",
+        });
+      }
+    },
+    [closeOrderMenu, currentRowClicked],
+  );
+
   const handleMenuOptionClick = useCallback(
     async (option: string, quantity?: number) => {
       if (currentRowClicked == null) {
@@ -2609,23 +2662,13 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Shortcuts</DialogTitle>
-                  <DialogDescription className="text-sm">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <ul className="list-di+sc list-inside text-xs">
-                          <li>[SHIFT] + [F] = Search for Orders</li>
-                          <li>[SHIFT] + [HOLD] = Multi select Rows</li>
-                          <li>[CMD] + [C] = Copy File Name + Quantity for Print</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <ul className="list-disc list-inside text-xs">
-                          <li>Double Click = Quickly copy file name</li>
-                          <li>[SHIFT] + [CMD] = Multi select Rows</li>
-                          <li></li>
-                        </ul>
-                      </div>
-                    </div>
+                  <DialogDescription className="text-base leading-7">
+                    <ul className="list-disc list-inside space-y-1 text-base">
+                      <li>[SHIFT] + [F] = Search for Orders</li>
+                      <li>Hold [SHIFT] while clicking or dragging = Multi select Rows</li>
+                      <li>[⌘ / Ctrl] + [C] = Copy File Name + Quantity for Print</li>
+                      <li>Double Click = Quickly copy file name</li>
+                    </ul>
                   </DialogDescription>
                   <DialogDescription className="text-sm">
                     <ul className="list-disc list-inside">
@@ -2841,6 +2884,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
           userRows={userRows}
           onProductionStatusChange={(newStatus) => void handleProductionStatusChange(newStatus)}
           onPauseOrder={() => void handlePauseOrder()}
+          onQuantityColorChange={(color) => void handleQuantityColorChange(color)}
         />
       )}
       <Toaster theme={"dark"} richColors={true} />

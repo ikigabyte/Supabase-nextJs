@@ -90,8 +90,9 @@ export function ButtonOrganizer({
   };
   // console.log(dragSelections.current);
 
-  const rowValue = useMemo(() => {
+  const selectionSummary = useMemo(() => {
     let sumValue = 0;
+    let selectedCount = 0;
     let foundTiles = false;
     let foundNonTiles = false;
     let totalTiles = 0;
@@ -114,6 +115,7 @@ export function ButtonOrganizer({
       for (const i of indices) {
         const row = dataRows[i];
         if (!row) continue;
+        selectedCount += 1;
         const cell = row.children[quantityColumnIndex] as HTMLElement | undefined;
         if (!cell) continue;
 
@@ -134,13 +136,13 @@ export function ButtonOrganizer({
     });
 
     const showDifferent = foundTiles && foundNonTiles;
-    if (showDifferent) return "N/A";
+    if (showDifferent) return { rowValue: "N/A", selectedCount };
 
     if (foundTiles) {
-      return `${Math.ceil(totalInches * 100) / 100}"`;
+      return { rowValue: `${Math.ceil(totalInches * 100) / 100}"`, selectedCount };
     }
 
-    return String(sumValue);
+    return { rowValue: String(sumValue), selectedCount };
   }, [selectionVersion, dragSelections]);
 
   const condensedUsers = [
@@ -153,10 +155,31 @@ export function ButtonOrganizer({
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-200 shadow-lg">
-      {/* Make both sides the same height */}
-      <div className="flex h-14 w-full items-center">
-        {/* LEFT: 88% */}
+    <div className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-300 shadow-lg" py-2>
+      {dragSelections.current.size > 0 && (
+        <div className="flex h-9 items-center border-b border-gray-300 px-3 py-1" data-ignore-selection="true">
+          <div className="ml-auto flex max-w-full items-center divide-x divide-gray-400 overflow-x-auto">
+            <div className="shrink-0 whitespace-nowrap px-3 text-sm">
+              <span className="block font-semibold">Total : {selectionSummary.rowValue}</span>
+            </div>
+            <div className="shrink-0 whitespace-nowrap px-3 text-sm">
+              <span className="block font-semibold">Selected : {selectionSummary.selectedCount}</span>
+            </div>
+            <div className="shrink-0 pl-3">
+              <Button
+                className="h-7 gap-1.5 whitespace-nowrap bg-black px-2 text-xs text-white hover:bg-black"
+                onClick={() => copyPrintData()}
+              >
+                <ClipboardCopy className="h-3.5 w-3.5 shrink-0" />
+                <span>Copy Print Data</span>
+                <kbd className="rounded bg-white/15 px-1 py-0.5 font-mono text-[10px] font-medium">⌘ C / Ctrl C</kbd>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex h-14 w-full items-center bg-gray-500 py-2">
         <div className="min-w-0 flex-1 px-4">
           <div className="flex flex-nowrap items-center overflow-x-auto">
             {categories.map((category) => {
@@ -187,33 +210,6 @@ export function ButtonOrganizer({
             })}
           </div>
         </div>
-
-        {/* GAP between buttons and right section */}
-        <div className="w-4" />
-        {/* RIGHT: only render if there is a selection */}
-        {dragSelections.current.size > 0 && (
-          <div
-            className="
-      flex-none
-      w-[12vw]
-      min-w-[220px]
-      max-w-[380px]
-      h-full
-      border-l border-gray-300
-      pl-6 pr-3
-      flex items-center
-      overflow-hidden
-    "
-            data-ignore-selection="true"
-          >
-            <div className="flex w-full items-center gap-1 min-w-0">
-              {/* Total Quantity */}
-              <div className="flex-1 min-w-0 pr-4 text-right text-base">
-                <span className="block font-semibold">Total: {rowValue}</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

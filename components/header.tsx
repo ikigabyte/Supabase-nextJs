@@ -11,17 +11,19 @@ import { Button } from "@/components/ui/button";
 import { NavBarElement } from "./navbar-element";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { convertUsableColor } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type ProfileSummary = {
   color: string | null;
   role: string | null;
   position: string | null;
+  latest_version_review: string | null;
 };
 
 export async function fetchUserProfileById(supabase: any, userId: string): Promise<ProfileSummary | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("color, role, position")
+    .select("color, role, position, latest_version_review")
     .eq("id", userId)
     .maybeSingle();
 
@@ -45,6 +47,9 @@ export default function Header() {
   const [myColor, setMyColor] = useState<string | null>(null);
   const [profileLabel, setProfileLabel] = useState<string>("");
   const [databaseVersion, setDatabaseVersion] = useState<string | null>(null);
+  const [updateNotes, setUpdateNotes] = useState<string | null>(null);
+  const [latestVersionReview, setLatestVersionReview] = useState<string | null>(null);
+  const [updatesOpen, setUpdatesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // const { data, error } = await supabase.from("profiles").select("id, identifier, color, role, position");supabase
@@ -94,6 +99,7 @@ export default function Header() {
         if (!cancelled) {
           setMyColor(null);
           setProfileLabel("");
+          setLatestVersionReview(null);
         }
         return;
       }
@@ -105,6 +111,7 @@ export default function Header() {
       if (!cancelled) {
         setMyColor(color);
         setProfileLabel(labelValue);
+        setLatestVersionReview(profile?.latest_version_review ?? null);
       }
     })();
 
@@ -113,9 +120,70 @@ export default function Header() {
     };
   }, [supabase, session]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("name_id, notes")
+        .eq("order_id", 0)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Failed to fetch the latest database update:", error);
+        return;
+      }
+
+      if (!cancelled) {
+        setDatabaseVersion(data?.name_id ?? null);
+        setUpdateNotes(data?.notes ?? null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  const openLatestUpdates = async () => {
+    setUpdatesOpen(true);
+
+    const { data: orderZero, error: orderZeroError } = await supabase
+      .from("orders")
+      .select("name_id, notes")
+      .eq("order_id", 0)
+      .maybeSingle();
+
+    if (orderZeroError) {
+      console.error("Failed to fetch the latest database update:", orderZeroError);
+      return;
+    }
+
+    const currentVersion = orderZero?.name_id ?? null;
+    setDatabaseVersion(currentVersion);
+    setUpdateNotes(orderZero?.notes ?? null);
+
+    const userId = session?.user?.id;
+    if (!userId || !currentVersion) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ latest_version_review: currentVersion })
+      .eq("id", userId);
+
+    if (error) {
+      console.error("Failed to mark the latest database update as reviewed:", error);
+      return;
+    }
+
+    setLatestVersionReview(currentVersion);
+  };
+
   const userInitials = email ? getInitials(email) : "";
   const emailUsername = email?.split("@")[0] ?? "";
   const userBackgroundColor = myColor ?? "#ffffff";
+  const hasNewUpdate = Boolean(databaseVersion && latestVersionReview !== databaseVersion);
 
   return (
     <header className="z-50 w-full border-b border-border bg-white supports-[backdrop-filter]:bg-background/60">
@@ -134,10 +202,22 @@ export default function Header() {
           </Button>
         )}
         <nav className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <Link className="mr-1 flex shrink-0 items-center gap-1 sm:mr-2 sm:gap-2" href="/database/toprint?rush">
+          <button
+            type="button"
+            className="mr-1 flex shrink-0 items-center gap-1 rounded-sm sm:mr-2 sm:gap-2"
+            aria-label="View latest SB Database updates"
+            onClick={openLatestUpdates}
+          >
             <img src="/images/stickerbeat-logo.png" alt="Stickerbeat Logo" className="h-7 w-7 md:h-8 md:w-8" />
-            <p id="version-p" className="whitespace-nowrap text-[inherit] font-bold">SB Database</p>
-          </Link>
+            <p className="whitespace-nowrap text-[inherit] font-bold">
+              SB Database{databaseVersion ? ` ${databaseVersion}` : ""}
+            </p>
+            {hasNewUpdate && (
+              <span className="rounded border border-red-600 bg-red-600 px-1 py-0.5 text-[8px] font-bold leading-none text-white sm:text-[9px]">
+                NEW
+              </span>
+            )}
+          </button>
           <div
             className={`${
               mobileMenuOpen ? "fixed inset-0 z-50 block xl:static xl:inset-auto" : "hidden"
@@ -204,6 +284,16 @@ export default function Header() {
           )}
         </div>
       </div>
+      <Dialog open={updatesOpen} onOpenChange={setUpdatesOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Latest SB Database Updates{databaseVersion ? ` — ${databaseVersion}` : ""}</DialogTitle>
+            <DialogDescription className="whitespace-pre-wrap text-sm text-foreground">
+              {updateNotes?.trim() || "No update notes have been added yet."}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

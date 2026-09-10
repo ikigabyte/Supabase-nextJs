@@ -253,6 +253,7 @@ export type Database = {
           id: string
           identifier: string | null
           initials: string | null
+          latest_version_review: string | null
           position: Database["public"]["Enums"]["position"] | null
           role: Database["public"]["Enums"]["user_role"]
         }
@@ -262,6 +263,7 @@ export type Database = {
           id: string
           identifier?: string | null
           initials?: string | null
+          latest_version_review?: string | null
           position?: Database["public"]["Enums"]["position"] | null
           role?: Database["public"]["Enums"]["user_role"]
         }
@@ -271,6 +273,7 @@ export type Database = {
           id?: string
           identifier?: string | null
           initials?: string | null
+          latest_version_review?: string | null
           position?: Database["public"]["Enums"]["position"] | null
           role?: Database["public"]["Enums"]["user_role"]
         }

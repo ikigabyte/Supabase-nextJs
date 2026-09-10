@@ -3,7 +3,7 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, CirclePause, Eye, Play, Trash, Trash2, RotateCcw, Printer, ClipboardCopy, User, SquarePen } from "lucide-react";
+import { CheckCircle2, CirclePause, Eye, Play, Trash, Trash2, RotateCcw, Printer, ClipboardCopy, User, SquarePen, Palette } from "lucide-react";
 import { ReprintDialog } from "./reprint-dialog";
 import { DropdownAssignee } from "./dropdown";
 import { getCorrectUserColor } from "@/lib/utils";
@@ -25,6 +25,15 @@ const productionStatusOptions: Array<{ value: Exclude<ProductionStatus, "complet
   { value: "ship", label: "Ship" },
 ];
 
+const quantityColorOptions = [
+  { label: "Blue 1", value: "#cfe2f3" },
+  { label: "Blue 2", value: "#a5e6f6ff" },
+  { label: "Blue 3", value: "#90c5f3ff" },
+  { label: "Pink 1", value: "#ead1dc" },
+  { label: "Pink 2", value: "#e8b8cdff" },
+  { label: "Pink 3", value: "#e39ebcff" },
+] as const;
+
 type OrderViewerProps = {
   currentRow: { name_id: string; production_status?: string | null; asignee?: string | null } | null;
   anchorEl: HTMLElement | null;
@@ -41,6 +50,7 @@ type OrderViewerProps = {
   userRows: Map<string, { color: string; position: string | null }>;
   onProductionStatusChange: (status: ProductionStatus) => void;
   onPauseOrder: () => void;
+  onQuantityColorChange: (color: string | null) => void;
 };
 
 export function OrderViewer({
@@ -59,6 +69,7 @@ export function OrderViewer({
   userRows,
   onProductionStatusChange,
   onPauseOrder,
+  onQuantityColorChange,
 }: OrderViewerProps) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -146,7 +157,87 @@ export function OrderViewer({
         }}
       >
 
-        <DropdownMenu>
+  <Button
+            variant="ghost"
+            className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewZendesk();
+            }}
+          >
+            <Eye className="h-3.5 w-3.5 shrink-0" />
+            <span>View on Zendesk</span>
+          </Button>
+
+        <div className="flex flex-col">
+          {currentProductionStatus === "print" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="h-8 w-full justify-start gap-2.5 px-2.5 text-xs font-normal"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Palette className="h-3.5 w-3.5 shrink-0" />
+                  <span>Change Quantity Color</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-44" side="right" align="start" data-ignore-selection="true">
+                <DropdownMenuLabel>Quantity Color</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {quantityColorOptions.map((option) => (
+                  <DropdownMenuItem
+                    key={option.value}
+                    data-ignore-selection="true"
+                    onSelect={() => onQuantityColorChange(option.value)}
+                  >
+                    <span className="h-3.5 w-3.5 rounded-full border border-black/15" style={{ backgroundColor: option.value }} />
+                    {option.label}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem data-ignore-selection="true" onSelect={() => onQuantityColorChange(null)}>
+                  Remove Color
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+         
+
+          {status !== "print" && (
+            <Button
+              variant="ghost"
+              className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRevertStatus();
+              }}
+            >
+              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+              <span>Revert status</span>
+            </Button>
+          )}
+
+
+
+    <Button
+            variant="ghost"
+            className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopyPrintData();
+            }}
+          >
+            <ClipboardCopy className="h-3.5 w-3.5 shrink-0" />
+            <span>Copy Print Data</span>
+          </Button>
+
+<Separator className="my-1.5" />
+
+          {permissionLevel > 1 && (
+            <>
+                    <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
@@ -182,65 +273,7 @@ export function OrderViewer({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex flex-col">
-          {status !== "print" && (
-            <Button
-              variant="ghost"
-              className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRevertStatus();
-              }}
-            >
-              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-              <span>Revert status</span>
-            </Button>
-          )}
 
-          <Button
-            variant="ghost"
-            className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewZendesk();
-            }}
-          >
-            <Eye className="h-3.5 w-3.5 shrink-0" />
-            <span>View on Zendesk</span>
-          </Button>
-
-    <Button
-            variant="ghost"
-            className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCopyPrintData();
-            }}
-          >
-            <ClipboardCopy className="h-3.5 w-3.5 shrink-0" />
-            <span>Copy Print Data</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
-            onClick={(e) => {
-              e.stopPropagation();
-              onPauseOrder();
-            }}
-          >
-            {isPaused ? (
-              <Play className="h-3.5 w-3.5 shrink-0" />
-            ) : (
-              <CirclePause className="h-3.5 w-3.5 shrink-0" />
-            )}
-            <span>{isPaused ? "Unpause Order" : "Pause Order"}</span>
-          </Button>
-
-<Separator className="my-1.5" />
-
-          {permissionLevel > 1 && (
-            <>
               <Button
                 variant="ghost"
                 className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
@@ -271,6 +304,23 @@ export function OrderViewer({
               />
             </>
           )}
+
+          <Button
+            variant="ghost"
+            className="h-8 justify-start gap-2.5 px-2.5 text-xs font-normal"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPauseOrder();
+            }}
+          >
+            {isPaused ? (
+              <Play className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <CirclePause className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>{isPaused ? "Unpause Order" : "Pause Order"}</span>
+          </Button>
+
 
           {permissionLevel > 2 && (
             <>
