@@ -49,6 +49,7 @@ export default function Header() {
   const [databaseVersion, setDatabaseVersion] = useState<string | null>(null);
   const [updateNotes, setUpdateNotes] = useState<string | null>(null);
   const [latestVersionReview, setLatestVersionReview] = useState<string | null>(null);
+  const [profileReviewLoaded, setProfileReviewLoaded] = useState(false);
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -100,10 +101,12 @@ export default function Header() {
           setMyColor(null);
           setProfileLabel("");
           setLatestVersionReview(null);
+          setProfileReviewLoaded(false);
         }
         return;
       }
 
+      setProfileReviewLoaded(false);
       const profile = await fetchUserProfileById(supabase, userId);
       const color = profile?.color ? convertUsableColor(profile.color) : "#000000ff";
       const labelValue = (profile?.position ?? profile?.role ?? "").trim();
@@ -112,6 +115,7 @@ export default function Header() {
         setMyColor(color);
         setProfileLabel(labelValue);
         setLatestVersionReview(profile?.latest_version_review ?? null);
+        setProfileReviewLoaded(true);
       }
     })();
 
@@ -183,7 +187,7 @@ export default function Header() {
   const userInitials = email ? getInitials(email) : "";
   const emailUsername = email?.split("@")[0] ?? "";
   const userBackgroundColor = myColor ?? "#ffffff";
-  const hasNewUpdate = Boolean(databaseVersion && latestVersionReview !== databaseVersion);
+  const hasNewUpdate = Boolean(profileReviewLoaded && databaseVersion && latestVersionReview !== databaseVersion);
 
   return (
     <header className="z-50 w-full border-b border-border bg-white supports-[backdrop-filter]:bg-background/60">

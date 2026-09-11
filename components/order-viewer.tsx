@@ -7,6 +7,7 @@ import { CheckCircle2, CirclePause, Eye, Play, Trash, Trash2, RotateCcw, Printer
 import { ReprintDialog } from "./reprint-dialog";
 import { DropdownAssignee } from "./dropdown";
 import { getCorrectUserColor } from "@/lib/utils";
+import { quantityColorOptions } from "@/utils/quantity-colors";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,15 +25,6 @@ const productionStatusOptions: Array<{ value: Exclude<ProductionStatus, "complet
   { value: "pack", label: "Pack" },
   { value: "ship", label: "Ship" },
 ];
-
-const quantityColorOptions = [
-  { label: "Blue 1", value: "#cfe2f3" },
-  { label: "Blue 2", value: "#a5e6f6ff" },
-  { label: "Blue 3", value: "#90c5f3ff" },
-  { label: "Pink 1", value: "#ead1dc" },
-  { label: "Pink 2", value: "#e8b8cdff" },
-  { label: "Pink 3", value: "#e39ebcff" },
-] as const;
 
 type OrderViewerProps = {
   currentRow: { name_id: string; production_status?: string | null; asignee?: string | null } | null;
@@ -318,7 +310,7 @@ export function OrderViewer({
             ) : (
               <CirclePause className="h-3.5 w-3.5 shrink-0" />
             )}
-            <span>{isPaused ? "Unpause Order" : "Pause Order"}</span>
+            <span>{isPaused ? "Unpause Order" : "Hold Order"}</span>
           </Button>
 
 

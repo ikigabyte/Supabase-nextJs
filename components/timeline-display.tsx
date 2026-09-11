@@ -191,8 +191,6 @@ const TIMELINE_FETCH_STATUSES = Array.from(
 );
 const ACTIVE_TICKET_STATUSES = new Set(["pending", "open"]);
 
-const SHIPPED_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
-const SHIPPED_STATUS_VISIBLE_WINDOW_MS = 25 * 60 * 60 * 1000;
 const PRODUCTION_STATUS_ORDER = [
   "bda_production",
   "print",
@@ -593,6 +591,10 @@ function hasTimelineShipDate(order: TimelineOrder) {
   return toTimelineTime(order.ship_date) !== null;
 }
 
+function hasTimelineShippedStamp(order: TimelineOrder) {
+  return order.shipped_stamp !== null && order.shipped_stamp !== undefined;
+}
+
 function isTimelineTicketSolved(order: TimelineOrder) {
   return (
     normalizeTrackingStatus(order.ticket_status) === "solved" ||
@@ -606,48 +608,12 @@ function isTimelineTicketActive(order: TimelineOrder) {
   );
 }
 
-function isTimelineOrderRecentlyShipped(
-  order: TimelineOrder,
-  now = Date.now(),
-) {
-  const shippedTime = toTimelineTime(order.shipped_stamp);
-  if (shippedTime === null) return false;
-
-  const age = now - shippedTime;
-  return age >= 0 && age <= SHIPPED_VISIBLE_WINDOW_MS;
-}
-
-function isTimelineOrderRecentlyUpdated(
-  order: TimelineOrder,
-  now = Date.now(),
-) {
-  const updatedTime = toTimelineTime(order.last_update);
-  if (updatedTime === null) return false;
-
-  const age = now - updatedTime;
-  return age >= 0 && age <= SHIPPED_STATUS_VISIBLE_WINDOW_MS;
-}
-
-function hasTimelineShippedStatus(order: TimelineOrder) {
-  return SHIPPED_STATUSES.has(normalizeTrackingStatus(order.current_status));
-}
-
 function isTimelineOrderActive(order: TimelineOrder) {
   return (
     hasTimelineShipDate(order) &&
     isTimelineTicketActive(order) &&
     !isTimelineTicketSolved(order) &&
     ACTIVE_STATUSES.has(normalizeTrackingStatus(order.current_status))
-  );
-}
-
-function isTimelineOrderShipped(order: TimelineOrder) {
-  if (!hasTimelineShipDate(order)) return false;
-  return (
-    isTimelineTicketSolved(order) &&
-    (isTimelineOrderRecentlyShipped(order) ||
-      (hasTimelineShippedStatus(order) &&
-        isTimelineOrderRecentlyUpdated(order)))
   );
 }
 
@@ -1674,12 +1640,23 @@ export function TimelineOrders() {
     };
 
     const fetchTrackingTimelineOrders = () => {
-      supabase
+      const query = supabase
         .from("tracking_orders")
         .select("*")
-        .not("ship_date", "is", null)
-        .in("current_status", TIMELINE_FETCH_STATUSES)
-        .order("ship_date", { ascending: false })
+        .eq("active", true);
+
+      const timelineQuery =
+        timelineView === "shipped"
+          ? query
+              .not("shipped_stamp", "is", null)
+              .order("shipped_stamp", { ascending: false })
+              .limit(100)
+          : query
+              .not("ship_date", "is", null)
+              .in("current_status", TIMELINE_FETCH_STATUSES)
+              .order("ship_date", { ascending: false });
+
+      timelineQuery
         .then(({ data, error }) => {
           if (cancelled) return;
 
@@ -1689,9 +1666,11 @@ export function TimelineOrders() {
             return;
           }
 
-          const nextOrders = sortAllOrders(
-            ((data ?? []) as TimelineOrder[]).filter(shouldParseTrackingOrder),
-          );
+          const orders = (data ?? []) as TimelineOrder[];
+          const nextOrders =
+            timelineView === "shipped"
+              ? orders
+              : sortAllOrders(orders.filter(shouldParseTrackingOrder));
 
           setCombinedOrders(nextOrders);
         });
@@ -1726,7 +1705,7 @@ export function TimelineOrders() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [timelineView]);
 
   useEffect(() => {
     setRefreshDisabled(false);
@@ -1756,7 +1735,7 @@ export function TimelineOrders() {
       timelineView === "active"
         ? isTimelineOrderActive(order)
         : timelineView === "shipped"
-          ? isTimelineOrderShipped(order)
+          ? true
           : !ordersLoading &&
             isTimelineOrderOutOfSync(
               ordersById[orderId] ?? [],
@@ -1960,7 +1939,7 @@ export function TimelineOrders() {
                   ? getTimelineNotesSummary(rows)
                   : "-";
               const statusSummary = formatTimelineItemValue(lowerStatus);
-              const isShipped = isTimelineOrderShipped(order);
+              const isShipped = hasTimelineShippedStamp(order);
               const isOutOfSync =
                 !ordersLoading &&
                 isTimelineOrderOutOfSync(rows, order.current_status);
@@ -2304,7 +2283,7 @@ export function TimelineOrders() {
               const materialSummary = getMixedSummary(items, "Material");
               const quantitySummary = getTimelineQuantitySummary(rows, items);
               const isSelected = selectedTimelineOrderIds.has(orderIdNum);
-              const isShipped = isTimelineOrderShipped(order);
+              const isShipped = hasTimelineShippedStamp(order);
               const isTicketOpen =
                 normalizeTrackingStatus(order.ticket_status) === "open";
               const isThisOrderShipping = shipOrderInFlightId === orderIdNum;
@@ -2722,6 +2701,7 @@ export function TimelineOrders() {
           </div>
           <div className="order-3 flex flex-wrap items-center gap-5">
             {timelineDisplayMode === "list" ? (
+              timelineView !== "shipped" &&
               !isSearching && (
                 <>
                   <Popover
@@ -2824,34 +2804,39 @@ export function TimelineOrders() {
             )}
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setTimelineDisplayMode((current) =>
-                  current === "list" ? "timeline" : "list",
-                )
-              }
-            >
-              {timelineDisplayMode === "list" ? "Timeline View" : "List View"}
-            </Button>
+            {timelineView !== "shipped" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setTimelineDisplayMode((current) =>
+                    current === "list" ? "timeline" : "list",
+                  )
+                }
+              >
+                {timelineDisplayMode === "list" ? "Timeline View" : "List View"}
+              </Button>
+            )}
             <Select
               value={timelineView}
-              onValueChange={(value: TimelineView) => setTimelineView(value)}
+              onValueChange={(value: TimelineView) => {
+                setTimelineView(value);
+                if (value === "shipped") setTimelineDisplayMode("list");
+              }}
             >
               <SelectTrigger className="h-8 w-44 border-0 px-0 text-sm font-medium text-foreground shadow-none">
                 <SelectValue placeholder="View" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Active orders</SelectItem>
-                <SelectItem value="shipped">Shipped orders</SelectItem>
+                <SelectItem value="shipped">Recently Shipped</SelectItem>
                 <SelectItem value="sync-conflicts">Sync conflicts</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
-        {timelineDisplayMode === "timeline" ? (
+        {timelineDisplayMode === "timeline" && timelineView !== "shipped" ? (
           renderMonthlyTimeline()
         ) : (
           <>
@@ -2861,7 +2846,13 @@ export function TimelineOrders() {
                   visibleTimelineOrders,
                   `No orders found for ${searchQuery.trim()}.`,
                 )
-              : (
+              : timelineView === "shipped" ? (
+                renderTimelineTable(
+                  "Recently Shipped",
+                  visibleTimelineOrders,
+                  "No recently shipped orders.",
+                )
+              ) : (
                 <>
                   {renderTimelineTable(
                     "Past Due",

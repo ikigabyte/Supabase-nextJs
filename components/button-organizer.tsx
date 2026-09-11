@@ -2,11 +2,13 @@
 
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ClipboardCopy } from "lucide-react";
+import { ClipboardCopy, Palette } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { DropdownAssignee } from "./dropdown";
 import { getCorrectUserColor } from "@/lib/utils";
 import { parseTileQuantityAndSize } from "@/utils/stringfunctions";
+import { quantityColorFamilies } from "@/utils/quantity-colors";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export const getBorderColor = (category: string) => {
   switch (category) {
@@ -65,6 +67,8 @@ export function ButtonOrganizer({
   setCurrentUser,
   copyPrintData,
   selectionVersion,
+  showQuantityColorShortcuts,
+  onQuantityColorSelect,
 }: {
   categories?: string[];
   counts?: Record<string, number>;
@@ -79,8 +83,11 @@ export function ButtonOrganizer({
   setCurrentUser: (user: string) => void;
   copyPrintData: () => void;
   selectionVersion: number;
+  showQuantityColorShortcuts: boolean;
+  onQuantityColorSelect: (color: string | null) => Promise<void> | void;
 }) {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
   // const [rowValue, setRowValue] = useState<number>(0);
   // const [updateCounter, setUpdateCounter] = useState<number>(0);
 
@@ -159,6 +166,61 @@ export function ButtonOrganizer({
       {dragSelections.current.size > 0 && (
         <div className="flex h-9 items-center border-b border-gray-300 px-3 py-1" data-ignore-selection="true">
           <div className="ml-auto flex max-w-full items-center divide-x divide-gray-400 overflow-x-auto">
+            {showQuantityColorShortcuts && (
+              <div className="shrink-0 border-r border-gray-400 px-3">
+                <TooltipProvider delayDuration={150}>
+                  <DropdownMenu open={colorMenuOpen} onOpenChange={setColorMenuOpen}>
+                    <DropdownMenuTrigger asChild data-ignore-selection="true">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Choose quantity color"
+                      >
+                        <Palette className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-auto p-2" side="top" align="end" data-ignore-selection="true">
+                      <div className="grid grid-cols-3 gap-2">
+                        {quantityColorFamilies.flatMap((family) =>
+                          family.variants.map((variant) => {
+                            const shortcut = `Shift + ${family.key} + ${variant.number}`;
+                            return (
+                              <Tooltip key={`${family.key}${variant.number}`}>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="h-9 w-9 rounded-full border border-black/15 outline-none ring-offset-background hover:ring-2 hover:ring-ring focus-visible:ring-2 focus-visible:ring-ring"
+                                    style={{ backgroundColor: variant.color }}
+                                    aria-label={`${family.label} ${variant.number}: ${shortcut}`}
+                                    onClick={() => {
+                                      onQuantityColorSelect(variant.color);
+                                      setColorMenuOpen(false);
+                                    }}
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent>{shortcut}</TooltipContent>
+                              </Tooltip>
+                            );
+                          }),
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="mt-2 w-full rounded-sm border border-gray-300 px-2 py-1.5 text-xs font-medium hover:bg-gray-100"
+                        onClick={() => {
+                          onQuantityColorSelect(null);
+                          setColorMenuOpen(false);
+                        }}
+                      >
+                        Clear Color
+                      </button>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipProvider>
+              </div>
+            )}
             <div className="shrink-0 whitespace-nowrap px-3 text-sm">
               <span className="block font-semibold">Total : {selectionSummary.rowValue}</span>
             </div>

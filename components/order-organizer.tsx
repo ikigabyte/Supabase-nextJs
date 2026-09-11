@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Info } from "lucide-react";
 import { getMaterialTextColor } from "@/utils/colorMap";
+import { getQuantityColorForShortcut, quantityColorFamilies } from "@/utils/quantity-colors";
 // import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 // import { Description } from "@radix-ui/react-toast";
 // import { ScrollArea } from "@radix-ui/react-scroll-area";
@@ -190,25 +191,9 @@ function collectSelectedNameIds(
 
   return ids;
 }
-// Map keyCode ("g1", "g2", "g3", "m1", "m2", "m3") to a color hex
+// Map keyCode ("b1", "g1", "r1", "o1", "m1" and variants 2-3) to a color hex
 const switchKeyCodeForColor = (keyCode: string | null): string => {
-  if (!keyCode) return "";
-  switch (keyCode.toLowerCase()) {
-    case "g1":
-      return "#cfe2f3";
-    case "g2":
-      return "#a5e6f6ff";
-    case "g3":
-      return "#90c5f3ff";
-    case "m1":
-      return "#ead1dc";
-    case "m2":
-      return "#e8b8cdff";
-    case "m3":
-      return "#e39ebcff";
-    default:
-      return "";
-  }
+  return getQuantityColorForShortcut(keyCode) ?? "";
 };
 
 function getCategoryCounts(orders: Order[], categories: string[], orderType: OrderTypes): Record<string, number> {
@@ -1510,8 +1495,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // console.log("Pressed keys:", Array.from(pressed).join(", "));
       if (!e.shiftKey) return;
 
-      // If just Shift + 0, clear color (set to null)
-      if ((pressed.has("Digit0") && pressed.size === 2 && pressed.has("ShiftLeft")) || pressed.has("ShiftRight")) {
+      // Shift + 0 clears color.
+      if (
+        pressed.has("Digit0") &&
+        pressed.size === 2 &&
+        (pressed.has("ShiftLeft") || pressed.has("ShiftRight"))
+      ) {
         const collection = collectSelectedNameIds(dragSelections, orders);
         if (collection.length === 0) {
           toast.error("No orders selected for color removal.", {
@@ -1526,13 +1515,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         return;
       }
 
-      const hasG = pressed.has("KeyG");
-      const hasM = pressed.has("KeyM");
+      const family = quantityColorFamilies.find((item) => pressed.has(`Key${item.key}`));
       const number = pressed.has("Digit1") ? "1" : pressed.has("Digit2") ? "2" : pressed.has("Digit3") ? "3" : null;
 
-      if (number && (hasG || hasM)) {
-        // console.log("Triggered:", hasG ? "G" : "M", number);
-        const combinedKeyAndNumber = (hasG ? "G" : "M") + number;
+      if (number && family) {
+        const combinedKeyAndNumber = family.key + number;
         const color = switchKeyCodeForColor(combinedKeyAndNumber);
         const collection = collectSelectedNameIds(dragSelections, orders);
         if (collection.length === 0) {
@@ -1562,6 +1549,24 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       document.removeEventListener("keyup", onKeyUp);
     };
   }, [orders, dragSelections, orderType]);
+
+  const handleSelectedQuantityColor = useCallback(
+    async (color: string | null) => {
+      const collection = collectSelectedNameIds(dragSelections, orders);
+      if (collection.length === 0) {
+        toast.error("No orders selected for color assignment.", {
+          duration: 3000,
+        });
+        return;
+      }
+
+      await assignColorToQuantityRow(collection, color);
+      toast.success(color ? `Assigned color ${color} to ${collection.length} selected orders.` : `Removed color from ${collection.length} selected orders.`, {
+        duration: 3000,
+      });
+    },
+    [orders],
+  );
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -2843,6 +2848,8 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
           setCurrentUser={setUserSelected}
           copyPrintData={copyPrintData}
           selectionVersion={selectionVersion}
+          showQuantityColorShortcuts={orderType === "print"}
+          onQuantityColorSelect={handleSelectedQuantityColor}
         />
 
         {isRowHovered && !isRowClicked && (
