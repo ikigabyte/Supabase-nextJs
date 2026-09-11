@@ -859,6 +859,8 @@ export function TimelineOrders() {
     startOfMonth(new Date()),
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const isSearching = normalizedSearchQuery.length > 0;
   const [selectedTimelineOrderIds, setSelectedTimelineOrderIds] = useState<
     Set<number>
   >(new Set());
@@ -1648,11 +1650,16 @@ export function TimelineOrders() {
     const fetchTrackingTimelineOrders = () => {
       const query = supabase
         .from("tracking_orders")
-        .select("*")
-        .eq("active", true);
+        .select("*");
+
+      if (!isSearching) query.eq("active", true);
 
       const timelineQuery =
-        timelineView === "shipped"
+        isSearching
+          ? query
+              .not("ship_date", "is", null)
+              .order("ship_date", { ascending: false })
+          : timelineView === "shipped"
           ? query
               .not("shipped_stamp", "is", null)
               .order("shipped_stamp", { ascending: false })
@@ -1674,7 +1681,7 @@ export function TimelineOrders() {
 
           const orders = (data ?? []) as TimelineOrder[];
           const nextOrders =
-            timelineView === "shipped"
+            timelineView === "shipped" && !isSearching
               ? orders
               : sortAllOrders(orders.filter(shouldParseTrackingOrder));
 
@@ -1711,7 +1718,7 @@ export function TimelineOrders() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [timelineView]);
+  }, [timelineView, isSearching]);
 
   useEffect(() => {
     setRefreshDisabled(false);
@@ -1733,12 +1740,11 @@ export function TimelineOrders() {
   //   // await new Promise((resolve) => setTimeout(resolve, 1000));
   // };
 
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const isSearching = normalizedSearchQuery.length > 0;
   const visibleTimelineOrders = combinedOrders.filter((order) => {
     const orderId = Number(order.order_id);
     const isVisible =
-      timelineView === "active"
+      isSearching ||
+      (timelineView === "active"
         ? isTimelineOrderActive(order)
         : timelineView === "shipped"
           ? true
@@ -1746,7 +1752,7 @@ export function TimelineOrders() {
             isTimelineOrderOutOfSync(
               ordersById[orderId] ?? [],
               order.current_status,
-            );
+            ));
 
     return (
       isVisible &&
@@ -2290,6 +2296,11 @@ export function TimelineOrders() {
               const quantitySummary = getTimelineQuantitySummary(rows, items);
               const isSelected = selectedTimelineOrderIds.has(orderIdNum);
               const isShipped = hasTimelineShippedStamp(order);
+              const isCompleted =
+                isShipped ||
+                isTimelineTicketSolved(order) ||
+                order.active === false ||
+                !isTimelineTicketActive(order);
               const isTicketOpen =
                 normalizeTrackingStatus(order.ticket_status) === "open";
               const isThisOrderShipping = shipOrderInFlightId === orderIdNum;
@@ -2301,7 +2312,7 @@ export function TimelineOrders() {
                     data-order-id={orderIdNum}
                     className={`${TIMELINE_ROW_CLASS} ${dueDateRowClass} h-6 ${
                       isSelected ? "bg-blue-100 hover:bg-blue-100" : ""
-                    } ${isShipped ? "text-gray-500" : ""}`}
+                    } ${isCompleted ? "text-gray-500" : ""}`}
                   >
                     <TableCell className="px-1 py-1 text-center align-middle whitespace-nowrap">
                       <Button
@@ -2312,7 +2323,7 @@ export function TimelineOrders() {
                         disabled={!hasCreatives}
                         aria-label={`${isOpen ? "Hide" : "Show"} creatives for order ${orderIdNum || "Not found in log"}`}
                         className={`h-6 w-6 p-0 hover:bg-white/40 disabled:cursor-not-allowed disabled:opacity-40 ${
-                          isShipped ? "text-gray-500" : "text-black"
+                          isCompleted ? "text-gray-500" : "text-black"
                         }`}
                         onClick={(event) => {
                           event.preventDefault();
@@ -2454,9 +2465,11 @@ export function TimelineOrders() {
                       className="px-1 py-1 text-center align-middle"
                       data-ignore-selection="true"
                     >
-                      {isShipped ? (
+                      {isCompleted ? (
                         <span className="text-xs font-semibold whitespace-nowrap">
-                          {formatTimelineShippedStamp(order.shipped_stamp)}
+                          {isShipped
+                            ? formatTimelineShippedStamp(order.shipped_stamp)
+                            : "-"}
                         </span>
                       ) : (
                         <Checkbox
