@@ -652,9 +652,11 @@ function getTimelineNotesSummary(rows: Order[]) {
 function TimelineNoteInput({
   note,
   onCommit,
+  isSaving,
 }: {
   note: string;
   onCommit: (value: string) => void;
+  isSaving: boolean;
 }) {
   const [value, setValue] = useState(note);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -662,11 +664,11 @@ function TimelineNoteInput({
   const commitLockRef = useRef(false);
 
   useEffect(() => {
-    if (document.activeElement !== inputRef.current) {
+    if (isSaving || document.activeElement !== inputRef.current) {
       setValue(note);
       lastCommittedRef.current = note;
     }
-  }, [note]);
+  }, [isSaving, note]);
 
   const resizeInput = () => {
     if (!inputRef.current) return;
@@ -700,6 +702,7 @@ function TimelineNoteInput({
       ref={inputRef}
       className="min-h-0 resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0 text-[11px] font-semibold focus:bg-gray-200"
       value={value}
+      disabled={isSaving}
       rows={1}
       onInput={handleInput}
       onChange={handleInput}
@@ -869,6 +872,7 @@ export function TimelineOrders() {
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const noteCooldownUntilRef = useRef<Record<string, number>>({});
   const noteInFlightRef = useRef<Record<string, boolean>>({});
+  const [noteSavingByNameId, setNoteSavingByNameId] = useState<Record<string, boolean>>({});
   const shipActionInFlightRef = useRef(false);
   const [shipOrderInFlightId, setShipOrderInFlightId] = useState<number | null>(
     null,
@@ -1152,6 +1156,7 @@ export function TimelineOrders() {
 
     noteCooldownUntilRef.current[nameId] = now + NOTE_COOLDOWN_MS;
     noteInFlightRef.current[nameId] = true;
+    setNoteSavingByNameId((prev) => ({ ...prev, [nameId]: true }));
 
     try {
       await updateOrderNotes(order, newNotes);
@@ -1165,9 +1170,10 @@ export function TimelineOrders() {
         ...prev,
         [orderId]: previousRows,
       }));
-      toast.error("Could not update notes.");
+      toast.error("Note failed");
     } finally {
       noteInFlightRef.current[nameId] = false;
+      setNoteSavingByNameId((prev) => ({ ...prev, [nameId]: false }));
     }
   };
 
@@ -2571,6 +2577,7 @@ export function TimelineOrders() {
                             {sourceRow ? (
                               <TimelineNoteInput
                                 note={itemNotes}
+                                isSaving={noteSavingByNameId[sourceRow.name_id] ?? false}
                                 onCommit={(value) => {
                                   void handleTimelineNoteChange(
                                     sourceRow,

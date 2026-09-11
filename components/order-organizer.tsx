@@ -569,6 +569,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const NOTE_COOLDOWN_MS = 10 * 1000; // 10 seconds
   const noteCooldownUntilRef = useRef<Record<string, number>>({});
   const noteInFlightRef = useRef<Record<string, boolean>>({});
+  const [noteSavingById, setNoteSavingById] = useState<Record<string, boolean>>({});
 
   // const [updateCounter, forceUpdate] = useState(0);
   const pressedRef = useRef<Set<string>>(new Set());
@@ -2233,6 +2234,7 @@ const handleNoteChange = useCallback(
   async (order: Order, newNotes: string) => {
     const id = order.name_id;
     const now = Date.now();
+    const previousNotes = order.notes;
 
     const cooldownUntil = noteCooldownUntilRef.current[id] ?? 0;
     const inFlight = noteInFlightRef.current[id] ?? false;
@@ -2253,18 +2255,20 @@ const handleNoteChange = useCallback(
     // Start cooldown immediately
     noteCooldownUntilRef.current[id] = now + NOTE_COOLDOWN_MS;
     noteInFlightRef.current[id] = true;
+    setNoteSavingById((prev) => ({ ...prev, [id]: true }));
 
     try {
+      await updateOrderNotes(order, newNotes);
       toast.success("Notes updated", {
         description: `Notes for ${(order.order_id ?? "")} have been updated.`,
       });
-      await updateOrderNotes(order, newNotes); // instant server update
-    } catch (e) {
-      // If you want retries allowed when it fails, clear cooldown here
+    } catch {
       delete noteCooldownUntilRef.current[id];
-      throw e;
+      setOrders((prev) => prev.map((o) => (o.name_id === id ? { ...o, notes: previousNotes } : o)));
+      toast.error("Note failed");
     } finally {
       noteInFlightRef.current[id] = false;
+      setNoteSavingById((prev) => ({ ...prev, [id]: false }));
     }
   },
   [setOrders],
@@ -2786,6 +2790,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
                         productionStatus={orderType}
                         onOrderClick={handleCheckboxClick}
                         onNotesChange={handleNoteChange}
+                        noteSavingById={noteSavingById}
                         setIsRowHovered={setIsRowHovered}
                         setMousePos={setMousePos}
                         setRowHistory={setRowHistory}

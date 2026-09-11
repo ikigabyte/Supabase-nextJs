@@ -830,6 +830,11 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
     throw new Error("User is not logged in");
   }
 
+  const userEmail = user.email || user.id;
+
+  const timeStamp = getTimeStamp();
+  await updateZendeskNotes(order.order_id, "[ @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
+
   const { error } = await supabase
     .from("orders")
     .update({ ...order, notes: newNotes })
@@ -839,13 +844,7 @@ export async function updateOrderNotes(order: Order, newNotes: string) {
     console.error("Error updating todo", error);
     throw new Error("Error updating todo");
   }
-  const userEmail = user.email || user.id;
 
-  const timeStamp = getTimeStamp();
-  await updateZendeskNotes(order.order_id, "[ @ " + timeStamp + " by " + userEmail + " ] : \n" + newNotes);
-  // if (!ignore_zendesk || ignore_zendesk == "false") {
-
-  // }
   console.log("Order updated successfully");
 }
 

@@ -74,7 +74,7 @@ export async function updateZendeskNotes(orderId: number, notes: string): Promis
   const acquiredCooldown = await acquireNoteWebhookCooldown(orderId);
   if (!acquiredCooldown) {
     console.warn("Zendesk notes webhook blocked by cooldown", { orderId });
-    return;
+    throw new Error("Zendesk notes webhook blocked by cooldown");
   }
 
   const response = await fetch(googleFunctionUrl + "/updateNotes", {

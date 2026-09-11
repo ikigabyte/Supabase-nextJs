@@ -287,7 +287,7 @@ const convertDateToReadableDate = (dateString: string | null): string => {
 //   return days[date.getDay()];
 // };
 
-function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string) => void }) {
+function NoteInput({ note, onCommit, isSaving }: { note: string; onCommit: (value: string) => void; isSaving: boolean }) {
   const [value, setValue] = useState(note);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -296,11 +296,11 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
   const commitLockRef = useRef(false);
 
   useEffect(() => {
-    if (document.activeElement !== inputRef.current) {
+    if (isSaving || document.activeElement !== inputRef.current) {
       setValue(note);
       lastCommittedRef.current = note;
     }
-  }, [note]);
+  }, [isSaving, note]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
@@ -339,6 +339,7 @@ function NoteInput({ note, onCommit }: { note: string; onCommit: (value: string)
       ref={inputRef}
       className="overflow-y-hidden resize-none bg-transparent border-0 focus:bg-gray-200 text-[11px]"
       value={value}
+      disabled={isSaving}
       rows={1}
       onInput={handleInput}
       onChange={handleInput}
@@ -364,6 +365,7 @@ export function OrderTableBody({
   productionStatus,
   onOrderClick,
   onNotesChange,
+  noteSavingById,
   setIsRowHovered,
   setMousePos,
   setRowHistory,
@@ -388,6 +390,7 @@ export function OrderTableBody({
   productionStatus?: string; // Optional prop to filter by production status
   onOrderClick: (order: Order) => void;
   onNotesChange: (order: Order, newNotes: string) => void;
+  noteSavingById: Record<string, boolean>;
   setIsRowHovered: (hovered: boolean) => void;
   setMousePos: (pos: { x: number; y: number }) => void;
   setRowHistory: (history: string[]) => void;
@@ -828,6 +831,7 @@ export function OrderTableBody({
               <TableCell className={``}>
                 <NoteInput
                   note={row.notes ?? ""}
+                  isSaving={noteSavingById[row.name_id] ?? false}
                   onCommit={(value) => {
                     onNotesChange(row, value);
                     // Blur the textarea after commit
