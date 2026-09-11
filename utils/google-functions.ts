@@ -1,10 +1,6 @@
 'use server'
 
-import { Redis } from "@upstash/redis";
-
 const googleFunctionUrl = process.env.GOOGLE_ZENDESK_FUNCTION_URL;
-const NOTE_WEBHOOK_COOLDOWN_SECONDS = 10;
-const NOTE_WEBHOOK_COOLDOWN_KEY_PREFIX = "zendesk-notes:";
 const NOTE_WEBHOOK_TIMEOUT_MS = 20_000;
 
 type UpdateNotesWebhookResponse = {
@@ -13,47 +9,6 @@ type UpdateNotesWebhookResponse = {
   requestId?: string;
   retryAfterSeconds?: number;
 };
-
-declare global {
-  var __noteWebhookCooldowns: Map<number, number> | undefined;
-}
-
-let upstashRedis: Redis | null | undefined;
-
-function getUpstashRedis() {
-  if (upstashRedis !== undefined) return upstashRedis;
-
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  upstashRedis = url && token ? new Redis({ url, token }) : null;
-  return upstashRedis;
-}
-
-async function acquireNoteWebhookCooldown(orderId: number): Promise<boolean> {
-  const redis = getUpstashRedis();
-
-  if (redis) {
-    const result = await redis.set(`${NOTE_WEBHOOK_COOLDOWN_KEY_PREFIX}${orderId}`, "1", {
-      nx: true,
-      ex: NOTE_WEBHOOK_COOLDOWN_SECONDS,
-    });
-    return result === "OK";
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Upstash Redis must be configured to protect the Zendesk notes webhook");
-  }
-
-  const cooldowns = globalThis.__noteWebhookCooldowns ?? new Map<number, number>();
-  globalThis.__noteWebhookCooldowns = cooldowns;
-
-  const now = Date.now();
-  const cooldownUntil = cooldowns.get(orderId) ?? 0;
-  if (now < cooldownUntil) return false;
-
-  cooldowns.set(orderId, now + NOTE_WEBHOOK_COOLDOWN_SECONDS * 1000);
-  return true;
-}
 
 export async function updateZendeskStatus(orderId: number, newStatus: string): Promise<void> {
   // if (!googleFunctionUrl) {
@@ -77,12 +32,6 @@ export async function updateZendeskNotes(orderId: number, notes: string): Promis
   // check to make sure 
   if (!googleFunctionUrl) {
     throw new Error("Missing GOOGLE_ZENDESK_FUNCTION_URL env variable");
-  }
-
-  const acquiredCooldown = await acquireNoteWebhookCooldown(orderId);
-  if (!acquiredCooldown) {
-    console.warn("Zendesk notes webhook blocked by cooldown", { orderId });
-    throw new Error("Zendesk notes webhook blocked by cooldown");
   }
 
   let response: Response;
