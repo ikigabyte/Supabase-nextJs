@@ -5,6 +5,14 @@ import { Redis } from "@upstash/redis";
 const googleFunctionUrl = process.env.GOOGLE_ZENDESK_FUNCTION_URL;
 const NOTE_WEBHOOK_COOLDOWN_SECONDS = 10;
 const NOTE_WEBHOOK_COOLDOWN_KEY_PREFIX = "zendesk-notes:";
+const NOTE_WEBHOOK_TIMEOUT_MS = 20_000;
+
+type UpdateNotesWebhookResponse = {
+  ok?: boolean;
+  error?: string;
+  requestId?: string;
+  retryAfterSeconds?: number;
+};
 
 declare global {
   var __noteWebhookCooldowns: Map<number, number> | undefined;
@@ -77,17 +85,35 @@ export async function updateZendeskNotes(orderId: number, notes: string): Promis
     throw new Error("Zendesk notes webhook blocked by cooldown");
   }
 
-  const response = await fetch(googleFunctionUrl + "/updateNotes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orderId: orderId, notes: notes }),
-  });
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Zendesk function error", response.status, errorText);
-    throw new Error(`Zendesk function failed: ${response.status}`);
+  let response: Response;
+  try {
+    response = await fetch(googleFunctionUrl + "/updateNotes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: orderId, notes: notes }),
+      signal: AbortSignal.timeout(NOTE_WEBHOOK_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : "UnknownError";
+    console.error("Zendesk notes webhook request failed", { errorName });
+    throw new Error("Zendesk notes webhook timed out or could not be reached");
   }
-  console.log("Zendesk function response", response.status);
+
+  const result = await response.json().catch(() => null) as UpdateNotesWebhookResponse | null;
+  if (!response.ok || result?.ok !== true) {
+    const retryAfterSeconds = result?.retryAfterSeconds;
+    console.error("Zendesk notes webhook rejected", {
+      status: response.status,
+      error: result?.error,
+      requestId: result?.requestId,
+      retryAfterSeconds,
+    });
+    const retryMessage = retryAfterSeconds === undefined
+      ? ""
+      : ` Try again in ${retryAfterSeconds} seconds.`;
+    throw new Error(`Zendesk notes webhook failed: ${result?.error || response.status}.${retryMessage}`);
+  }
+  console.log("Zendesk notes webhook confirmed", { requestId: result.requestId });
 }
 
 
