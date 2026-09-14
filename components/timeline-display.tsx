@@ -1652,7 +1652,9 @@ export function TimelineOrders() {
         .from("tracking_orders")
         .select("*");
 
-      if (!isSearching) query.eq("active", true);
+      if (!isSearching && timelineView !== "shipped") {
+        query.eq("active", true);
+      }
 
       const timelineQuery =
         isSearching
@@ -1749,6 +1751,8 @@ export function TimelineOrders() {
         : timelineView === "shipped"
           ? true
           : !ordersLoading &&
+            !hasTimelineShippedStamp(order) &&
+            !isTimelineTicketSolved(order) &&
             isTimelineOrderOutOfSync(
               ordersById[orderId] ?? [],
               order.current_status,
