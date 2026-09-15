@@ -57,6 +57,8 @@ import {
 // Removed dialog imports since orders will render inline under each row
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
+import { subscribeToOrders } from "@/utils/supabase/orders-realtime";
+import { createCoalescedRefresh } from "@/utils/coalesced-refresh";
 import { assignKeyType } from "@/utils/orderKeyAssigner";
 import {
   Eye,
@@ -1308,12 +1310,9 @@ export function TimelineOrders() {
       timelineOrderIdsKey.split(",").filter(Boolean).map(Number),
     );
 
-    const channel = supabase
-      .channel("timeline_orders_realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "orders" },
-        (payload) => {
+    let hasSubscribed = false;
+    const unsubscribe = subscribeToOrders((payload) => {
+        if (payload.eventType === "INSERT") {
           const newOrder = payload.new as Order;
           const orderId = Number(newOrder.order_id);
           if (!visibleOrderIds.has(orderId)) return;
@@ -1339,12 +1338,7 @@ export function TimelineOrders() {
               ]),
             };
           });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "orders" },
-        (payload) => {
+        } else if (payload.eventType === "UPDATE") {
           const oldRow = payload.old as Partial<Order>;
           const updated = payload.new as Order;
           const orderId = Number(updated.order_id);
@@ -1385,12 +1379,7 @@ export function TimelineOrders() {
               ),
             };
           });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "orders" },
-        (payload) => {
+        } else if (payload.eventType === "DELETE") {
           const deleted = payload.old as Partial<Order>;
           const orderId = Number(deleted.order_id);
           if (!visibleOrderIds.has(orderId)) return;
@@ -1404,11 +1393,12 @@ export function TimelineOrders() {
               ),
             };
           });
-        },
-      )
-      .subscribe((status) => {
+        }
+    }, (status) => {
         if (status === "SUBSCRIBED") {
           setOrdersRealtimeStatus("OPEN");
+          if (hasSubscribed) void fetchTimelineOrderRows();
+          hasSubscribed = true;
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
@@ -1421,7 +1411,7 @@ export function TimelineOrders() {
       });
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [timelineOrderIdsKey]);
 
@@ -1647,64 +1637,68 @@ export function TimelineOrders() {
       });
     };
 
-    const fetchTrackingTimelineOrders = () => {
-      const query = supabase
-        .from("tracking_orders")
-        .select("*");
-
-      if (!isSearching && timelineView !== "shipped") {
-        query.eq("active", true);
+    let loaded = false;
+    const isShippedView = timelineView === "shipped" && !isSearching;
+    const refresh = createCoalescedRefresh(async () => {
+      const orders: TimelineOrder[] = [];
+      for (let from = 0; ; from += 1000) {
+        const query = supabase.from("tracking_orders").select("*");
+        if (!isSearching && !isShippedView) query.eq("active", true);
+        const timelineQuery = isShippedView
+          ? query.not("shipped_stamp", "is", null)
+              .order("shipped_stamp", { ascending: false }).order("order_id").limit(100)
+          : query.not("ship_date", "is", null)
+              .order("ship_date", { ascending: false }).order("order_id")
+              .range(from, from + 999);
+        if (!isSearching && !isShippedView) {
+          timelineQuery.in("current_status", TIMELINE_FETCH_STATUSES);
+        }
+        const { data, error } = await timelineQuery;
+        if (error) throw error;
+        orders.push(...((data ?? []) as TimelineOrder[]));
+        if (isShippedView || !data || data.length < 1000) break;
       }
+      const nextOrders = isShippedView
+        ? orders : sortAllOrders(orders.filter(shouldParseTrackingOrder));
+      return () => {
+        loaded = true;
+        setCombinedOrders(nextOrders);
+      };
+    }, 250);
 
-      const timelineQuery =
-        isSearching
-          ? query
-              .not("ship_date", "is", null)
-              .order("ship_date", { ascending: false })
-          : timelineView === "shipped"
-          ? query
-              .not("shipped_stamp", "is", null)
-              .order("shipped_stamp", { ascending: false })
-              .limit(100)
-          : query
-              .not("ship_date", "is", null)
-              .in("current_status", TIMELINE_FETCH_STATUSES)
-              .order("ship_date", { ascending: false });
-
-      timelineQuery
-        .then(({ data, error }) => {
-          if (cancelled) return;
-
-          if (error) {
-            console.error("Error fetching tracking timeline orders:", error);
-            setCombinedOrders([]);
-            return;
-          }
-
-          const orders = (data ?? []) as TimelineOrder[];
-          const nextOrders =
-            timelineView === "shipped" && !isSearching
-              ? orders
-              : sortAllOrders(orders.filter(shouldParseTrackingOrder));
-
-          setCombinedOrders(nextOrders);
-        });
-    };
-
-    fetchTrackingTimelineOrders();
+    refresh.request(true);
 
     const channel = supabase
       .channel("tracking_timeline_realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tracking_orders" },
-        () => {
-          fetchTrackingTimelineOrders();
+        (payload) => {
+          if (cancelled) return;
+          // Preserve the top-100 boundary in Recently Shipped, and reconcile
+          // deletes whose old payload contains only an unknown primary key.
+          const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as TimelineOrder;
+          if (!loaded || isShippedView || row.order_id == null) {
+            refresh.request();
+            return;
+          }
+          refresh.invalidate();
+          const belongs = payload.eventType !== "DELETE" &&
+            shouldParseTrackingOrder(row) &&
+            (isSearching || (row.active === true && TIMELINE_FETCH_STATUSES.includes(row.current_status ?? "")));
+          setCombinedOrders((previous) => {
+            const existing = previous.findIndex((order) => order.order_id === row.order_id);
+            if (!belongs && existing === -1) return previous;
+            const next = previous.filter((order) => order.order_id !== row.order_id);
+            if (belongs) next.push(row);
+            return sortAllOrders(next);
+          });
         },
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setTrackingRealtimeStatus("OPEN");
+          refresh.request(true);
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
@@ -1718,6 +1712,7 @@ export function TimelineOrders() {
 
     return () => {
       cancelled = true;
+      refresh.cancel();
       supabase.removeChannel(channel);
     };
   }, [timelineView, isSearching]);

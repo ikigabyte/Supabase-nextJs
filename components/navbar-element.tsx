@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { getBrowserClient } from "@/utils/supabase/client";
+import { subscribeToOrders } from "@/utils/supabase/orders-realtime";
+import { createCoalescedRefresh } from "@/utils/coalesced-refresh";
 import { DialogSearch } from "./search-dialog";
 // import SearchResults from "@/components/searchresults";
 import type { Session } from "@supabase/supabase-js";
 import { Search } from "lucide-react";
 
-const DELAY_BETWEEN_UPDATES = 2000; // 1.5 seconds
+const DELAY_BETWEEN_UPDATES = 2000;
 const ALLOWED_POSITIONS = new Set(["prepress", "printing"]);
 
 type NavBarElementProps = {
@@ -99,51 +101,61 @@ export function NavBarElement({ onNavigate }: NavBarElementProps = {}) {
     .replace(/[^a-z]/g, "");
   
   const canViewHistory = isAdmin || ALLOWED_POSITIONS.has(normalizedPosition);
-  // fetchCounts moved out, memoized on supabase
-  const timeoutRef = useRef<number | null>(null);
-  const fetchCounts = useCallback(async () => {
-    const statuses = ["print", "cut", "pack", "prepack", "ship"] as const;
-
-    const newCounts: Record<(typeof statuses)[number], number> = {
-      print: 0,
-      cut: 0,
-      pack: 0,
-      prepack: 0,
-      ship: 0,
-    };
-
-    const { data, error } = await supabase.from("orders").select("production_status").in("production_status", statuses);
-
-    if (error) {
-      console.error(error);
-    } else {
-      for (const row of data ?? []) {
-        const s = row.production_status as (typeof statuses)[number];
-        if (s in newCounts) newCounts[s] += 1;
-      }
-    }
-
-    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
-    timeoutRef.current = window.setTimeout(() => setCounts(newCounts), DELAY_BETWEEN_UPDATES);
-  }, [supabase]);
-  // Counts + channel effect; depends on supabase and session
   useEffect(() => {
-    if (session === null) return;
+    if (!session?.user.id) return;
+    const statuses = ["print", "cut", "pack", "prepack", "ship"] as const;
+    let statusByNameId = new Map<string, string>();
+    let loaded = false;
 
-    // initial run
-    fetchCounts();
+    const refresh = createCoalescedRefresh(async () => {
+      const nextStatuses = new Map<string, string>();
+      const newCounts = { print: 0, cut: 0, pack: 0, prepack: 0, ship: 0 };
+      // Page the small projection so counts do not stop at the API row limit.
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase.from("orders")
+          .select("name_id, production_status")
+          .in("production_status", statuses)
+          .order("name_id")
+          .range(from, from + 999);
+        if (error) throw error;
+        for (const row of data ?? []) {
+          const status = row.production_status as (typeof statuses)[number];
+          nextStatuses.set(row.name_id, status);
+          newCounts[status] += 1;
+        }
+        if (!data || data.length < 1000) break;
+      }
+      return () => {
+        statusByNameId = nextStatuses;
+        loaded = true;
+        setCounts(newCounts);
+      };
+    }, DELAY_BETWEEN_UPDATES);
 
-    // single wildcard listener for all events on orders
-    const channel = supabase
-      .channel("orders_counts")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, fetchCounts)
-      .subscribe();
+    refresh.request(true);
+    const unsubscribe = subscribeToOrders((payload) => {
+      const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+      const oldNameId = ("name_id" in payload.old ? payload.old.name_id : undefined) ?? row.name_id;
+      if (!loaded || !row.name_id || !oldNameId) {
+        refresh.request();
+        return;
+      }
+      const previousStatus = statusByNameId.get(oldNameId);
+      const nextStatus = payload.eventType !== "DELETE" &&
+        statuses.includes(row.production_status as (typeof statuses)[number])
+        ? row.production_status : undefined;
+      statusByNameId.delete(oldNameId);
+      if (nextStatus) statusByNameId.set(row.name_id, nextStatus);
+      if (previousStatus !== nextStatus || oldNameId !== row.name_id) refresh.request();
+    }, (status) => {
+      if (status === "SUBSCRIBED") refresh.request(true);
+    });
 
     return () => {
-      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
-      supabase.removeChannel(channel);
+      refresh.cancel();
+      unsubscribe();
     };
-  }, [supabase, session]); // memoized fetchCounts uses supabase; session gate prevents early run
+  }, [supabase, session?.user.id]);
 
   // Open DialogSearch on Ctrl+F or Cmd+F
   useEffect(() => {

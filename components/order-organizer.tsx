@@ -12,6 +12,7 @@ import { OrderInputter } from "./order-inputter";
 import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 import { getBrowserClient } from "@/utils/supabase/client";
+import { subscribeToOrders } from "@/utils/supabase/orders-realtime";
 import type { Session } from "@supabase/supabase-js";
 
 // lib/supabase.ts
@@ -574,7 +575,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // const [updateCounter, forceUpdate] = useState(0);
   const pressedRef = useRef<Set<string>>(new Set());
   const ordersRef = useRef(orders);
-  const lastMsgAtRef = useRef<number>(Date.now());
   const [socketState, setSocketState] = useState<"OPEN" | "CLOSED" | "ERROR" | "UNKNOWN">("UNKNOWN");
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
@@ -598,8 +598,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const pendingUrlNameId = useRef<string | null>(null);
   const [urlSelectionVersion, bumpUrlSelectionVersion] = useState(0);
   const hasShownOrderNotFoundToast = useRef(false);
-
-  const lastSubscribedAtRef = useRef<number>(0);
 
   async function copyPrintData(rowEl?: HTMLTableRowElement) {
     let values = [] as string[];
@@ -717,8 +715,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
       console.log("Forcing resubscribe due to online event");
       forceResubscribe();
-      lastMsgAtRef.current = Date.now();
-      fetchAllOrders().then(setOrders).catch(console.error);
     };
 
     const onVisibility = () => {
@@ -744,8 +740,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       console.log("Forcing resubscribe due to visibility change");
       forceResubscribe();
 
-      lastMsgAtRef.current = now;
-      fetchAllOrders().then(setOrders).catch(console.error);
     };
 
     window.addEventListener("online", onOnline);
@@ -1180,7 +1174,8 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
     let cancelled = false;
     setLoading(true);
     fetchAllOrders().then((allOrders) => {
-      if (!cancelled) hasLoadedOnce.current = true;
+      if (cancelled) return;
+      hasLoadedOnce.current = true;
       setOrders(allOrders);
       fetchOrderZero().then((orderZero) => {
         const lastUpdatedTime = orderZero?.notes ?? null;
@@ -1200,20 +1195,11 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
       // setLoading(false);
     });
 
-    const channel = supabase
-      .channel("orders_all", {
-        config: {
-          broadcast: { self: true },
-        },
-      })
-      .on("broadcast", { event: "hb" }, () => {
-        lastMsgAtRef.current = Date.now();
-      })
-
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
+    let hasSubscribed = false;
+    const unsubscribe = subscribeToOrders((payload) => {
+      if (payload.eventType === "INSERT") {
         const newOrder = payload.new as Order;
         const ns = newOrder.production_status as OrderTypes;
-        lastMsgAtRef.current = Date.now();
         // Remove from multiSelectedRows if present
         if (multiSelectedRows.has(newOrder.name_id)) {
           setMultiSelectedRows((prev) => {
@@ -1263,11 +1249,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         } else {
           // console.log("New order does not match orderType:", newOrder.production_status, orderType);
         }
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+      } else if (payload.eventType === "UPDATE") {
         // const oldStatus = (payload.old as Order).production_status as OrderTypes | null;
         // if (!payload.new.order_id)
-        lastMsgAtRef.current = Date.now();
         const oldRow = payload.old as Order;
         const updated = payload.new as Order;
         if (updated.order_id === 0) {
@@ -1345,7 +1329,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
 
         // If only notes changed, update that field
-        if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes) {
+        if (oldRow.name_id === updated.name_id && oldRow.notes !== updated.notes && oldRow.production_status === updated.production_status) {
           setOrders((prev) =>
             prev.map((o) => (o.name_id === updated.name_id ? { ...o, notes: updated.notes } : o)).slice()
           );
@@ -1384,9 +1368,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
             return next.slice();
           });
         }
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
-        lastMsgAtRef.current = Date.now();
+      } else if (payload.eventType === "DELETE") {
         const removed = payload.old as Order;
         const os = removed.production_status as OrderTypes;
         // Remove from multiSelectedRows if present
@@ -1421,49 +1403,39 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           // Always sort by due_date (ascending)
           return next.slice();
         });
-      })
-      .subscribe((status) => {
+      }
+    }, (status) => {
         if (cancelled) return;
         console.log("Realtime status:", status);
         if (status === "SUBSCRIBED") {
           setDisplayWarning(""); // clear
           setSocketState("OPEN");
-          lastSubscribedAtRef.current = Date.now();
-          lastMsgAtRef.current = Date.now();
+          if (hasSubscribed) {
+            fetchAllOrders().then((rows) => {
+              if (!cancelled) setOrders(rows);
+            }).catch(console.error);
+          }
+          hasSubscribed = true;
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.log("TIMED OUT");
           setSocketState("ERROR");
-          forceResubscribe();
           markRealtimeDown(status);
         }
 
         // Do NOT treat CLOSED as outage unless you previously subscribed
-        if (status === "CLOSED" && lastSubscribedAtRef.current !== 0) {
+        if (status === "CLOSED" && hasSubscribed) {
           setSocketState("CLOSED");
-          console.log("Channel closed, forcing resubscribe");
-          forceResubscribe();
-          // markRealtimeDown("CLOSED");
+          markRealtimeDown(status);
         }
       });
 
-    const hb = setInterval(async () => {
-      if (cancelled) return;
-
-      const res = await channel.send({ type: "broadcast", event: "hb", payload: { t: Date.now() } });
-
-      // If the socket is alive enough to send, count it as activity too
-      if (res === "ok") lastMsgAtRef.current = Date.now();
-    }, 30_000);
     return () => {
       cancelled = true;
-      clearInterval(hb);
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [supabase, orderType, resubscribeToken]);
-
-  // heartbeat + watchdog for the orders_all connection
 
   // useEffect(() => {
   //   const handleKeyDown = async (e: KeyboardEvent) => {
