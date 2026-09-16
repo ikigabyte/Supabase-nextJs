@@ -1273,7 +1273,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           }
 
           if (oldRow.name_id !== updated.name_id) {
-            setDisplayWarning("🟢 New update on the website, please refresh the page.");
             return
           }
           return;

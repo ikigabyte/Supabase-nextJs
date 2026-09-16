@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Form from "next/form";
+import { usePathname } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import { Menu, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { signOut } from "@/app/database/login/actions";
 import { Button } from "@/components/ui/button";
@@ -39,8 +41,11 @@ const getInitials = (email: string) =>
   email
     .slice(0, 2).toUpperCase();
 
+const UPDATE_REFRESH_VERSION_KEY = "database-update-refresh-version";
+
 export default function Header() {
   const supabase = getBrowserClient();
+  const pathname = usePathname();
 
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -50,6 +55,8 @@ export default function Header() {
   const [updateNotes, setUpdateNotes] = useState<string | null>(null);
   const [latestVersionReview, setLatestVersionReview] = useState<string | null>(null);
   const [profileReviewLoaded, setProfileReviewLoaded] = useState(false);
+  const [profileCheckedPathname, setProfileCheckedPathname] = useState<string | null>(null);
+  const [versionCheckedPathname, setVersionCheckedPathname] = useState<string | null>(null);
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -102,6 +109,7 @@ export default function Header() {
           setProfileLabel("");
           setLatestVersionReview(null);
           setProfileReviewLoaded(false);
+          setProfileCheckedPathname(null);
         }
         return;
       }
@@ -116,13 +124,14 @@ export default function Header() {
         setProfileLabel(labelValue);
         setLatestVersionReview(profile?.latest_version_review ?? null);
         setProfileReviewLoaded(true);
+        setProfileCheckedPathname(pathname);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [supabase, session]);
+  }, [pathname, supabase, session]);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,13 +151,44 @@ export default function Header() {
       if (!cancelled) {
         setDatabaseVersion(data?.name_id ?? null);
         setUpdateNotes(data?.notes ?? null);
+        setVersionCheckedPathname(pathname);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [supabase]);
+  }, [pathname, supabase]);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!profileReviewLoaded || !userId || !databaseVersion) return;
+    if (window.sessionStorage.getItem(UPDATE_REFRESH_VERSION_KEY) !== databaseVersion) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ latest_version_review: databaseVersion })
+        .eq("id", userId);
+
+      if (error) {
+        console.error("Failed to mark the latest database update as reviewed:", error);
+        window.sessionStorage.removeItem(UPDATE_REFRESH_VERSION_KEY);
+        return;
+      }
+
+      if (!cancelled) {
+        window.sessionStorage.removeItem(UPDATE_REFRESH_VERSION_KEY);
+        setLatestVersionReview(databaseVersion);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [databaseVersion, profileReviewLoaded, session?.user?.id, supabase]);
 
   const openLatestUpdates = async () => {
     setUpdatesOpen(true);
@@ -167,27 +207,40 @@ export default function Header() {
     const currentVersion = orderZero?.name_id ?? null;
     setDatabaseVersion(currentVersion);
     setUpdateNotes(orderZero?.notes ?? null);
-
-    const userId = session?.user?.id;
-    if (!userId || !currentVersion) return;
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ latest_version_review: currentVersion })
-      .eq("id", userId);
-
-    if (error) {
-      console.error("Failed to mark the latest database update as reviewed:", error);
-      return;
-    }
-
-    setLatestVersionReview(currentVersion);
   };
 
   const userInitials = email ? getInitials(email) : "";
   const emailUsername = email?.split("@")[0] ?? "";
   const userBackgroundColor = myColor ?? "#ffffff";
-  const hasNewUpdate = Boolean(profileReviewLoaded && databaseVersion && latestVersionReview !== databaseVersion);
+  const hasNewUpdate = Boolean(
+    profileReviewLoaded &&
+      profileCheckedPathname === pathname &&
+      versionCheckedPathname === pathname &&
+      databaseVersion &&
+      latestVersionReview !== databaseVersion
+  );
+
+  useEffect(() => {
+    if (!hasNewUpdate || !databaseVersion) {
+      toast.dismiss("database-update-available");
+      return;
+    }
+    if (window.sessionStorage.getItem(UPDATE_REFRESH_VERSION_KEY) === databaseVersion) return;
+
+    toast("New update available", {
+      id: "database-update-available",
+      duration: Infinity,
+      description: `Version ${databaseVersion} is ready to refresh.`,
+      className: "!border-yellow-300 !bg-yellow-100 !text-yellow-950",
+      action: {
+        label: "Click here to refresh",
+        onClick: () => {
+          window.sessionStorage.setItem(UPDATE_REFRESH_VERSION_KEY, databaseVersion);
+          window.location.reload();
+        },
+      },
+    });
+  }, [databaseVersion, hasNewUpdate]);
 
   return (
     <header className="z-50 w-full border-b border-border bg-white supports-[backdrop-filter]:bg-background/60">
@@ -216,11 +269,6 @@ export default function Header() {
             <p className="whitespace-nowrap text-[inherit] font-bold">
               SB Database{databaseVersion ? ` ${databaseVersion}` : ""}
             </p>
-            {hasNewUpdate && (
-              <span className="rounded border border-red-600 bg-red-600 px-1 py-0.5 text-[8px] font-bold leading-none text-white sm:text-[9px]">
-                NEW
-              </span>
-            )}
           </button>
           <div
             className={`${
