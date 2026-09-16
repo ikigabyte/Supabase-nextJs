@@ -188,26 +188,12 @@ function getFieldValue(item: Record<string, unknown>, keys: string[]) {
   return "";
 }
 
-function getItemTitle(item: Record<string, unknown>, idx: number) {
-  const text = getFieldValue(item, [
-    "Title",
-    "title",
-    "item_name",
-    "itemName",
-    "name",
-    "product_name",
-    "productName",
-    "sku",
-  ]);
-  return text || `Item ${idx + 1}`;
+function getItemNumber(item: Record<string, unknown>, idx: number) {
+  return getFieldValue(item, ["itemIndex", "item_index", "index"]) || String(idx + 1);
 }
 
 function getItemFile(item: Record<string, unknown>) {
   return getFieldValue(item, ["FileName", "fileName", "file_name", "filename", "file", "pdf"]) || "-";
-}
-
-function getItemNotes(item: Record<string, unknown>) {
-  return getFieldValue(item, ["Notes", "notes", "note", "description"]) || "-";
 }
 
 function getItemProperties(item: Record<string, unknown>) {
@@ -217,7 +203,10 @@ function getItemProperties(item: Record<string, unknown>) {
     ["Peel", ["Peel", "peel"]],
     ["Shape", ["Shape", "shape"]],
     ["Finish", ["Finish", "finish"]],
+    ["Ink Type", ["InkType", "inkType", "ink_type"]],
     ["Material", ["Material", "material"]],
+    ["Quantity", ["Quantity", "quantity"]],
+    ["Print Method", ["PrintMethod", "printMethod", "print_method"]],
   ];
 
   for (const [label, keys] of allowedProperties) {
@@ -225,6 +214,9 @@ function getItemProperties(item: Record<string, unknown>) {
     if (!value) continue;
     props.push(`${label}: ${capitalizeFirstLetter(value)}`);
   }
+
+  const notes = getFieldValue(item, ["Notes", "notes", "note", "description"]);
+  props.push(`Notes: ${notes ? capitalizeFirstLetter(notes) : "-"}`);
 
   return props.length ? props.join("\n") : "-";
 }
@@ -495,13 +487,15 @@ export default function TrackingResultPage() {
 
                 <section className="space-y-3">
                   <h2 className="text-lg">Items ({liveItems.length})</h2>
+                  {liveItems.length === 0 && (
+                    <p className="text-lg text-zinc-700">Items have not been finalized until they enter production</p>
+                  )}
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-lg">Item</TableHead>
                         <TableHead className="text-lg">File</TableHead>
-                        <TableHead className="text-lg">Notes</TableHead>
-                        <TableHead className="text-lg">Properties</TableHead>
+                        <TableHead className="w-1/2 text-lg">Properties</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -509,9 +503,8 @@ export default function TrackingResultPage() {
                         const item = (rawItem ?? {}) as Record<string, unknown>;
                         return (
                           <TableRow key={`item-${idx}`}>
-                            <TableCell className="text-lg text-[#76C043]">{getItemTitle(item, idx)}</TableCell>
+                            <TableCell className="text-lg text-[#76C043]">{getItemNumber(item, idx)}</TableCell>
                             <TableCell className="text-lg">{getItemFile(item)}</TableCell>
-                            <TableCell className="text-lg">{getItemNotes(item)}</TableCell>
                             <TableCell className="whitespace-pre-line text-lg">{getItemProperties(item)}</TableCell>
                           </TableRow>
                         );

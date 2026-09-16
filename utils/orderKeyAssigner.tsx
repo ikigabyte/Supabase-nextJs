@@ -122,7 +122,7 @@ export function assignKeyType(
 
     if (isSheet && order.orderType !== 2) {
       if (isMetallic && order.material !== "roll") {
-        const metallicSheetsKey = keys.find((k) => k === "sheets-metallic-ink");
+        const metallicSheetsKey = keys.find((k) => k === "sheets-metallic-ink"); // gotta console log whats going on
         if (metallicSheetsKey) return metallicSheetsKey;
       }
       const normalizedLamination = order.lamination?.trim().toLowerCase();
@@ -132,6 +132,13 @@ export function assignKeyType(
           : normalizedLamination === "matte"
             ? "matte"
             : "no-lamination";
+
+      const normalizedMaterial = order.material?.trim().toLowerCase();
+      const sheetsMaterialKey = keys.find((k) =>
+        k.startsWith(`sheets-${normalizedMaterial}-${lamination}`),
+      );
+      if (sheetsMaterialKey) return sheetsMaterialKey;
+
       const sheetsKey = keys.find((k) => k.startsWith(`sheets-${lamination}`));
       if (sheetsKey) return sheetsKey;
       const noLaminationKey = keys.find((k) =>
