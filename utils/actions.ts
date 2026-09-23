@@ -5,7 +5,8 @@ import { getServerClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 // import { OrderTypes } from "./orderTypes";
 
-import { updateZendeskNotes, updateZendeskStatus, reprintInternalNote, forceRefreshTimeline } from "@/utils/google-functions";
+import { updateZendeskNotes, reprintInternalNote, forceRefreshTimeline } from "@/utils/google-functions";
+import { enqueueZendeskStatus, enqueueZendeskStatusForOrder } from "@/utils/inboxHandler";
 // import { GoTrueAdminApi } from "@supabase/supabase-js";
 
 type AdminRow = { role: "admin" | string };
@@ -620,6 +621,9 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
       throw new Error("Order failed to update");
     }
     await addHistoryForUser(order.name_id, newStatus, order.production_status || "");
+    enqueueZendeskStatusForOrder(order.order_id).catch((error) => {
+      console.error("Error enqueuing Zendesk status for order", { nameId: order.name_id, error });
+    });
     return { ok: true, status: newStatus };
   }
 
@@ -675,7 +679,9 @@ export async function updateOrderStatus(order: Order, revert: boolean, bypassSta
   // // Send webhook async (non-blocking)
   // if (readyForZendeskUpdate && !ignoreZendesk) {
   //   console.log("Triggering Zendesk webhook…");
-  //   void updateZendeskStatus(order.order_id, newStatus); // don't block
+  void enqueueZendeskStatusForOrder(order.order_id).catch((error) => {
+    console.error("Failed to enqueue Zendesk status", { orderId: order.order_id, error });
+  });
   // }
   return { ok: true, status: newStatus, order: updatedOrder };
 }
@@ -742,9 +748,9 @@ export async function sendOrderShipped(orderId: number) {
     console.log("[sendOrderShipped] no order rows found; skipping move_orderId only", { orderId });
   }
 
-  console.log("[sendOrderShipped] updating Zendesk status", { orderId, status: "shipped" });
-  await updateZendeskStatus(orderId, "shipped");
-  console.log("[sendOrderShipped] Zendesk status updated", { orderId, status: "shipped" });
+  console.log("[sendOrderShipped] enqueueing Zendesk status", { orderId, status: "shipped" });
+  await enqueueZendeskStatus(orderId, "shipped");
+  console.log("[sendOrderShipped] Zendesk status enqueued", { orderId, status: "shipped" });
   return true;
 }
 
