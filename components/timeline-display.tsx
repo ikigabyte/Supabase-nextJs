@@ -521,7 +521,7 @@ function isTimelineOrderOutOfSync(
 ) {
   const orderProductionStatus = normalizeProductionStatus(currentStatus);
   if (!orderProductionStatus) return false;
-
+  if (orderProductionStatus == "bda_production") return false;
   const creativeProductionStatuses = rows
     .map((row) => normalizeProductionStatus(row.production_status))
     .filter((status): status is ProductionStatus => !!status);
