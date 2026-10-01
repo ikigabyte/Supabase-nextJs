@@ -120,6 +120,21 @@ export function assignKeyType(
       if (rushKey) return rushKey;
     }
 
+    if (order.orderType === 2) {
+      const specialKey = keys.find((k) => k.startsWith("special-doublesided")); // this needs to be revised very very soon
+      return specialKey || "unassigned";
+    }
+
+    if (order.orderType === 3) {
+      const specialKey = keys.find((k) => k.startsWith("special-sequential")); // this needs to be revised very very soon
+      return specialKey || "unassigned";
+    }
+
+    if (order.orderType === 4) {
+      const specialKey = keys.find((k) => k.startsWith("special-bda")); // this needs to be revised very very soon
+      return specialKey || "unassigned";
+    }
+
     if (isSheet && order.orderType !== 2) {
       if (isMetallic && order.material !== "roll") {
         const metallicSheetsKey = keys.find((k) => k === "sheets-metallic-ink"); // gotta console log whats going on
@@ -145,21 +160,6 @@ export function assignKeyType(
         k.startsWith("sheets-no-lamination"),
       );
       if (noLaminationKey) return noLaminationKey;
-    }
-
-    if (order.orderType === 2) {
-      const specialKey = keys.find((k) => k.startsWith("special-doublesided")); // this needs to be revised very very soon
-      return specialKey || "unassigned";
-    }
-
-    if (order.orderType === 3) {
-      const specialKey = keys.find((k) => k.startsWith("special-sequential")); // this needs to be revised very very soon
-      return specialKey || "unassigned";
-    }
-
-    if (order.orderType === 4) {
-      const specialKey = keys.find((k) => k.startsWith("special-bda")); // this needs to be revised very very soon
-      return specialKey || "unassigned";
     }
 
     if (isMetallic && order.material !== "roll") {
@@ -211,4 +211,3 @@ export function filterBySameKeyType(
     return orderKey === referenceKey;
   });
 }
- 
