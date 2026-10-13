@@ -12,7 +12,7 @@ import { OrderInputter } from "./order-inputter";
 import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 import { getBrowserClient } from "@/utils/supabase/client";
-import { subscribeToOrders } from "@/utils/supabase/orders-realtime";
+import { reconnectOrders, subscribeToOrders } from "@/utils/supabase/orders-realtime";
 import type { Session } from "@supabase/supabase-js";
 
 // lib/supabase.ts
@@ -583,12 +583,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   const [selectionVersion, bumpSelectionVersion] = useState(0);
   const [isShiftDown, setIsShiftDown] = useState(false);
   const lastVisibilityRefreshAtRef = useRef<number>(0);
-  const ignoreFirstVisibleEventRef = useRef(true);
   // const [lastUpdatedOrderTimeRef, setLastUpdatedOrderTimeRef] = useState<{ current: string | null }>({ current: null });
 
   const [resubscribeToken, bumpResubscribeToken] = useState(0);
 
   const forceResubscribe = useCallback(() => {
+    void reconnectOrders();
     bumpResubscribeToken((n) => n + 1);
   }, []);
 
@@ -719,10 +719,6 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
 
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
-      if (ignoreFirstVisibleEventRef.current) {
-        ignoreFirstVisibleEventRef.current = false;
-        return;
-      }
       // if (loading) return;
 
       // 2) Do nothing until initial load completed
@@ -1403,7 +1399,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           return next.slice();
         });
       }
-    }, (status) => {
+    }, (status, error) => {
         if (cancelled) return;
         console.log("Realtime status:", status);
         if (status === "SUBSCRIBED") {
@@ -1418,13 +1414,12 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.log("TIMED OUT");
+          console.error("Realtime subscription failed:", status, error);
           setSocketState("ERROR");
           markRealtimeDown(status);
         }
 
-        // Do NOT treat CLOSED as outage unless you previously subscribed
-        if (status === "CLOSED" && hasSubscribed) {
+        if (status === "CLOSED") {
           setSocketState("CLOSED");
           markRealtimeDown(status);
         }
@@ -2611,9 +2606,9 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
   const allKeys = hasUnassignedOrders ? [...(orderKeys[orderType] || []), "unassigned"] : orderKeys[orderType] || [];
   const textColor = getTextColor(selectedCategory);
   const activeDisplayWarning = orderZeroBannerMessage || displayWarning;
-  const isRealtimeDisconnected = displayWarning === REALTIME_DISCONNECTED_WARNING || socketState === "ERROR";
-  const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : "#76C043";
-  const realtimeStatusText = isRealtimeDisconnected ? "DISCONNECTED" : "ACTIVE";
+  const isRealtimeDisconnected = displayWarning === REALTIME_DISCONNECTED_WARNING || socketState === "ERROR" || socketState === "CLOSED";
+  const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : socketState === "OPEN" ? "#76C043" : "#d97706";
+  const realtimeStatusText = isRealtimeDisconnected ? "DISCONNECTED" : socketState === "OPEN" ? "ACTIVE" : "CONNECTING";
   const warnIfRealtimeDisconnected = useCallback(() => {
     if (!isRealtimeDisconnected) return;
 

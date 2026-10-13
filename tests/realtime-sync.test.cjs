@@ -87,7 +87,7 @@ test('one orders channel serves page and navigation; cleanup and reconnect statu
   };
   const { subscribeToOrders } = load('utils/supabase/orders-realtime.ts', {
     ...timer,
-    require: () => ({ getBrowserClient: () => client }),
+    require: () => ({ getBrowserClient: () => client, REALTIME_SUBSCRIBE_STATES: { CLOSED: 'CLOSED' } }),
   });
   const page = [], nav = [], states = [];
   const stopPage = subscribeToOrders((event) => page.push(event), (status) => states.push(status));
@@ -117,6 +117,158 @@ test('one orders channel serves page and navigation; cleanup and reconnect statu
   channels[0].change(moved);
   assert.equal(nav.length, 2);
   stopNext();
+});
+
+function ordersConnection() {
+  const timer = clock();
+  const channels = [], removed = [];
+  let finishRemoval;
+  const client = {
+    realtime: { isConnected: () => true },
+    channel() {
+      const channel = {
+        on(_type, _filter, callback) { this.change = callback; return this; },
+        subscribe(callback) { this.status = callback; return this; },
+      };
+      channels.push(channel);
+      return channel;
+    },
+    removeChannel(channel) {
+      removed.push(channel);
+      return new Promise((resolve) => { finishRemoval = resolve; });
+    },
+  };
+  const api = load('utils/supabase/orders-realtime.ts', {
+    ...timer, require: () => ({ getBrowserClient: () => client, REALTIME_SUBSCRIBE_STATES: { CLOSED: 'CLOSED' } }),
+  });
+  return { ...api, timer, channels, removed, client, finishRemoval: () => finishRemoval('ok') };
+}
+
+test('recovery replaces a failed shared channel while navigation remains subscribed', async () => {
+  const c = ordersConnection();
+  const page = [], nav = [], statuses = [];
+  const stopNav = c.subscribeToOrders((row) => nav.push(row), () => {});
+  const stopPage = c.subscribeToOrders((row) => page.push(row), (status) => statuses.push(status));
+  c.channels[0].status('SUBSCRIBED');
+  await c.reconnectOrders();
+  assert.equal(c.removed.length, 0, 'healthy channels stay connected');
+  c.channels[0].status('CHANNEL_ERROR');
+  const recovery = c.reconnectOrders();
+  const duplicate = c.reconnectOrders();
+  const stopNewListener = c.subscribeToOrders(() => {}, () => {});
+  assert.equal(c.removed.length, 1);
+  assert.equal(c.channels.length, 1, 'wait for the old channel to leave');
+  c.finishRemoval();
+  await Promise.all([recovery, duplicate]);
+  assert.equal(c.channels.length, 2);
+  c.channels[0].status('SUBSCRIBED');
+  c.channels[0].change('stale');
+  c.channels[1].status('SUBSCRIBED');
+  c.channels[1].change('fresh');
+  assert.deepEqual(page, ['fresh']);
+  assert.deepEqual(nav, ['fresh']);
+  assert.deepEqual(statuses, ['SUBSCRIBED', 'CHANNEL_ERROR', 'CLOSED', 'SUBSCRIBED']);
+  stopNewListener(); stopPage(); stopNav();
+});
+
+test('recovery detects transport loss and does not reconnect after all listeners leave', async () => {
+  const c = ordersConnection();
+  const stop = c.subscribeToOrders(() => {}, () => {});
+  c.channels[0].status('SUBSCRIBED');
+  c.client.realtime.isConnected = () => false;
+  const recovery = c.reconnectOrders();
+  assert.equal(c.removed.length, 1);
+  stop();
+  c.finishRemoval();
+  await recovery;
+  assert.equal(c.channels.length, 1);
+  assert.equal(c.timer.size, 0);
+});
+
+test('shared subscriptions forward and replay the original connection error', () => {
+  const c = ordersConnection();
+  const received = [];
+  const stop = c.subscribeToOrders(() => {}, (status, error) => received.push({ status, error }));
+  const error = new Error('heartbeat failed', { cause: { reason: 'timeout' } });
+  c.channels[0].status('CHANNEL_ERROR', error);
+  const stopNext = c.subscribeToOrders(() => {}, (status, error) => received.push({ status, error }));
+  assert.equal(received.length, 2);
+  for (const entry of received) {
+    assert.equal(entry.status, 'CHANNEL_ERROR');
+    assert.equal(entry.error, error);
+  }
+  stopNext(); stop();
+});
+
+test('production page handles cached CLOSED status and reconciles after reconnect', async () => {
+  let status, socket = 'UNKNOWN', warning = '', fetches = 0;
+  const errors = [];
+  const stop = effect('components/order-organizer.tsx', 'let hasSubscribed = false', {
+    console: { log() {}, error: (...args) => errors.push(args) },
+    setLoading() {}, fetchAllOrders: async () => { fetches++; return []; },
+    hasLoadedOnce: { current: false }, setOrders() {}, fetchOrderZero: async () => null,
+    setLastUpdatedOrderTime() {}, document: { getElementById: () => null },
+    subscribeToOrders(_change, callback) { status = callback; callback('CLOSED'); return () => {}; },
+    setDisplayWarning(value) { warning = value; }, setSocketState(value) { socket = value; },
+    markRealtimeDown() { warning = 'disconnected'; },
+  });
+  assert.equal(socket, 'CLOSED');
+  assert.equal(warning, 'disconnected');
+  status('SUBSCRIBED');
+  assert.equal(socket, 'OPEN');
+  assert.equal(warning, '');
+  const error = new Error('test error');
+  status('CHANNEL_ERROR', error);
+  assert.equal(errors[0][2], error);
+  status('SUBSCRIBED');
+  await Promise.resolve();
+  assert.equal(fetches, 2, 'reconnection refreshes missed order changes');
+  stop();
+});
+
+test('production indicator shows ACTIVE only after a confirmed subscription', () => {
+  const file = 'components/order-organizer.tsx';
+  const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declarations = [];
+  function visit(node) {
+    if (ts.isVariableStatement(node) && node.declarationList.declarations.some((decl) =>
+      ['isRealtimeDisconnected', 'realtimeIndicatorColor', 'realtimeStatusText'].includes(decl.name.getText(source)))) {
+      declarations.push(node.getText(source));
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  for (const [socketState, expected] of [['UNKNOWN', 'CONNECTING'], ['OPEN', 'ACTIVE'], ['CLOSED', 'DISCONNECTED'], ['ERROR', 'DISCONNECTED']]) {
+    const result = evaluate(`export function indicator() { ${declarations.join('\n')} return realtimeStatusText; }`, {
+      socketState, displayWarning: '', REALTIME_DISCONNECTED_WARNING: 'disconnected',
+    }).indicator();
+    assert.equal(result, expected);
+  }
+});
+
+test('first return to a visible production page attempts recovery', () => {
+  let visibility, recoveries = 0;
+  const stop = effect('components/order-organizer.tsx', 'const onVisibility =', {
+    window: { addEventListener() {}, removeEventListener() {} },
+    document: { visibilityState: 'visible', addEventListener(_event, callback) { visibility = callback; }, removeEventListener() {} },
+    hasLoadedOnce: { current: true },
+    lastVisibilityRefreshAtRef: { current: 0 }, VISIBILITY_REFRESH_MIN_MS: 60000,
+    forceResubscribe() { recoveries++; },
+  });
+  visibility();
+  assert.equal(recoveries, 1);
+  stop();
+});
+
+test('browser client enables worker heartbeats', () => {
+  let options;
+  const { getBrowserClient } = load('utils/supabase/client.ts', {
+    process: { env: {} },
+    require: () => ({ createBrowserClient(_url, _key, config) { options = config; return {}; } }),
+  });
+  getBrowserClient();
+  assert.equal(options?.realtime?.worker, true);
+  assert.equal(typeof options?.realtime?.logger, 'function');
 });
 
 test('burst refreshes coalesce; overlapping requests never commit stale snapshots', async () => {
