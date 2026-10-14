@@ -8,11 +8,11 @@ function clock() {
   const pending = new Map();
   let id = 0;
   return {
-    setTimeout(fn) { pending.set(++id, fn); return id; },
+    setTimeout(fn, delay) { pending.set(++id, { fn, delay }); return id; },
     clearTimeout(key) { pending.delete(key); },
     get size() { return pending.size; },
-    run() {
-      const [key, fn] = pending.entries().next().value;
+    run(delay) {
+      const [key, { fn }] = [...pending.entries()].find(([, entry]) => delay === undefined || entry.delay === delay);
       pending.delete(key);
       return fn();
     },
@@ -51,6 +51,52 @@ function refreshFactory(timer) {
   return load('utils/coalesced-refresh.ts', timer).createCoalescedRefresh;
 }
 
+function statusFactory(timer) {
+  return load('utils/supabase/realtime-status.ts', timer).createRealtimeStatusMonitor;
+}
+
+test('brief interruptions stay amber; sustained errors turn red without extending the grace period', () => {
+  const timer = clock();
+  const states = [];
+  const monitor = statusFactory(timer)((status) => states.push(status));
+  monitor.update('SUBSCRIBED');
+  monitor.update('CHANNEL_ERROR');
+  monitor.update('SUBSCRIBED');
+  assert.equal(timer.size, 0, 'recovery cancels the warning');
+  assert.deepEqual(states, ['OPEN', 'RECONNECTING', 'OPEN']);
+  monitor.update('TIMED_OUT');
+  monitor.update('CHANNEL_ERROR');
+  monitor.update('CLOSED');
+  assert.equal(timer.size, 1);
+  timer.run(5000);
+  assert.equal(states.at(-1), 'ERROR');
+  monitor.update('CHANNEL_ERROR');
+  assert.equal(states.at(-1), 'ERROR');
+  monitor.update('SUBSCRIBED');
+  assert.equal(states.at(-1), 'OPEN');
+  monitor.update('CLOSED');
+  monitor.cancel();
+  assert.equal(timer.size, 0, 'unmount cancels the warning');
+});
+
+test('connection diagnostics retain a bounded history with browser context', () => {
+  const browser = {};
+  const warnings = [];
+  const { recordRealtimeDiagnostic } = load('utils/supabase/realtime-diagnostics.ts', {
+    window: browser, document: { visibilityState: 'hidden' }, navigator: { onLine: false },
+    console: { warn: (...args) => warnings.push(args) },
+  });
+  for (let i = 0; i < 105; i++) recordRealtimeDiagnostic('heartbeat', 'ok');
+  recordRealtimeDiagnostic('orders_shared', 'CHANNEL_ERROR', { message: 'connection lost' });
+  const entries = browser.stickerbeatRealtimeDiagnostics;
+  assert.equal(entries.length, 100);
+  assert.equal(entries.at(-1).visibility, 'hidden');
+  assert.equal(entries.at(-1).online, false);
+  assert.equal(entries.at(-1).message, 'connection lost');
+  assert.ok(Number.isFinite(Date.parse(entries.at(-1).at)));
+  assert.equal(warnings.length, 1, 'healthy heartbeats do not flood the console');
+});
+
 function database(rows) {
   const queries = [];
   return {
@@ -87,7 +133,7 @@ test('one orders channel serves page and navigation; cleanup and reconnect statu
   };
   const { subscribeToOrders } = load('utils/supabase/orders-realtime.ts', {
     ...timer,
-    require: () => ({ getBrowserClient: () => client, REALTIME_SUBSCRIBE_STATES: { CLOSED: 'CLOSED' } }),
+    require: () => ({ getBrowserClient: () => client, REALTIME_SUBSCRIBE_STATES: { CLOSED: 'CLOSED' }, recordRealtimeDiagnostic() {} }),
   });
   const page = [], nav = [], states = [];
   const stopPage = subscribeToOrders((event) => page.push(event), (status) => states.push(status));
@@ -139,7 +185,7 @@ function ordersConnection() {
     },
   };
   const api = load('utils/supabase/orders-realtime.ts', {
-    ...timer, require: () => ({ getBrowserClient: () => client, REALTIME_SUBSCRIBE_STATES: { CLOSED: 'CLOSED' } }),
+    ...timer, require: () => ({ getBrowserClient: () => client, REALTIME_SUBSCRIBE_STATES: { CLOSED: 'CLOSED' }, recordRealtimeDiagnostic() {} }),
   });
   return { ...api, timer, channels, removed, client, finishRemoval: () => finishRemoval('ok') };
 }
@@ -201,27 +247,28 @@ test('shared subscriptions forward and replay the original connection error', ()
 });
 
 test('production page handles cached CLOSED status and reconciles after reconnect', async () => {
-  let status, socket = 'UNKNOWN', warning = '', fetches = 0;
-  const errors = [];
-  const stop = effect('components/order-organizer.tsx', 'let hasSubscribed = false', {
-    console: { log() {}, error: (...args) => errors.push(args) },
+  const timer = clock();
+  let status, socket = 'UNKNOWN', fetches = 0;
+  const stop = effect('components/order-organizer.tsx', 'createRealtimeStatusMonitor(setSocketState)', {
+    createCoalescedRefresh: refreshFactory(timer), createRealtimeStatusMonitor: statusFactory(timer),
+    console: { log() {}, error() {} },
     setLoading() {}, fetchAllOrders: async () => { fetches++; return []; },
     hasLoadedOnce: { current: false }, setOrders() {}, fetchOrderZero: async () => null,
     setLastUpdatedOrderTime() {}, document: { getElementById: () => null },
     subscribeToOrders(_change, callback) { status = callback; callback('CLOSED'); return () => {}; },
-    setDisplayWarning(value) { warning = value; }, setSocketState(value) { socket = value; },
-    markRealtimeDown() { warning = 'disconnected'; },
+    setSocketState(value) { socket = value; },
   });
-  assert.equal(socket, 'CLOSED');
-  assert.equal(warning, 'disconnected');
+  assert.equal(socket, 'RECONNECTING');
   status('SUBSCRIBED');
   assert.equal(socket, 'OPEN');
-  assert.equal(warning, '');
-  const error = new Error('test error');
-  status('CHANNEL_ERROR', error);
-  assert.equal(errors[0][2], error);
+  await timer.run();
+  status('CHANNEL_ERROR');
+  assert.equal(socket, 'RECONNECTING');
+  timer.run(5000);
+  assert.equal(socket, 'ERROR');
   status('SUBSCRIBED');
-  await Promise.resolve();
+  await timer.run();
+  assert.equal(socket, 'OPEN');
   assert.equal(fetches, 2, 'reconnection refreshes missed order changes');
   stop();
 });
@@ -238,12 +285,41 @@ test('production indicator shows ACTIVE only after a confirmed subscription', ()
     ts.forEachChild(node, visit);
   }
   visit(source);
-  for (const [socketState, expected] of [['UNKNOWN', 'CONNECTING'], ['OPEN', 'ACTIVE'], ['CLOSED', 'DISCONNECTED'], ['ERROR', 'DISCONNECTED']]) {
+  for (const [socketState, expected] of [['UNKNOWN', 'CONNECTING'], ['OPEN', 'ACTIVE'], ['RECONNECTING', 'RECONNECTING'], ['ERROR', 'DISCONNECTED']]) {
     const result = evaluate(`export function indicator() { ${declarations.join('\n')} return realtimeStatusText; }`, {
       socketState, displayWarning: '', REALTIME_DISCONNECTED_WARNING: 'disconnected',
     }).indicator();
     assert.equal(result, expected);
   }
+});
+
+test('production reconciliation does not restore a deleted row from an older in-flight snapshot', async () => {
+  const timer = clock();
+  let onChange, resolve, fetches = 0, rows = [{ name_id: 'A' }];
+  const stop = effect('components/order-organizer.tsx', 'createRealtimeStatusMonitor(setSocketState)', {
+    createCoalescedRefresh: refreshFactory(timer), createRealtimeStatusMonitor: statusFactory(timer),
+    setLoading() {}, fetchAllOrders: async () => {
+      fetches++;
+      if (fetches === 1) return new Promise((done) => { resolve = done; });
+      return [];
+    },
+    hasLoadedOnce: { current: true },
+    setOrders(next) { rows = typeof next === 'function' ? next(rows) : next; },
+    fetchOrderZero: async () => null, setLastUpdatedOrderTime() {},
+    document: { getElementById: () => null }, console: { log() {}, error() {} },
+    subscribeToOrders(change) { onChange = change; return () => {}; }, setSocketState() {},
+    multiSelectedRows: new Map(), ignoreUpdateIds: { current: new Set() }, pendingRemovalIds: { current: new Set() },
+    currentRowClicked: null, isRowHovered: false,
+  });
+  const running = timer.run();
+  onChange({ eventType: 'DELETE', old: { name_id: 'A' }, new: {} });
+  assert.equal(rows.length, 0);
+  resolve([{ name_id: 'A' }]);
+  await running;
+  assert.equal(rows.length, 0, 'stale snapshot must not undo the event');
+  await timer.run();
+  assert.equal(fetches, 2, 'an invalidated snapshot schedules reconciliation');
+  stop();
 });
 
 test('first return to a visible production page attempts recovery', () => {
@@ -262,13 +338,28 @@ test('first return to a visible production page attempts recovery', () => {
 
 test('browser client enables worker heartbeats', () => {
   let options;
+  const events = [];
   const { getBrowserClient } = load('utils/supabase/client.ts', {
     process: { env: {} },
-    require: () => ({ createBrowserClient(_url, _key, config) { options = config; return {}; } }),
+    require: () => ({ createBrowserClient(_url, _key, config) { options = config; return { auth: { onAuthStateChange() {} } }; }, recordRealtimeDiagnostic: (...args) => events.push(args) }),
   });
   getBrowserClient();
   assert.equal(options?.realtime?.worker, true);
   assert.equal(typeof options?.realtime?.logger, 'function');
+  options.realtime.logger('transport', 'heartbeat timeout. Attempting to re-establish connection');
+  options.realtime.logger('transport', 'close', { code: 1006, reason: 'lost', wasClean: false, access_token: 'secret' });
+  options.realtime.logger('receive', 'postgres_changes', { notes: 'private' });
+  assert.equal(events.length, 2);
+  assert.equal(events[0][0], 'heartbeat');
+  assert.equal(events[0][1], 'timeout');
+  assert.equal(events[1][2].code, 1006);
+  options.realtime.logger('push', 'phoenix heartbeat (1)', {});
+  options.realtime.logger('receive', 'ok phoenix phx_reply (1)', { status: 'ok' });
+  options.realtime.logger('transport', 'connected to wss://example.com?apikey=secret');
+  options.realtime.logger('transport', undefined);
+  assert.deepEqual(events.slice(2).map((entry) => entry[1]), ['sent', 'ok', 'OPEN', 'error']);
+  assert.ok(!JSON.stringify(events).includes('secret'));
+  assert.ok(!JSON.stringify(events).includes('private'));
 });
 
 test('burst refreshes coalesce; overlapping requests never commit stale snapshots', async () => {
@@ -356,21 +447,27 @@ test('navigation skips notes-only updates and combines queue transitions into on
 function tracking(view = 'active', searching = false) {
   const timer = clock();
   const initial = { order_id: 1, active: true, current_status: 'print', ship_date: '2026-09-14', shipped_stamp: '2026-09-14' };
-  let rows = [initial], state = [], change, status;
+  let rows = [initial], state = [], change, status, connectionStatus;
+  const channels = [], removed = [];
   const db = database(() => rows);
-  db.channel = () => ({
-    on(_type, _filter, callback) { change = callback; return this; },
-    subscribe(callback) { status = callback; return this; },
-  });
-  db.removeChannel = () => {};
+  db.channel = () => {
+    const channel = {
+      on(_type, _filter, callback) { this.change = change = callback; return this; },
+      subscribe(callback) { this.status = status = callback; return this; },
+    };
+    channels.push(channel);
+    return channel;
+  };
+  db.removeChannel = (channel) => removed.push(channel);
   const stop = effect('components/timeline-display.tsx', 'tracking_timeline_realtime', {
-    supabase: db, timelineView: view, isSearching: searching,
+    ...timer, supabase: db, timelineView: view, isSearching: searching,
+    createRealtimeStatusMonitor: statusFactory(timer), recordRealtimeDiagnostic() {},
     createCoalescedRefresh: refreshFactory(timer), TIMELINE_FETCH_STATUSES: ['print', 'cut'],
     toTimelineTime: (value) => value ? Date.parse(value) : null, shippingMethodOrder: () => 0,
-    shouldParseTrackingOrder: (row) => Boolean(row.ship_date), setTrackingRealtimeStatus: () => {},
+    shouldParseTrackingOrder: (row) => Boolean(row.ship_date), setTrackingRealtimeStatus: (next) => { connectionStatus = next; },
     setCombinedOrders(next) { state = typeof next === 'function' ? next(state) : next; },
   });
-  return { timer, db, initial, change, status, stop, get state() { return state; }, setRows(next) { rows = next; } };
+  return { timer, db, initial, change, status, stop, channels, removed, get connectionStatus() { return connectionStatus; }, get state() { return state; }, setRows(next) { rows = next; } };
 }
 
 test('tracking patches notes, inserts, active exits, status exits and deletes without full refetches', async () => {
@@ -394,6 +491,36 @@ test('tracking patches notes, inserts, active exits, status exits and deletes wi
   t.status('SUBSCRIBED');
   assert.equal(t.timer.size, 1);
   t.stop();
+});
+
+test('Timeline recreates CLOSED tracking channels and ignores their late callbacks', async () => {
+  const t = tracking();
+  t.status('SUBSCRIBED');
+  await t.timer.run();
+  t.status('CLOSED');
+  assert.equal(t.connectionStatus, 'RECONNECTING');
+  t.timer.run(1000);
+  assert.equal(t.channels.length, 2);
+  t.channels[0].status('SUBSCRIBED');
+  t.channels[0].change({ eventType: 'DELETE', old: { order_id: 1 }, new: {} });
+  assert.equal(t.connectionStatus, 'RECONNECTING');
+  assert.equal(t.state.length, 1);
+  t.channels[1].status('SUBSCRIBED');
+  assert.equal(t.connectionStatus, 'OPEN');
+  await t.timer.run();
+  assert.equal(t.db.queries.length, 2, 'reconnect reconciles events missed while offline');
+  t.stop();
+  assert.equal(t.removed[0], t.channels[1]);
+  assert.equal(t.timer.size, 0);
+});
+
+test('leaving Timeline cancels a pending CLOSED-channel reconnect', async () => {
+  const t = tracking();
+  await t.timer.run();
+  t.status('CLOSED');
+  t.stop();
+  assert.equal(t.timer.size, 0);
+  assert.equal(t.channels.length, 1);
 });
 
 test('Recently Shipped coalesces changes and refills the latest-100 query', async () => {

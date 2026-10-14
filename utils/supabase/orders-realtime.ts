@@ -1,6 +1,7 @@
 import { REALTIME_SUBSCRIBE_STATES, type RealtimeChannel, type RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { getBrowserClient } from "./client";
 import type { Order } from "@/types/custom";
+import { recordRealtimeDiagnostic } from "./realtime-diagnostics";
 
 type Listener = {
   onChange: (payload: RealtimePostgresChangesPayload<Order>) => void;
@@ -27,6 +28,7 @@ function connect() {
         if (channel !== nextChannel) return;
         currentStatus = status;
         currentError = error;
+        recordRealtimeDiagnostic("orders_shared", status, { message: error?.message });
         listeners.forEach((subscriber) => subscriber.onStatus(status, error));
         // Supabase retries errors/timeouts itself, but removes a closed channel.
         if (status === "CLOSED" && channel === nextChannel) {
@@ -55,6 +57,7 @@ export function reconnectOrders(): Promise<void> {
   channel = null;
   currentStatus = REALTIME_SUBSCRIBE_STATES.CLOSED;
   currentError = undefined;
+  recordRealtimeDiagnostic("orders_shared", "RECONNECT_REQUESTED");
   listeners.forEach((subscriber) => subscriber.onStatus(REALTIME_SUBSCRIBE_STATES.CLOSED));
   reconnecting = Promise.resolve(previousChannel ? client.removeChannel(previousChannel) : undefined)
     .then(() => {}, (error) => console.error("Failed to remove realtime channel:", error))

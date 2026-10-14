@@ -58,6 +58,8 @@ import {
 import { Order } from "@/types/custom";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { subscribeToOrders } from "@/utils/supabase/orders-realtime";
+import { createRealtimeStatusMonitor, type RealtimeStatus } from "@/utils/supabase/realtime-status";
+import { recordRealtimeDiagnostic } from "@/utils/supabase/realtime-diagnostics";
 import { createCoalescedRefresh } from "@/utils/coalesced-refresh";
 import { assignKeyType } from "@/utils/orderKeyAssigner";
 import {
@@ -95,8 +97,7 @@ const REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
 const NOTE_COOLDOWN_MS = 10 * 1000;
 const ZENDESK_TICKET_BASE_URL = "https://stickerbeat.zendesk.com/agent/tickets";
 const REALTIME_DISCONNECTED_WARNING =
-  "⚠️ Realtime disconnected. Please refresh the page";
-type RealtimeStatus = "UNKNOWN" | "OPEN" | "ERROR";
+  "⚠️ Realtime disconnected. Updates may be delayed while reconnecting. Refresh the page if this continues.";
 type TimelineView = "active" | "shipped" | "sync-conflicts";
 type TimelineDisplayMode = "list" | "timeline";
 
@@ -1310,6 +1311,7 @@ export function TimelineOrders() {
       timelineOrderIdsKey.split(",").filter(Boolean).map(Number),
     );
 
+    const connection = createRealtimeStatusMonitor(setOrdersRealtimeStatus);
     let hasSubscribed = false;
     const unsubscribe = subscribeToOrders((payload) => {
         if (payload.eventType === "INSERT") {
@@ -1395,22 +1397,15 @@ export function TimelineOrders() {
           });
         }
     }, (status) => {
+        connection.update(status);
         if (status === "SUBSCRIBED") {
-          setOrdersRealtimeStatus("OPEN");
           if (hasSubscribed) void fetchTimelineOrderRows();
           hasSubscribed = true;
-        }
-
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.error(
-            "Timeline orders realtime subscription failed:",
-            status,
-          );
-          setOrdersRealtimeStatus("ERROR");
         }
       });
 
     return () => {
+      connection.cancel();
       unsubscribe();
     };
   }, [timelineOrderIdsKey]);
@@ -1668,13 +1663,20 @@ export function TimelineOrders() {
 
     refresh.request(true);
 
-    const channel = supabase
-      .channel("tracking_timeline_realtime")
+    setTrackingRealtimeStatus("UNKNOWN");
+    const connection = createRealtimeStatusMonitor(setTrackingRealtimeStatus);
+    let channel: ReturnType<typeof supabase.channel> | undefined;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    const connect = () => {
+      if (cancelled) return;
+      const nextChannel = supabase.channel("tracking_timeline_realtime");
+      channel = nextChannel;
+      nextChannel
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tracking_orders" },
         (payload) => {
-          if (cancelled) return;
+          if (cancelled || channel !== nextChannel) return;
           // Preserve the top-100 boundary in Recently Shipped, and reconcile
           // deletes whose old payload contains only an unknown primary key.
           const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as TimelineOrder;
@@ -1695,25 +1697,28 @@ export function TimelineOrders() {
           });
         },
       )
-      .subscribe((status) => {
+      .subscribe((status, error) => {
+        if (cancelled || channel !== nextChannel) return;
+        recordRealtimeDiagnostic("tracking_timeline_realtime", status, { message: error?.message });
+        connection.update(status);
         if (status === "SUBSCRIBED") {
-          setTrackingRealtimeStatus("OPEN");
           refresh.request(true);
         }
 
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.error(
-            "Tracking timeline realtime subscription failed:",
-            status,
-          );
-          setTrackingRealtimeStatus("ERROR");
+        if (status === "CLOSED") {
+          channel = undefined;
+          reconnectTimer = setTimeout(connect, 1000);
         }
       });
+    };
+    connect();
 
     return () => {
       cancelled = true;
+      clearTimeout(reconnectTimer);
+      connection.cancel();
       refresh.cancel();
-      supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [timelineView, isSearching]);
 
@@ -2623,7 +2628,10 @@ export function TimelineOrders() {
   // How do we get the last updated thing, maybe we keep just an order
   const isRealtimeDisconnected =
     ordersRealtimeStatus === "ERROR" || trackingRealtimeStatus === "ERROR";
-  const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : "#76C043";
+  const isRealtimeLive = ordersRealtimeStatus === "OPEN" && trackingRealtimeStatus === "OPEN";
+  const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : isRealtimeLive ? "#76C043" : "#d97706";
+  const realtimeStatusText = isRealtimeDisconnected ? "disconnected" : isRealtimeLive ? "live" :
+    ordersRealtimeStatus === "RECONNECTING" || trackingRealtimeStatus === "RECONNECTING" ? "reconnecting" : "connecting";
 
   return (
     <>
@@ -2682,7 +2690,7 @@ export function TimelineOrders() {
             style={{ backgroundColor: realtimeIndicatorColor }}
           />
           <span>
-            Realtime status: {isRealtimeDisconnected ? "disconnected" : "live"}
+            Realtime status: {realtimeStatusText}
           </span>
         </div>
         <h1 className="font-bold text-5xl">

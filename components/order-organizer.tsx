@@ -13,6 +13,9 @@ import { groupOrdersByOrderType } from "@/utils/grouper";
 import { ButtonOrganizer } from "./button-organizer";
 import { getBrowserClient } from "@/utils/supabase/client";
 import { reconnectOrders, subscribeToOrders } from "@/utils/supabase/orders-realtime";
+import { createRealtimeStatusMonitor, type RealtimeStatus } from "@/utils/supabase/realtime-status";
+import { recordRealtimeDiagnostic } from "@/utils/supabase/realtime-diagnostics";
+import { createCoalescedRefresh } from "@/utils/coalesced-refresh";
 import type { Session } from "@supabase/supabase-js";
 
 // lib/supabase.ts
@@ -126,7 +129,7 @@ const metallicInkHeaderColor = "text-purple-400";
 
 const REALTIME_IDLE_MS = 2 * 60 * 1000; // this is 2 minutes
 const orderZeroCheckTime = 30 * 60 * 1000; // 30 minutes
-const REALTIME_DISCONNECTED_WARNING = "Realtime appears to be disconnected, make sure you refresh the page";
+const REALTIME_DISCONNECTED_WARNING = "Realtime disconnected. Updates may be delayed while reconnecting. Refresh the page if this continues.";
 const REALTIME_DISCONNECTED_TOAST_ID = "realtime-disconnected-checkbox-warning";
 const MOVE_ORDER_DELAY_MS = 3000;
 
@@ -575,7 +578,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   // const [updateCounter, forceUpdate] = useState(0);
   const pressedRef = useRef<Set<string>>(new Set());
   const ordersRef = useRef(orders);
-  const [socketState, setSocketState] = useState<"OPEN" | "CLOSED" | "ERROR" | "UNKNOWN">("UNKNOWN");
+  const [socketState, setSocketState] = useState<RealtimeStatus>("UNKNOWN");
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const shiftDown = useRef(false);
@@ -968,7 +971,9 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           });
         }
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        if (!cancelled) recordRealtimeDiagnostic("order_viewers_rt", status, { message: error?.message });
+      });
 
     return () => {
       cancelled = true;
@@ -1160,39 +1165,49 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
   //   }
   // }, [supabase]);
 
-  function markRealtimeDown(reason: string) {
-    console.warn("Realtime down:", reason);
-    setDisplayWarning(REALTIME_DISCONNECTED_WARNING);
-  }
+  useEffect(() => {
+    if (socketState === "ERROR") {
+      setDisplayWarning(REALTIME_DISCONNECTED_WARNING);
+    } else {
+      setDisplayWarning((current) => current === REALTIME_DISCONNECTED_WARNING ? "" : current);
+    }
+    if (socketState === "OPEN") toast.dismiss(REALTIME_DISCONNECTED_TOAST_ID);
+  }, [socketState]);
 
   useEffect(() => {
     // Initial load
     let cancelled = false;
     setLoading(true);
-    fetchAllOrders().then((allOrders) => {
+    const refresh = createCoalescedRefresh(async () => {
+      const allOrders = await fetchAllOrders();
+      return () => {
+        hasLoadedOnce.current = true;
+        setOrders(allOrders);
+      };
+    }, 250);
+    refresh.request(true);
+    fetchOrderZero().then((orderZero) => {
       if (cancelled) return;
-      hasLoadedOnce.current = true;
-      setOrders(allOrders);
-      fetchOrderZero().then((orderZero) => {
-        const lastUpdatedTime = orderZero?.notes ?? null;
-        console.log(lastUpdatedTime);
-        setLastUpdatedOrderTime(lastUpdatedTime);
-        // If orderZero exists, set the version id with orderZero.name_id
-        if (orderZero) {
-          const versionEl = document.getElementById("version-p");
-          if (versionEl) {
-            versionEl.textContent = `SB Database ${orderZero.name_id}`;
-          }
+      const lastUpdatedTime = orderZero?.notes ?? null;
+      console.log(lastUpdatedTime);
+      setLastUpdatedOrderTime(lastUpdatedTime);
+      // If orderZero exists, set the version id with orderZero.name_id
+      if (orderZero) {
+        const versionEl = document.getElementById("version-p");
+        if (versionEl) {
+          versionEl.textContent = `SB Database ${orderZero.name_id}`;
         }
-        // if (orderZero) {
-        //   setOrders((prev) => [orderZero, ...prev]);
-        // }
-      });
+      }
+      // if (orderZero) {
+      //   setOrders((prev) => [orderZero, ...prev]);
+      // }
       // setLoading(false);
-    });
+    }).catch(console.error);
 
-    let hasSubscribed = false;
+    const connection = createRealtimeStatusMonitor(setSocketState);
     const unsubscribe = subscribeToOrders((payload) => {
+      if (cancelled) return;
+      refresh.invalidate();
       if (payload.eventType === "INSERT") {
         const newOrder = payload.new as Order;
         const ns = newOrder.production_status as OrderTypes;
@@ -1399,34 +1414,18 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
           return next.slice();
         });
       }
-    }, (status, error) => {
+    }, (status) => {
         if (cancelled) return;
-        console.log("Realtime status:", status);
+        connection.update(status);
         if (status === "SUBSCRIBED") {
-          setDisplayWarning(""); // clear
-          setSocketState("OPEN");
-          if (hasSubscribed) {
-            fetchAllOrders().then((rows) => {
-              if (!cancelled) setOrders(rows);
-            }).catch(console.error);
-          }
-          hasSubscribed = true;
-        }
-
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.error("Realtime subscription failed:", status, error);
-          setSocketState("ERROR");
-          markRealtimeDown(status);
-        }
-
-        if (status === "CLOSED") {
-          setSocketState("CLOSED");
-          markRealtimeDown(status);
+          refresh.request(true);
         }
       });
 
     return () => {
       cancelled = true;
+      connection.cancel();
+      refresh.cancel();
       unsubscribe();
     };
   }, [supabase, orderType, resubscribeToken]);
@@ -2606,16 +2605,16 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
   const allKeys = hasUnassignedOrders ? [...(orderKeys[orderType] || []), "unassigned"] : orderKeys[orderType] || [];
   const textColor = getTextColor(selectedCategory);
   const activeDisplayWarning = orderZeroBannerMessage || displayWarning;
-  const isRealtimeDisconnected = displayWarning === REALTIME_DISCONNECTED_WARNING || socketState === "ERROR" || socketState === "CLOSED";
+  const isRealtimeDisconnected = socketState === "ERROR";
   const realtimeIndicatorColor = isRealtimeDisconnected ? "#dc2626" : socketState === "OPEN" ? "#76C043" : "#d97706";
-  const realtimeStatusText = isRealtimeDisconnected ? "DISCONNECTED" : socketState === "OPEN" ? "ACTIVE" : "CONNECTING";
+  const realtimeStatusText = isRealtimeDisconnected ? "DISCONNECTED" : socketState === "OPEN" ? "ACTIVE" : socketState === "RECONNECTING" ? "RECONNECTING" : "CONNECTING";
   const warnIfRealtimeDisconnected = useCallback(() => {
-    if (!isRealtimeDisconnected) return;
+    if (!isRealtimeDisconnected && socketState !== "RECONNECTING") return;
 
-    toast.warning(REALTIME_DISCONNECTED_WARNING, {
+    toast.warning(isRealtimeDisconnected ? REALTIME_DISCONNECTED_WARNING : "Realtime is reconnecting. Live updates may be delayed.", {
       id: REALTIME_DISCONNECTED_TOAST_ID,
     });
-  }, [isRealtimeDisconnected]);
+  }, [isRealtimeDisconnected, socketState]);
   // console.log(dragSelections);
   return (
     <>
