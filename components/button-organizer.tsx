@@ -37,7 +37,9 @@ export const getBorderColor = (category: string) => {
       return "border-blue-800";
     case "sheets":
       return "border-blue-600";
-    case "uvink":
+    case "uv":
+      return "border-purple-600";
+          case "uvink":
       return "border-purple-600";
     case "arlon":
       return "border-teal-500";
@@ -307,7 +309,9 @@ export function ButtonOrganizer({
                 >
                   {category.toLowerCase() === "roll"
                     ? `${category.toUpperCase()}-LABEL`
-                    : category.toUpperCase()}{" "}
+                    : lowerCategory === "uvink"
+                      ? "UV"
+                      : category.toUpperCase()}{" "}
                   ({counts[category] || 0})
                 </Button>
               );

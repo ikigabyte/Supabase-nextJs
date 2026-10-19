@@ -1963,7 +1963,7 @@ export function OrderOrganizer({ orderType, defaultPage }: { orderType: OrderTyp
         : parts;
 
     return titleParts
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
+      .map((word) => word === "uvink" ? "UV Ink" : word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
       .join(" "); // Join the words with a space
   };
 
@@ -2628,7 +2628,7 @@ const handleReprintCreate = useCallback(async (nameId: string, quantity: number)
           <div className="flex-shrink-0">
             <h1 className={`scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl ${textColor}`}>
               {"To " + orderType.charAt(0).toUpperCase() + orderType.slice(1)} -{" "}
-              {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
+              {selectedCategory.toLowerCase() === "uvink" ? "UV Ink" : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
             </h1>
           </div>
           <div className="w-full flex justify-end gap-2">
