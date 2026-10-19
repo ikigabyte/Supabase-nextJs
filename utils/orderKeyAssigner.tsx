@@ -11,6 +11,8 @@ export const orderKeys: Record<OrderTypes, string[]> = {
     "rush-regular",
     "sheets-gloss",
     "sheets-matte",
+    "uvink-gloss-tiles",
+    "uvink-matte-tiles",
     "sheets-holographic-gloss",
     "sheets-holographic-matte",
     "sheets-glitter-gloss",

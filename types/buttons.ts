@@ -7,6 +7,7 @@ export const getButtonCategories = (OrderType: OrderTypes) => {
         "rush",
         "white",
         "sheets",
+        "uvink",
         "special",
         "holographic",
         "clear",

@@ -3,12 +3,21 @@
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ClipboardCopy, Palette } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { DropdownAssignee } from "./dropdown";
 import { getCorrectUserColor } from "@/lib/utils";
 import { parseTileQuantityAndSize } from "@/utils/stringfunctions";
 import { quantityColorFamilies } from "@/utils/quantity-colors";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const getBorderColor = (category: string) => {
   switch (category) {
@@ -28,6 +37,8 @@ export const getBorderColor = (category: string) => {
       return "border-blue-800";
     case "sheets":
       return "border-blue-600";
+    case "uvink":
+      return "border-purple-600";
     case "arlon":
       return "border-teal-500";
     case "floor":
@@ -75,7 +86,10 @@ export function ButtonOrganizer({
   onCategoryClick: (category: string) => Promise<void> | void;
   categoryViewing: string;
   dragSelections: React.MutableRefObject<
-    Map<HTMLTableElement, { startRow: number; endRow: number; extras?: Set<number> }>
+    Map<
+      HTMLTableElement,
+      { startRow: number; endRow: number; extras?: Set<number> }
+    >
   >;
   isAdmin: boolean;
   userRows: Map<string, { color: string; position: string | null }>;
@@ -123,7 +137,9 @@ export function ButtonOrganizer({
         const row = dataRows[i];
         if (!row) continue;
         selectedCount += 1;
-        const cell = row.children[quantityColumnIndex] as HTMLElement | undefined;
+        const cell = row.children[quantityColumnIndex] as
+          | HTMLElement
+          | undefined;
         if (!cell) continue;
 
         const cellText = cell.textContent ?? "";
@@ -146,7 +162,10 @@ export function ButtonOrganizer({
     if (showDifferent) return { rowValue: "N/A", selectedCount };
 
     if (foundTiles) {
-      return { rowValue: `${Math.ceil(totalInches * 100) / 100}"`, selectedCount };
+      return {
+        rowValue: `${Math.ceil(totalInches * 100) / 100}"`,
+        selectedCount,
+      };
     }
 
     return { rowValue: String(sumValue), selectedCount };
@@ -162,14 +181,23 @@ export function ButtonOrganizer({
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-300 shadow-lg" py-2>
+    <div
+      className="fixed bottom-0 left-0 right-0 z-50 w-full bg-gray-300 shadow-lg"
+      py-2
+    >
       {dragSelections.current.size > 0 && (
-        <div className="flex h-9 items-center border-b border-gray-300 px-3 py-1" data-ignore-selection="true">
+        <div
+          className="flex h-9 items-center border-b border-gray-300 px-3 py-1"
+          data-ignore-selection="true"
+        >
           <div className="ml-auto flex max-w-full items-center divide-x divide-gray-400 overflow-x-auto">
             {showQuantityColorShortcuts && (
               <div className="shrink-0 border-r border-gray-400 px-3">
                 <TooltipProvider delayDuration={150}>
-                  <DropdownMenu open={colorMenuOpen} onOpenChange={setColorMenuOpen}>
+                  <DropdownMenu
+                    open={colorMenuOpen}
+                    onOpenChange={setColorMenuOpen}
+                  >
                     <DropdownMenuTrigger asChild data-ignore-selection="true">
                       <Button
                         type="button"
@@ -181,7 +209,12 @@ export function ButtonOrganizer({
                         <Palette className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-auto p-2" side="top" align="end" data-ignore-selection="true">
+                    <DropdownMenuContent
+                      className="w-auto p-2"
+                      side="top"
+                      align="end"
+                      data-ignore-selection="true"
+                    >
                       <div className="grid grid-cols-3 gap-2">
                         {quantityColorFamilies.flatMap((family) =>
                           family.variants.map((variant) => {
@@ -222,10 +255,14 @@ export function ButtonOrganizer({
               </div>
             )}
             <div className="shrink-0 whitespace-nowrap px-3 text-sm">
-              <span className="block font-semibold">Total : {selectionSummary.rowValue}</span>
+              <span className="block font-semibold">
+                Total : {selectionSummary.rowValue}
+              </span>
             </div>
             <div className="shrink-0 whitespace-nowrap px-3 text-sm">
-              <span className="block font-semibold">Selected : {selectionSummary.selectedCount}</span>
+              <span className="block font-semibold">
+                Selected : {selectionSummary.selectedCount}
+              </span>
             </div>
             <div className="shrink-0 pl-3">
               <Button
@@ -234,7 +271,9 @@ export function ButtonOrganizer({
               >
                 <ClipboardCopy className="h-3.5 w-3.5 shrink-0" />
                 <span>Copy Print Data</span>
-                <kbd className="rounded bg-white/15 px-1 py-0.5 font-mono text-[10px] font-medium">⌘ C / Ctrl C</kbd>
+                <kbd className="rounded bg-white/15 px-1 py-0.5 font-mono text-[10px] font-medium">
+                  ⌘ C / Ctrl C
+                </kbd>
               </Button>
             </div>
           </div>
@@ -245,7 +284,8 @@ export function ButtonOrganizer({
         <div className="min-w-0 flex-1 px-4">
           <div className="flex flex-nowrap items-center overflow-x-auto">
             {categories.map((category) => {
-              const isActive = activeCategory === category || categoryViewing === category;
+              const isActive =
+                activeCategory === category || categoryViewing === category;
               const lowerCategory = category.toLowerCase();
               const borderColor = getBorderColor(lowerCategory);
               const backgroundColor =
@@ -254,8 +294,8 @@ export function ButtonOrganizer({
                     ? "bg-red-800"
                     : "bg-red-600"
                   : isActive
-                  ? "bg-gray-600"
-                  : "bg-gray-500";
+                    ? "bg-gray-600"
+                    : "bg-gray-500";
               return (
                 <Button
                   key={category}
@@ -265,8 +305,10 @@ export function ButtonOrganizer({
                 `}
                   onClick={() => handleClick(category)}
                 >
-                  {category.toLowerCase() === "roll" ? `${category.toUpperCase()}-LABEL` : category.toUpperCase()} (
-                  {counts[category] || 0})
+                  {category.toLowerCase() === "roll"
+                    ? `${category.toUpperCase()}-LABEL`
+                    : category.toUpperCase()}{" "}
+                  ({counts[category] || 0})
                 </Button>
               );
             })}
