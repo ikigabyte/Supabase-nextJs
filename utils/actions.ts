@@ -883,7 +883,7 @@ export async function deleteAllOrders() {
  */
 
 export async function createCustomOrder(
-  values: Array<{ name_id: string; lamination: string; material: string; quantity: number }>,
+  values: Array<{ name_id: string; lamination: string; material: string; quantity: number; orderType?: number }>,
   order_id: number,
   due_date: string,
   ihd_date: string
@@ -895,6 +895,10 @@ export async function createCustomOrder(
 
   if (!user) {
     throw new Error("User is not logged in");
+  }
+
+  if (values.some((val) => ![2, 3, 4].includes(val.orderType ?? 2))) {
+    return { result: false, message: "Choose a valid special section for each entry" };
   }
 
   // Check for duplicate name_id
@@ -915,7 +919,7 @@ export async function createCustomOrder(
     order_id,
     due_date,
     ihd_date,
-    orderType: "2",
+    orderType: val.orderType ?? 2,
     production_status: "print",
   }));
   console.log("Orders to insert:", ordersToInsert);

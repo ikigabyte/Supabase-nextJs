@@ -2,7 +2,8 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
-import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { Table, TableBody, TableRow, TableCell, TableHeader, TableHead } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { cn } from "@/lib/utils"
 import {
@@ -40,18 +41,29 @@ function ProfileForm({
     order_id: string;
     due_date: string; // YYYY-MM-DD
     ihd_date: string; // YYYY-MM-DD
-    entries: { name_id: string; lamination: string; material: string; quantity: number }[];
+    entries: { name_id: string; lamination: string; material: string; quantity: number; orderType: number }[];
   }) => void;
 }) {
   const [orderId, setOrderId] = React.useState("");
   const [dueDate, setDueDate] = React.useState("");
   const [ihdDate, setIhdDate] = React.useState("");
+  const [ticketIdFocused, setTicketIdFocused] = React.useState(false);
+  const [linkedTicketId, setLinkedTicketId] = React.useState("");
+  const [affixOrderId, setAffixOrderId] = React.useState(true);
 
-  type Row = { name_id: string; lamination: string; material: string; quantity: number };
-  const blankRow: Row = { name_id: "", lamination: "", material: "", quantity: 1 };
+  React.useEffect(() => {
+    if (ticketIdFocused) return;
+    const timer = setTimeout(() => setLinkedTicketId(orderId.trim()), 2000);
+    return () => clearTimeout(timer);
+  }, [orderId, ticketIdFocused]);
+
+  const nameIdPrefix = affixOrderId && orderId.trim() ? `${orderId.trim()}-` : "";
+
+  type Row = { name_id: string; lamination: string; material: string; quantity: number; orderType: number };
+  const blankRow: Row = { name_id: "", lamination: "", material: "", quantity: 1, orderType: 2 };
   const [rows, setRows] = React.useState<Row[]>([blankRow]);
 
-  const addRow = () => setRows((r) => [...r, { ...blankRow }]);
+  const addRow = () => setRows((r) => [...r, { ...r[r.length - 1] }]);
   const removeRow = (idx: number) =>
     setRows((r) => (r.length > 1 ? r.filter((_, i) => i !== idx) : r)); // keep at least 1
 
@@ -64,7 +76,10 @@ function ProfileForm({
       order_id: orderId.trim(),
       due_date: dueDate,   // e.g., "2025-08-12"
       ihd_date: ihdDate,   // e.g., "2025-08-15"
-      entries: rows,
+      entries: rows.map((row) => ({
+        ...row,
+        name_id: row.name_id.trim() ? `${nameIdPrefix}${row.name_id}` : "",
+      })),
     });
   };
 
@@ -72,8 +87,27 @@ function ProfileForm({
     <form className={cn("grid items-start gap-6", className)} onSubmit={handleSubmit}>
       {/* Top-level fields */}
       <div className="grid gap-3">
-        <Label htmlFor="orderId">Order Id</Label>
-        <Input id="orderId" value={orderId} onChange={(e) => setOrderId(e.target.value)} />
+        <Label htmlFor="orderId">Ticket ID</Label>
+        <Input
+          id="orderId"
+          value={orderId}
+          onChange={(e) => setOrderId(e.target.value)}
+          onFocus={() => setTicketIdFocused(true)}
+          onBlur={() => setTicketIdFocused(false)}
+          aria-describedby={linkedTicketId ? "ticket-id-warning" : undefined}
+        />
+        <div role="status">
+          {linkedTicketId && (
+            <p id="ticket-id-warning" className="text-left text-sm text-amber-700 dark:text-amber-400">
+              Please note that the <a
+                href={`https://stickerbeat.zendesk.com/agent/tickets/${encodeURIComponent(linkedTicketId)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2"
+              >Zendesk ticket</a> will move across the production statuses
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-3">
@@ -82,47 +116,86 @@ function ProfileForm({
       </div>
 
       <div className="grid gap-3">
-        <Label htmlFor="ihdDate">IHD date</Label>
+        <Label htmlFor="ihdDate">IHD date (Optional)</Label>
         <Input id="ihdDate" type="date" value={ihdDate} onChange={(e) => setIhdDate(e.target.value)} />
       </div>
 
       {/* Line items */}
       <div className="grid gap-2">
         <Label>Entries</Label>
-        <Table>
+        <div className="flex items-center gap-2">
+          <input
+            id="affix-order-id"
+            type="checkbox"
+            role="switch"
+            checked={affixOrderId}
+            onChange={(e) => setAffixOrderId(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          <Label htmlFor="affix-order-id">Affix order ID to Name ID</Label>
+        </div>
+        <Table className="min-w-[700px] table-fixed">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[26%]" scope="col">Name ID</TableHead>
+              <TableHead className="w-[18%]" scope="col">Lamination</TableHead>
+              <TableHead className="w-[18%]" scope="col">Material</TableHead>
+              <TableHead className="w-[12%]" scope="col">Quantity</TableHead>
+              <TableHead className="w-[20%]" scope="col">Section</TableHead>
+              <TableHead className="w-[6%]" scope="col"><span className="sr-only">Remove</span></TableHead>
+            </TableRow>
+          </TableHeader>
           <TableBody>
             {rows.map((row, idx) => (
               <TableRow key={idx}>
-                <TableCell className="w-[35%]">
+                <TableCell>
                   <Input
+                    aria-label={`Name ID for entry ${idx + 1}`}
                     placeholder="Name ID"
-                    value={row.name_id}
-                    onChange={(e) => updateRow(idx, "name_id", e.target.value)}
+                    value={`${nameIdPrefix}${row.name_id}`}
+                    onChange={(e) => updateRow(idx, "name_id", nameIdPrefix && e.target.value.startsWith(nameIdPrefix)
+                      ? e.target.value.slice(nameIdPrefix.length)
+                      : e.target.value)}
                   />
                 </TableCell>
-                <TableCell className="w-[20%]">
+                <TableCell>
                   <Input
+                    aria-label={`Lamination for entry ${idx + 1}`}
                     placeholder="Lamination"
                     value={row.lamination}
                     onChange={(e) => updateRow(idx, "lamination", e.target.value)}
                   />
                 </TableCell>
-                <TableCell className="w-[20%]">
+                <TableCell>
                   <Input
+                    aria-label={`Material for entry ${idx + 1}`}
                     placeholder="Material"
                     value={row.material}
                     onChange={(e) => updateRow(idx, "material", e.target.value)}
                   />
                 </TableCell>
-                <TableCell className="w-[20%]">
+                <TableCell>
                   <Input
+                    aria-label={`Quantity for entry ${idx + 1}`}
                     placeholder="Qty"
                     value={row.quantity}
                     onChange={(e) => updateRow(idx, "quantity", Number(e.target.value || 0))}
                   />
                 </TableCell>
-                <TableCell className="w-[3%]">
-                  <Button type="button" variant="ghost" onClick={() => removeRow(idx)}>
+                <TableCell>
+                  <Select value={String(row.orderType)} onValueChange={(value) => updateRow(idx, "orderType", Number(value))}>
+                    <SelectTrigger aria-label={`Section for entry ${idx + 1}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">Doublesided</SelectItem>
+                      <SelectItem value="3">Sequential</SelectItem>
+                      <SelectItem value="4">Bda</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <Button type="button" variant="ghost" className="px-2" aria-label={`Remove entry ${idx + 1}`} onClick={() => removeRow(idx)}>
                     ✕
                   </Button>
                 </TableCell>
@@ -158,7 +231,7 @@ export function OrderInputter(props: { onSubmit: (data: any) => void }) {
       <DialogTrigger asChild>
         <Button variant="form">Create Order</Button>
       </DialogTrigger>
-      <DialogContent aria-description={undefined} className="sm:max-w-[600px]">
+      <DialogContent aria-description={undefined} className="max-h-[90vh] overflow-y-auto sm:max-w-[900px]">
         <DialogHeader>
           <DialogTitle>Create Order</DialogTitle>
           <DialogDescription>
